@@ -78,15 +78,6 @@
     <ClCompile Include="Commands.cpp">
       <Filter>Rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui.cpp">
-      <Filter>ImGui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui_demo.cpp">
-      <Filter>ImGui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui_draw.cpp">
-      <Filter>ImGui</Filter>
-    </ClCompile>
     <ClCompile Include="Shader.cpp">
       <Filter>Rendering</Filter>
     </ClCompile>
@@ -132,6 +123,15 @@
     <ClCompile Include="Barriers.cpp">
       <Filter>Rendering</Filter>
     </ClCompile>
+    <ClCompile Include="ImGui\imgui.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_demo.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_draw.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Essence.h">
@@ -166,21 +166,6 @@
     </ClInclude>
     <ClInclude Include="Shader.h">
       <Filter>Rendering</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\stb_rect_pack.h">
-      <Filter>ImGui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\stb_textedit.h">
-      <Filter>ImGui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\stb_truetype.h">
-      <Filter>ImGui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui.h">
-      <Filter>ImGui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui_internal.h">
-      <Filter>ImGui</Filter>
     </ClInclude>
     <ClInclude Include="Hash.h">
       <Filter>Core</Filter>
@@ -235,6 +220,24 @@
     </ClInclude>
     <ClInclude Include="Barriers.h">
       <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imconfig.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui_internal.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\stb_rect_pack.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\stb_textedit.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\stb_truetype.h">
+      <Filter>ImGui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

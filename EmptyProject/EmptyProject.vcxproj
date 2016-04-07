@@ -148,9 +148,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui.cpp" />
-    <ClCompile Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui_demo.cpp" />
-    <ClCompile Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\EASTL\source\allocator_eastl.cpp" />
     <ClCompile Include="..\EASTL\source\assert.cpp" />
     <ClCompile Include="..\EASTL\source\EAMemory.cpp" />
@@ -169,6 +166,9 @@
     <ClCompile Include="Descriptors.cpp" />
     <ClCompile Include="FileIO.cpp" />
     <ClCompile Include="Hash.cpp" />
+    <ClCompile Include="ImGui\imgui.cpp" />
+    <ClCompile Include="ImGui\imgui_demo.cpp" />
+    <ClCompile Include="ImGui\imgui_draw.cpp" />
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="UtilWidgets.cpp" />
     <ClCompile Include="mikktspace.c" />
@@ -185,11 +185,6 @@
     <ClCompile Include="Win32Application.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui.h" />
-    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui_internal.h" />
-    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\stb_rect_pack.h" />
-    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\stb_textedit.h" />
-    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\stb_truetype.h" />
     <ClInclude Include="Application.h" />
     <ClInclude Include="AssertionMacros.h" />
     <ClInclude Include="Barriers.h" />
@@ -203,6 +198,12 @@
     <ClInclude Include="Half.h" />
     <ClInclude Include="Hash.h" />
     <ClInclude Include="Helpers.h" />
+    <ClInclude Include="ImGui\imconfig.h" />
+    <ClInclude Include="ImGui\imgui.h" />
+    <ClInclude Include="ImGui\imgui_internal.h" />
+    <ClInclude Include="ImGui\stb_rect_pack.h" />
+    <ClInclude Include="ImGui\stb_textedit.h" />
+    <ClInclude Include="ImGui\stb_truetype.h" />
     <ClInclude Include="MathMatrix.h" />
     <ClInclude Include="UtilWidgets.h" />
     <ClInclude Include="mikktspace.h" />

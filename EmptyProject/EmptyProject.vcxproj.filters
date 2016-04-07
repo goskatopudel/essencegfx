@@ -1,0 +1,245 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="EASTL">
+      <UniqueIdentifier>{1986438e-4fc5-405c-84fc-6608189a51a3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Core">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Rendering">
+      <UniqueIdentifier>{c8fd6536-9db6-486e-b064-12ca8a4b1ed0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ImGui">
+      <UniqueIdentifier>{063ba2d4-e5a3-485b-8965-53de251b2671}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Rendering\Models">
+      <UniqueIdentifier>{4bcd8dee-0ab5-405e-a4f0-684a586aeaa6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\EASTL\source\hashtable.cpp">
+      <Filter>EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\EASTL\source\intrusive_list.cpp">
+      <Filter>EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\EASTL\source\numeric_limits.cpp">
+      <Filter>EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\EASTL\source\red_black_tree.cpp">
+      <Filter>EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\EASTL\source\string.cpp">
+      <Filter>EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\EASTL\source\thread_support.cpp">
+      <Filter>EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\EASTL\source\allocator_eastl.cpp">
+      <Filter>EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\EASTL\source\assert.cpp">
+      <Filter>EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\EASTL\source\fixed_pool.cpp">
+      <Filter>EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="Win32Application.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Application.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Device.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\EASTL\source\EAMemory.cpp">
+      <Filter>EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="..\EASTL\source\EASprintf.cpp">
+      <Filter>EASTL</Filter>
+    </ClCompile>
+    <ClCompile Include="NewDefinitions.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Commands.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui_demo.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui_draw.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="Shader.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="Hash.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Print.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Pipeline.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="Resource.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="VideoMemory.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="Descriptors.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="FileIO.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="DDSLoader.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="mikktspace.c">
+      <Filter>Rendering\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="tiny_obj_loader.cc">
+      <Filter>Rendering\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="UtilWidgets.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="Model.cpp">
+      <Filter>Rendering\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="Camera.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Barriers.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Essence.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Win32Application.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Application.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Device.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="AssertionMacros.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Print.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="ProcessNode.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="PointerMath.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Commands.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="Shader.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\stb_rect_pack.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\stb_textedit.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\stb_truetype.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\GitHubVisualStudio\dx12sandbox\EssenceGfx\imgui\imgui_internal.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Hash.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Helpers.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Pipeline.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="VideoMemory.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="MathMatrix.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="MathVector.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="MathFunctions.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Descriptors.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="SwapChain.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="FileIO.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="tiny_obj_loader.h">
+      <Filter>Rendering\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="mikktspace.h">
+      <Filter>Rendering\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="UtilWidgets.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Model.h">
+      <Filter>Rendering\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="Half.c">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Half.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Camera.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Barriers.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ProcessNode.cpp">
+      <Filter>Rendering</Filter>
+    </None>
+  </ItemGroup>
+</Project>

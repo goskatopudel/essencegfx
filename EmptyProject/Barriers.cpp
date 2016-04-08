@@ -116,7 +116,10 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 							ResourceTransaction.To = Transitions[Index].To;
 							break;
 						}
-						else if ((Transitions[Index].Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) && (Transitions[Index].To != ResourceAccess.second)) {
+						// READ->READ
+						else if ((Transitions[Index].Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES)
+							&& (ResourceAccess.first.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) 
+							&& (Transitions[Index].To != ResourceAccess.second)) {
 							OtherSubresourcesTransactions = true;
 						}
 					}
@@ -133,25 +136,30 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 				if (SubresourceTransaction.Pass && IsReadAccess(SubresourceTransaction.To)) {
 					SubresourceTransaction.LookupTransaction(Resource).To |= ResourceAccess.second;
 				}
-				// if we found subresource in read state, resource must be in write state or we had series of read->write->read in subresource
+				// if we found subresource in read state, resource must be in write state or we had series of read->write->read in subresource (and we transition surbesource separately)
 				else if (IsReadAccess(ResourceTransaction.To)) {
 					ResourceTransaction.LookupTransaction(Resource).To |= ResourceAccess.second;
 				}
 
+				// in case:
+				// A) subresource was in read, but resource was in write
+				// B) resource was in read, but subresource was in write
 				FAccessTransaction NewTransaction = {};
 				NewTransaction.Subresource = ResourceAccess.first.Subresource;
 				NewTransaction.To = ResourceAccess.second;
 				// WRITE->READ
 				if (SubresourceTransaction.Pass) {
+					// we track subresource here, must be in write (otherwise it was transitioned already)
 					if (IsWriteAccess(SubresourceTransaction.To)) {
 						NewTransaction.From = SubresourceTransaction.To;
 					}
 				}
-				else if (IsWriteAccess(ResourceTransaction.To)) {
+				// we didn't find subresource in specific state and whole resource is in write state
+				else if (IsWriteAccess(ResourceTransaction.To) && !OtherSubresourcesTransactions) {
 					NewTransaction.From = ResourceTransaction.To;
 				}
-				// they must be in write
-				else if (OtherSubresourcesTransactions && !SubresourceTransaction.Pass) {
+				// we potentialy have subresources in write states, iterate
+				else if (OtherSubresourcesTransactions) {
 					// others must be write, otherwise they would be ORed with whole resource
 					NewTransaction.From = EAccessType::SUBRESOURCES_IN_DIFFERENT_STATE;
 				}
@@ -176,7 +184,7 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 					if (ResourceTransaction.To != ResourceAccess.second) {
 						NewTransaction.From = ResourceTransaction.To;
 					}
-					if (ResourceAccess.first.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && OtherSubresourcesTransactions) {
+					if (OtherSubresourcesTransactions) {
 						NewTransaction.From = EAccessType::SUBRESOURCES_IN_DIFFERENT_STATE;
 					}
 				}

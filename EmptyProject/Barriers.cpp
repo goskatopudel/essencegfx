@@ -80,6 +80,7 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 
 			FPrevTransaction	SubresourceTransaction = {};
 			FPrevTransaction	ResourceTransaction = {};
+			bool				OtherSubresourcesTransactions = false;
 
 			auto Resource = ResourceAccess.first.Resource;
 			if (AccessedResourcesSet.find(Resource) == AccessedResourcesSet.end()) {
@@ -88,7 +89,7 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 			}
 
 			for (i32 ReverseIndex = (i32)PassIndex - 1; ReverseIndex >= 0; ReverseIndex--) {
-				auto PastPass = Passes.begin()[ReverseIndex];
+				auto PastPass = PassesList[ReverseIndex];
 				auto FindIter = PastPass->Transactions.find(Resource);
 				if (FindIter != PastPass->Transactions.end()) {
 					auto& Transitions = FindIter->second;
@@ -104,8 +105,8 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 							else {
 								SubresourceTransaction.Pass = PastPass;
 								SubresourceTransaction.TransactionIndex = Index;
-								ResourceTransaction.From = Transitions[Index].From;
-								ResourceTransaction.To = Transitions[Index].To;
+								SubresourceTransaction.From = Transitions[Index].From;
+								SubresourceTransaction.To = Transitions[Index].To;
 							}
 						}
 						else if (Transitions[Index].Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) {
@@ -114,6 +115,9 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 							ResourceTransaction.From = Transitions[Index].From;
 							ResourceTransaction.To = Transitions[Index].To;
 							break;
+						}
+						else if (Transitions[Index].Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && Transitions[Index].To != ResourceAccess.second) {
+							OtherSubresourcesTransactions = true;
 						}
 					}
 
@@ -129,21 +133,32 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 				if (SubresourceTransaction.Pass && IsReadAccess(SubresourceTransaction.To)) {
 					SubresourceTransaction.LookupTransaction(Resource).To |= ResourceAccess.second;
 				}
+				// if we found subresource in read state, resource must be in write state or we had series of read->write->read in subresource
 				else if (IsReadAccess(ResourceTransaction.To)) {
-					SubresourceTransaction.LookupTransaction(Resource).To |= ResourceAccess.second;
+					ResourceTransaction.LookupTransaction(Resource).To |= ResourceAccess.second;
 				}
 
 				FAccessTransaction NewTransaction = {};
 				NewTransaction.Subresource = ResourceAccess.first.Subresource;
 				NewTransaction.To = ResourceAccess.second;
 				// WRITE->READ
-				if (SubresourceTransaction.Pass && IsWriteAccess(SubresourceTransaction.To)) {
-					NewTransaction.From = SubresourceTransaction.To;
+				if (SubresourceTransaction.Pass) {
+					if (IsWriteAccess(SubresourceTransaction.To)) {
+						NewTransaction.From = SubresourceTransaction.To;
+					}
 				}
 				else if (IsWriteAccess(ResourceTransaction.To)) {
 					NewTransaction.From = ResourceTransaction.To;
 				}
-				Pass->Transactions[Resource].push_back(NewTransaction);
+				// they must be in write
+				else if (OtherSubresourcesTransactions && !SubresourceTransaction.Pass) {
+					// others must be write, otherwise they would be ORed with whole resource
+					NewTransaction.From = EAccessType::SUBRESOURCES_IN_DIFFERENT_STATE;
+				}
+
+				if (NewTransaction.From != EAccessType::INVALID) {
+					Pass->Transactions[Resource].push_back(NewTransaction);
+				}
 			}
 			else {
 				FAccessTransaction NewTransaction = {};
@@ -161,6 +176,9 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 					if (ResourceTransaction.To != ResourceAccess.second) {
 						NewTransaction.From = ResourceTransaction.To;
 					}
+					if (ResourceAccess.first.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && OtherSubresourcesTransactions) {
+						NewTransaction.From = EAccessType::SUBRESOURCES_IN_DIFFERENT_STATE;
+					}
 				}
 
 				if (NewTransaction.From != EAccessType::INVALID) {
@@ -177,7 +195,7 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 
 	for (auto Resource : AccessedResourcesSet) {
 		PrevTransaction = nullptr;
-		PrevSubresTransaction.empty();
+		PrevSubresTransaction.clear();
 
 		for (u32 PassIndex = 0; PassIndex < PassesList.size(); PassIndex++) {
 			auto Pass = PassesList[PassIndex];
@@ -209,8 +227,9 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 						Pass->Barriers.push_back(Barrier);
 						PrevTransaction = &Transaction;
 					}
-					// TO SUBRES
+					// SUBRES TO SUBRES
 					else if (Transaction.Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) {
+						check(Transaction.From != EAccessType::SUBRESOURCES_IN_DIFFERENT_STATE);
 						FStoredBarrier Barrier = {};
 						Barrier.Resource = Resource;
 						Barrier.From = Transaction.From;
@@ -223,6 +242,7 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 					// SUBRES TO WHOLE
 					else {
 						check(Transaction.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && PrevSubresTransaction.size());
+						check(Transaction.From == EAccessType::SUBRESOURCES_IN_DIFFERENT_STATE);
 
 						eastl::set<u32>	SubresourcesSet;
 
@@ -252,7 +272,7 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 							}
 						}
 
-						PrevSubresTransaction.empty();
+						PrevSubresTransaction.clear();
 						PrevTransaction = &Transaction;
 					}
 				}

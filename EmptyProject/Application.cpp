@@ -22,21 +22,35 @@ FOwnedResource RenderTarget;
 FOwnedResource UATarget;
 FOwnedResource UITexture;
 FOwnedResource DepthBuffer;
+FOwnedResource MipmappedRT;
 
 FRenderPass DepthPrePass;
 FRenderPass MainPass;
 FRenderPass FinalizePass;
+FRenderPass TestPass;
+FRenderPass TestPass1;
+FRenderPass TestPass2;
 
 void TestBarriers() {
+	MipmappedRT = GetTexturesAllocator()->CreateTexture(128, 128, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_RENDER_TARGET | ALLOW_UNORDERED_ACCESS | TEXTURE_MIPMAPPED, L"Test Tex", DXGI_FORMAT_R8G8B8A8_UNORM);
+
 	DepthPrePass.SetName(L"Prepass");
 	DepthPrePass.SetAccess(DepthBuffer, EAccessType::WRITE_DEPTH, 0);
 	MainPass.SetName(L"MainPass");
 	MainPass.SetAccess(DepthBuffer, EAccessType::READ_DEPTH, 0);
 	MainPass.SetAccess(RenderTarget, EAccessType::WRITE_RT);
+	TestPass.SetName(L"TestPass");
+	TestPass.SetAccess(MipmappedRT, EAccessType::WRITE_UAV, 0);
+	TestPass.SetAccess(MipmappedRT, EAccessType::WRITE_UAV, 2);
+	TestPass1.SetName(L"TestPass1");
+	TestPass1.SetAccess(MipmappedRT, EAccessType::WRITE_RT);
+	TestPass2.SetAccess(MipmappedRT, EAccessType::READ_NON_PIXEL, 1);
+	TestPass2.SetName(L"TestPass2");
 	FinalizePass.SetName(L"Finalize");
+	FinalizePass.SetAccess(MipmappedRT, EAccessType::READ_PIXEL, 1);
 	FinalizePass.SetAccess(RenderTarget, EAccessType::READ_PIXEL);
 
-	FRenderPassSequence PassSequence = { &DepthPrePass, &MainPass, &FinalizePass };
+	FRenderPassSequence PassSequence = { &DepthPrePass, &MainPass, &TestPass, &TestPass1, &TestPass2, &FinalizePass };
 
 }
 

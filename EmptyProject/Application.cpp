@@ -44,8 +44,9 @@ void TestBarriers() {
 	TestPass.SetAccess(MipmappedRT, EAccessType::WRITE_UAV, 2);
 	TestPass1.SetName(L"TestPass1");
 	TestPass1.SetAccess(MipmappedRT, EAccessType::WRITE_RT);
-	TestPass2.SetAccess(MipmappedRT, EAccessType::READ_NON_PIXEL, 1);
+	TestPass1.SetAccess(MipmappedRT, EAccessType::READ_NON_PIXEL, 1);
 	TestPass2.SetName(L"TestPass2");
+	TestPass2.SetAccess(MipmappedRT, EAccessType::WRITE_UAV);
 	FinalizePass.SetName(L"Finalize");
 	FinalizePass.SetAccess(MipmappedRT, EAccessType::READ_PIXEL, 1);
 	FinalizePass.SetAccess(RenderTarget, EAccessType::READ_PIXEL);

@@ -116,7 +116,7 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 							ResourceTransaction.To = Transitions[Index].To;
 							break;
 						}
-						else if (Transitions[Index].Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && Transitions[Index].To != ResourceAccess.second) {
+						else if ((Transitions[Index].Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) && (Transitions[Index].To != ResourceAccess.second)) {
 							OtherSubresourcesTransactions = true;
 						}
 					}

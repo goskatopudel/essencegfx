@@ -15,6 +15,8 @@ struct FAccessTransaction {
 	u32				Subresource;
 	EAccessType		From;
 	EAccessType		To;
+	bool			IsInitial;
+	bool			SubresourcesToAll;
 };
 
 typedef eastl::hash_map<FGPUResource*, eastl::vector<FAccessTransaction>> FPassTransactionsMap;
@@ -41,8 +43,7 @@ public:
 	void SetName(const wchar_t* name);
 
 	void SetAccess(FGPUResource* Resource, EAccessType Access, u32 Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-	void EndWriteAccess(FGPUResource* Resource, u32 Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-	void EndReadAccess(FGPUResource* Resource, u32 Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+	void EndAccess(FGPUResource* Resource, u32 Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
 };
 
 class FRenderPassSequence {

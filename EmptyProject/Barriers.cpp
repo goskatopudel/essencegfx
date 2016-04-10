@@ -20,25 +20,33 @@ void FRenderPass::SetName(const wchar_t* name) {
 	DebugName = eastl::wstring(name);
 }
 
+#include <EASTL\set.h>
+
 void FRenderPass::SetAccess(FGPUResource* Resource, EAccessType Access, u32 Subresource) {
+	eastl::set<FGPUResource*> PartialResources;
+	for (u32 Index = 0; Index < ResourcesAccess.size(); Index++) {
+		if (ResourcesAccess[Index].first.Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) {
+			PartialResources.insert(ResourcesAccess[Index].first.Resource);
+		}
+		check(!(ResourcesAccess[Index].first.Resource == Resource && ResourcesAccess[Index].first.Subresource == Subresource));
+	}
+	check(!(Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && PartialResources.find(Resource) != PartialResources.end()));
+
 	ResourcesAccess.push_back(FAccessPair(FResourcePart(Resource, Subresource), Access));
 }
 
-void FRenderPass::EndWriteAccess(FGPUResource* Resource, u32 Subresource) {
-	ResourcesAccess.push_back(FAccessPair(FResourcePart(Resource, Subresource), EAccessType::END_WRITE));
+void FRenderPass::EndAccess(FGPUResource* Resource, u32 Subresource) {
+	ResourcesAccess.push_back(FAccessPair(FResourcePart(Resource, Subresource), EAccessType::SPLIT_NO_ACCESS));
 }
 
-void FRenderPass::EndReadAccess(FGPUResource* Resource, u32 Subresource) {
-	ResourcesAccess.push_back(FAccessPair(FResourcePart(Resource, Subresource), EAccessType::END_READ));
-}
-
-#include <EASTL\set.h>
 #include "Print.h"
 
 FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Passes) {
 
+	FRenderPass StartPass;
 	FRenderPass	PostPass;
 
+	PassesList.push_back(&StartPass);
 	for (auto Pass : Passes) {
 		PassesList.push_back(Pass);
 	}
@@ -51,50 +59,53 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 		EAccessType		From;
 		EAccessType		To;
 
-		FAccessTransaction& LookupTransaction(FGPUResource* Resource) {
+		FAccessTransaction& GetReference(FGPUResource* Resource) {
 			return Pass->Transactions[Resource][TransactionIndex];
 		}
 	};
 
-	eastl::set<FGPUResource*>	AccessedResourcesSet;
-
+	// generating transactions
 	for (u32 PassIndex = 0; PassIndex < PassesList.size(); PassIndex++) {
 		auto Pass = PassesList[PassIndex];
 
-		for (auto ResourceAccess : Pass->ResourcesAccess) {
 
-			// first pass always keeps track of intitial split barrier
+		for (u32 OuterIndex = 0; OuterIndex < Pass->ResourcesAccess.size(); OuterIndex++) {
+			auto & ResourceAccess = Pass->ResourcesAccess[OuterIndex];
 
+			// initialize resource
 			auto & InitialTransactions = PassesList[0]->Transactions;
-
 			auto FindIter = InitialTransactions.find(ResourceAccess.first.Resource);
+			auto Resource = ResourceAccess.first.Resource;
 			if (FindIter == InitialTransactions.end()) {
 				FindIter = InitialTransactions.insert(ResourceAccess.first.Resource).first;
 
 				FAccessTransaction Initial = {};
 				Initial.From = EAccessType::INVALID;
 				Initial.To = ResourceAccess.first.Resource->GetDefaultAccess();
+				Initial.IsInitial = true;
 				Initial.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 				FindIter->second.push_back(Initial);
+
+				PostPass.SetAccess(ResourceAccess.first.Resource, ResourceAccess.first.Resource->GetDefaultAccess(), D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
 			}
 
+			// find prev transactions
+			// A) whole resource transaction ( 0) when whole->whole or 1) whole->subres)
+			// B) subresource transaction (when subres->subres)
+			// C) whole resource transaction + holes flag (when ?->whole and we have subresources in different states)
 			FPrevTransaction	SubresourceTransaction = {};
 			FPrevTransaction	ResourceTransaction = {};
 			bool				OtherSubresourcesTransactions = false;
 
-			auto Resource = ResourceAccess.first.Resource;
-			if (AccessedResourcesSet.find(Resource) == AccessedResourcesSet.end()) {
-				AccessedResourcesSet.insert(Resource);
-				PostPass.SetAccess(ResourceAccess.first.Resource, ResourceAccess.first.Resource->GetDefaultAccess(), D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-			}
-
-			for (i32 ReverseIndex = (i32)PassIndex - 1; ReverseIndex >= 0; ReverseIndex--) {
+			for (i32 ReverseIndex = (i32)PassIndex; ReverseIndex >= 0; ReverseIndex--) {
 				auto PastPass = PassesList[ReverseIndex];
 				auto FindIter = PastPass->Transactions.find(Resource);
 				if (FindIter != PastPass->Transactions.end()) {
 					auto& Transitions = FindIter->second;
-					for (i32 Index = (i32)Transitions.size() - 1; Index >= 0; Index--) {
+					i32 StartIndex = ReverseIndex == PassIndex ? (i32)OuterIndex - 1 : (i32)Transitions.size() - 1;
+					for (i32 Index = StartIndex; Index >= 0; Index--) {
 						if (Transitions[Index].Subresource == ResourceAccess.first.Subresource) {
+							// A0
 							if (ResourceAccess.first.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) {
 								ResourceTransaction.Pass = PastPass;
 								ResourceTransaction.TransactionIndex = Index;
@@ -102,6 +113,7 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 								ResourceTransaction.To = Transitions[Index].To;
 								break;
 							}
+							// B
 							else {
 								SubresourceTransaction.Pass = PastPass;
 								SubresourceTransaction.TransactionIndex = Index;
@@ -109,6 +121,7 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 								SubresourceTransaction.To = Transitions[Index].To;
 							}
 						}
+						// A1
 						else if (Transitions[Index].Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) {
 							ResourceTransaction.Pass = PastPass;
 							ResourceTransaction.TransactionIndex = Index;
@@ -116,94 +129,64 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 							ResourceTransaction.To = Transitions[Index].To;
 							break;
 						}
-						// READ->READ
+						// C
 						else if ((Transitions[Index].Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES)
-							&& (ResourceAccess.first.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) 
-							&& (Transitions[Index].To != ResourceAccess.second)) {
+							&& (ResourceAccess.first.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES)) {
 							OtherSubresourcesTransactions = true;
 						}
 					}
 
+					// we end on first whole resource transition
 					if (ResourceTransaction.Pass) {
 						break;
 					}
 				}
 			}
 
-			if (IsReadAccess(ResourceAccess.second)) {
-				// READ->READ
-				// we OR all subsequent read access flags
-				if (SubresourceTransaction.Pass && IsReadAccess(SubresourceTransaction.To)) {
-					SubresourceTransaction.LookupTransaction(Resource).To |= ResourceAccess.second;
-				}
-				// if we found subresource in read state, resource must be in write state or we had series of read->write->read in subresource (and we transition surbesource separately)
-				else if (IsReadAccess(ResourceTransaction.To)) {
-					ResourceTransaction.LookupTransaction(Resource).To |= ResourceAccess.second;
-				}
+			// we can combine it in 2 cases:
+			// A') whole->whole, whole->subres, subres->subres
+			// B') holes -> whole
 
-				// in case:
-				// A) subresource was in read, but resource was in write
-				// B) resource was in read, but subresource was in write
-				FAccessTransaction NewTransaction = {};
-				NewTransaction.Subresource = ResourceAccess.first.Subresource;
-				NewTransaction.To = ResourceAccess.second;
-				// WRITE->READ
-				if (SubresourceTransaction.Pass) {
-					// we track subresource here, must be in write (otherwise it was transitioned already)
-					if (IsWriteAccess(SubresourceTransaction.To)) {
-						NewTransaction.From = SubresourceTransaction.To;
-					}
-				}
-				// we didn't find subresource in specific state and whole resource is in write state
-				else if (IsWriteAccess(ResourceTransaction.To) && !OtherSubresourcesTransactions) {
-					NewTransaction.From = ResourceTransaction.To;
-				}
-				// we potentialy have subresources in write states, iterate
-				else if (OtherSubresourcesTransactions) {
-					// others must be write, otherwise they would be ORed with whole resource
-					NewTransaction.From = EAccessType::SUBRESOURCES_IN_DIFFERENT_STATE;
-				}
+			// we can combine changes in access in 2 cases:
+			// 0) READ->READ (OR transitions)
+			// 1) READ->WRITE, WRITE->READ, WRITE->WRITE (check if different)
 
-				if (NewTransaction.From != EAccessType::INVALID) {
-					Pass->Transactions[Resource].push_back(NewTransaction);
-				}
+			// A'0
+			FPrevTransaction LookBackTransaction = SubresourceTransaction.Pass ? SubresourceTransaction : ResourceTransaction;
+			if (!OtherSubresourcesTransactions && IsReadAccess(ResourceAccess.second) && IsReadAccess(LookBackTransaction.To)) {
+				LookBackTransaction.GetReference(Resource).To |= ResourceAccess.second;
 			}
-			else {
+			// A'1
+			else if (!OtherSubresourcesTransactions && (LookBackTransaction.To != ResourceAccess.second)) {
 				FAccessTransaction NewTransaction = {};
 				NewTransaction.Subresource = ResourceAccess.first.Subresource;
+				NewTransaction.From = LookBackTransaction.To;
 				NewTransaction.To = ResourceAccess.second;
-				// READ->WRITE
-				// WRITE->WRITE
-				// SPLIT->WRITE
-				if (SubresourceTransaction.Pass) {
-					if (SubresourceTransaction.To != ResourceAccess.second) {
-						NewTransaction.From = SubresourceTransaction.To;
-					}
-				}
-				else {
-					if (ResourceTransaction.To != ResourceAccess.second) {
-						NewTransaction.From = ResourceTransaction.To;
-					}
-					if (OtherSubresourcesTransactions) {
-						NewTransaction.From = EAccessType::SUBRESOURCES_IN_DIFFERENT_STATE;
-					}
-				}
-
-				if (NewTransaction.From != EAccessType::INVALID) {
-					Pass->Transactions[Resource].push_back(NewTransaction);
-				}
+				Pass->Transactions[Resource].push_back(NewTransaction);
+			}
+			// B'0/1
+			else if (OtherSubresourcesTransactions) {
+				FAccessTransaction NewTransaction = {};
+				NewTransaction.Subresource = ResourceAccess.first.Subresource;
+				NewTransaction.From = EAccessType::INVALID;
+				NewTransaction.To = ResourceAccess.second;
+				NewTransaction.SubresourcesToAll = true;
+				Pass->Transactions[Resource].push_back(NewTransaction);
 			}
 		}
 	}
 
-	FAccessTransaction const*						PrevTransaction = nullptr;
-	eastl::hash_map<u32, FAccessTransaction const*> PrevSubresTransaction;
+	FAccessTransaction const*						RecentTransaction = nullptr;
+	eastl::hash_map<u32, FAccessTransaction const*> RecentSubresTransactions;
 
+	
 
+	// second pass, transactions to barriers
+	for(auto SetElement : PassesList[0]->Transactions) {
+		auto Resource = SetElement.first;
 
-	for (auto Resource : AccessedResourcesSet) {
-		PrevTransaction = nullptr;
-		PrevSubresTransaction.clear();
+		RecentTransaction = nullptr;
+		RecentSubresTransactions.clear();
 
 		for (u32 PassIndex = 0; PassIndex < PassesList.size(); PassIndex++) {
 			auto Pass = PassesList[PassIndex];
@@ -218,26 +201,18 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 			for (u32 TransactionIndex = 0; TransactionIndex < TransactionsNum; ++TransactionIndex) {
 				auto &Transaction = ResourceTransactions[TransactionIndex];
 
-				if (PrevTransaction == nullptr) {
-					check(Transaction.From == EAccessType::INVALID && Transaction.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-					PrevTransaction = &Transaction;
+				if (RecentTransaction == nullptr) {
+					check(Transaction.IsInitial && Transaction.From == EAccessType::INVALID && Transaction.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+					RecentTransaction = &Transaction;
 				}
 				else {
-					auto PrevFindIter = PrevSubresTransaction.find(Transaction.Subresource);
+					auto PrevFindIter = RecentSubresTransactions.find(Transaction.Subresource);
 
-					// WHOLE TO WHOLE
-					if (PrevSubresTransaction.size() == 0 && Transaction.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) {
-						FStoredBarrier Barrier = {};
-						Barrier.Resource = Resource;
-						Barrier.From = Transaction.From;
-						Barrier.To = Transaction.To;
-						Barrier.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-						Pass->Barriers.push_back(Barrier);
-						PrevTransaction = &Transaction;
-					}
-					// SUBRES TO SUBRES
-					else if (Transaction.Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) {
-						check(Transaction.From != EAccessType::SUBRESOURCES_IN_DIFFERENT_STATE);
+					check(!Transaction.IsInitial);
+
+					// WHOLE TO WHOLE, WHOLE TO SUBRES
+					if (RecentSubresTransactions.size() == 0 || (Transaction.Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && PrevFindIter == RecentSubresTransactions.end())) {
+						check(!Transaction.SubresourcesToAll);
 						FStoredBarrier Barrier = {};
 						Barrier.Resource = Resource;
 						Barrier.From = Transaction.From;
@@ -245,34 +220,47 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 						Barrier.Subresource = Transaction.Subresource;
 						Pass->Barriers.push_back(Barrier);
 
-						PrevSubresTransaction[Transaction.Subresource] = &Transaction;
+						if (Transaction.Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) {
+							RecentSubresTransactions[Transaction.Subresource] = &Transaction;
+						}
+						else {
+							RecentTransaction = &Transaction;
+						}
+					}
+					// SUBRES TO SUBRES
+					else if (Transaction.Subresource != D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && PrevFindIter != RecentSubresTransactions.end()) {
+						check(Transaction.SubresourcesToAll == false);
+						FStoredBarrier Barrier = {};
+						Barrier.Resource = Resource;
+						Barrier.From = Transaction.From;
+						Barrier.To = Transaction.To;
+						Barrier.Subresource = Transaction.Subresource;
+						Pass->Barriers.push_back(Barrier);
+
+						RecentSubresTransactions[Transaction.Subresource] = &Transaction;
 					}
 					// SUBRES TO WHOLE
 					else {
-						check(Transaction.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && PrevSubresTransaction.size());
-						check(Transaction.From == EAccessType::SUBRESOURCES_IN_DIFFERENT_STATE);
+						check(Transaction.Subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && RecentSubresTransactions.size() && Transaction.SubresourcesToAll);
 
-						eastl::set<u32>	SubresourcesSet;
-
-						for (auto SubresTransaction : PrevSubresTransaction) {
-							if (SubresTransaction.second->To != Transaction.To) {
-								FStoredBarrier Barrier = {};
-								Barrier.Resource = Resource;
-								Barrier.From = SubresTransaction.second->To;
-								Barrier.To = Transaction.To;
-								Barrier.Subresource = SubresTransaction.first;
-								Pass->Barriers.push_back(Barrier);
-
-								SubresourcesSet.insert(SubresTransaction.first);
-							}
-						}
-						if (PrevTransaction->To != Transaction.To) {
-							u32 SubresourcesNum = Resource->GetSubresourcesNum();
-							for (u32 SubresourceIndex = 0; SubresourceIndex < SubresourcesNum; SubresourceIndex++) {
-								if (SubresourcesSet.find(SubresourceIndex) == SubresourcesSet.end()) {
+						u32 SubresourcesNum = Resource->GetSubresourcesNum();
+						for (u32 SubresourceIndex = 0; SubresourceIndex < SubresourcesNum; SubresourceIndex++) {
+							auto SubresFindIter = RecentSubresTransactions.find(SubresourceIndex);
+							if (SubresFindIter != RecentSubresTransactions.end()) {
+								if (SubresFindIter->second->To != Transaction.To) {
 									FStoredBarrier Barrier = {};
 									Barrier.Resource = Resource;
-									Barrier.From = PrevTransaction->To;
+									Barrier.From = SubresFindIter->second->To;
+									Barrier.To = Transaction.To;
+									Barrier.Subresource = SubresourceIndex;
+									Pass->Barriers.push_back(Barrier);
+								}
+							}
+							else {
+								if (RecentTransaction->To != Transaction.To) {
+									FStoredBarrier Barrier = {};
+									Barrier.Resource = Resource;
+									Barrier.From = RecentTransaction->To;
 									Barrier.To = Transaction.To;
 									Barrier.Subresource = SubresourceIndex;
 									Pass->Barriers.push_back(Barrier);
@@ -280,8 +268,8 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 							}
 						}
 
-						PrevSubresTransaction.clear();
-						PrevTransaction = &Transaction;
+						RecentSubresTransactions.clear();
+						RecentTransaction = &Transaction;
 					}
 				}
 			}
@@ -297,5 +285,6 @@ FRenderPassSequence::FRenderPassSequence(std::initializer_list<FRenderPass*> Pas
 	}
 
 	FinalBarriers = std::move(PassesList.back()->Barriers);
+	PassesList[0] = nullptr;
 	PassesList.pop_back();
 }

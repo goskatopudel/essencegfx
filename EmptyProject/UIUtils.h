@@ -2,3 +2,5 @@
 #include "Essence.h"
 
 void ShowMemoryInfo();
+
+void ShowAppStats();

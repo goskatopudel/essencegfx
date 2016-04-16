@@ -23,6 +23,7 @@ FOwnedResource UATarget;
 FOwnedResource UITexture;
 FOwnedResource DepthBuffer;
 FOwnedResource MipmappedRT;
+FOwnedResource ColorTexture;
 
 FCamera Camera;
 
@@ -265,143 +266,136 @@ void RenderImDrawLists(ImDrawData *draw_data) {
 }
 
 
-FOwnedResource ColorTexture;
-//
-//struct GPUSceneRender {
-//	FPipelineState*			PSO;
-//	FGraphicsRootLayout*	Root;
-//
-//	FConstantBuffer			FrameConstantsBuffer;
-//	/*FConstantParam			ViewProjectionMatrixParam;
-//	FConstantParam			InvViewMatrixParam;
-//	FConstantParam			LightFromDirection;
-//*/
-//	FConstantBuffer			ObjectConstantsBuffer;
-//	/*FConstantParam			WorldMatrixParam;
-//
-//	FConstantBufferParam	FrameConstants;
-//	FConstantBufferParam	ObjectConstants;
-//*/
-//	FTextureParam			BaseColorTextureParam;
-//	FTextureParam			MetallicTextureParam;
-//	FTextureParam			NormalmapTextureParam;
-//	FTextureParam			RoughnessTextureParam;
-//
-//};
-//
-//GPUSceneRender SceneRender;
-//
-//void RenderScene(FGPUContext & Context, FModel * model) {
-//	static bool initialized = false;
-//	if (!initialized) {
-//		initialized = true;
-//
-//		D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineDesc = GetDefaultPipelineStateDesc();
-//		PipelineDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-//		PipelineDesc.NumRenderTargets = 1;
-//		PipelineDesc.DSVFormat = DepthBuffer->FatData->Desc.Format;
-//		PipelineDesc.DepthStencilState.DepthEnable = true;
-//
-//		auto VS = GetShader("Shaders/Model.hlsl", "VShader", "vs_5_0", {}, 0);
-//		auto PS = GetShader("Shaders/Model.hlsl", "PShader", "ps_5_0", {}, 0);
-//		SceneRender.Root = GetRootLayout(VS, PS);
-//		/*SceneRender.PSO = GetGraphicsPipelineState(&PipelineDesc, GetRootSignature(SceneRender.Root), VS, PS,
-//			GetInputLayout({
-//				CreateInputElement("POSITION", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
-//				CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 0, 0),
-//				CreateInputElement("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT, 0, 1),
-//			})
-//		);
-//*/
-//		/*SceneRender.Root->CreateConstantBuffer("FrameConstants", SceneRender.FrameConstantsBuffer);
-//
-//		SceneRender.FrameConstantsBuffer.CreateConstantParam("ViewProj", SceneRender.ViewProjectionMatrixParam);
-//		SceneRender.FrameConstantsBuffer.CreateConstantParam("InvView", SceneRender.InvViewMatrixParam);
-//		SceneRender.FrameConstantsBuffer.CreateConstantParam("LightFromDirection", SceneRender.LightFromDirection);
-//		SceneRender.FrameConstantsBuffer.CreateConstantBufferVersion(SceneRender.FrameConstants);
-//
-//		SceneRender.Root->CreateConstantBuffer("ObjectConstants", SceneRender.ObjectConstantsBuffer);
-//		
-//		SceneRender.ObjectConstantsBuffer.CreateConstantParam("World", SceneRender.WorldMatrixParam);
-//		SceneRender.ObjectConstantsBuffer.CreateConstantBufferVersion(SceneRender.ObjectConstants);
-//
-//		SceneRender.Root->CreateTextureParam("BaseColorTexture", SceneRender.BaseColorTextureParam);
-//		SceneRender.Root->CreateTextureParam("MetallicTexture", SceneRender.MetallicTextureParam);
-//		SceneRender.Root->CreateTextureParam("NormalmapTexture", SceneRender.NormalmapTextureParam);
-//		SceneRender.Root->CreateTextureParam("RoughnessTexture", SceneRender.RoughnessTextureParam);*/
-//	}
-//
-//	Context.SetIB(GetIB());
-//	Context.SetVB(GetVB(0), 0);
-//	Context.SetVB(GetVB(1), 1);
-//
-//	using namespace DirectX;
-//
-//	auto ProjectionMatrix = XMMatrixPerspectiveFovLH(
-//		3.14f * 0.25f, 
-//		(float)1024.f / 768.f, 
-//		0.01f, 1000.f);
-//
-//	auto ViewMatrix = XMMatrixLookToLH(
-//		ToSIMD(Camera.Position),
-//		ToSIMD(Camera.Direction),
-//		ToSIMD(Camera.Up));
-//
-//	auto WorldTMatrix = XMMatrixTranspose(
-//		XMMatrixScaling(0.05f, 0.05f, 0.05f));
-//
-//	XMVECTOR Determinant;
-//	auto InvViewTMatrix = XMMatrixTranspose(XMMatrixInverse(&Determinant, ViewMatrix));
-//	auto ViewProjTMatrix = XMMatrixTranspose(ViewMatrix * ProjectionMatrix);
-//
-//	/*SceneRender.FrameConstants.Set(&SceneRender.ViewProjectionMatrixParam, ViewProjTMatrix);
-//	SceneRender.FrameConstants.Set(&SceneRender.InvViewMatrixParam, InvViewTMatrix);
-//	SceneRender.FrameConstants.Serialize();
-//	SceneRender.ObjectConstants.Set(&SceneRender.WorldMatrixParam, WorldTMatrix);
-//	SceneRender.ObjectConstants.Serialize();
-//
-//	Context.SetPSO(SceneRender.PSO);
-//	Context.SetRoot(SceneRender.Root);
-//	Context.SetConstantBuffer(&SceneRender.FrameConstants);
-//	Context.SetConstantBuffer(&SceneRender.ObjectConstants);*/
-//	Context.SetRenderTarget(0, GetBackbuffer()->GetRTV());
-//	Context.SetDepthStencil(DepthBuffer->GetDSV());
-//	Context.SetViewport(GetBackbuffer()->GetSizeAsViewport());
-//
-//	u64 MeshesNum = model->Meshes.size();
-//	for (u64 MeshIndex = 0; MeshIndex < MeshesNum; MeshIndex++) {
-//		auto const & mesh = model->Meshes[MeshIndex];
-//		if (model->FatData->FatMeshes[MeshIndex].Material) {
-//			Context.SetTexture(&SceneRender.BaseColorTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->BaseColorTexture->GetSRV());
-//			if (model->FatData->FatMeshes[MeshIndex].Material->FatData->MetallicTexture.IsValid()) {
-//				Context.SetTexture(&SceneRender.MetallicTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->MetallicTexture->GetSRV());
-//			}
-//			else {
-//				Context.SetTexture(&SceneRender.MetallicTextureParam, ColorTexture->GetSRV());
-//			}
-//			if (model->FatData->FatMeshes[MeshIndex].Material->FatData->NormalMapTexture.IsValid()) {
-//				Context.SetTexture(&SceneRender.NormalmapTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->NormalMapTexture->GetSRV());
-//			}
-//			else {
-//				Context.SetTexture(&SceneRender.NormalmapTextureParam, ColorTexture->GetSRV());
-//			}
-//			if (model->FatData->FatMeshes[MeshIndex].Material->FatData->RoughnessTexture.IsValid()) {
-//				Context.SetTexture(&SceneRender.RoughnessTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->RoughnessTexture->GetSRV());
-//			}
-//			else {
-//				Context.SetTexture(&SceneRender.RoughnessTextureParam, ColorTexture->GetSRV());
-//			}
-//		}
-//		else {
-//			Context.SetTexture(&SceneRender.BaseColorTextureParam, ColorTexture->GetSRV());
-//			Context.SetTexture(&SceneRender.MetallicTextureParam, ColorTexture->GetSRV());
-//			Context.SetTexture(&SceneRender.NormalmapTextureParam, ColorTexture->GetSRV());
-//			Context.SetTexture(&SceneRender.RoughnessTextureParam, ColorTexture->GetSRV());
-//		}
-//
-//		Context.DrawIndexed(mesh.IndexCount, mesh.StartIndex, mesh.BaseVertex);
-//	}
-//}
+class FModelShaderState : public FShaderState {
+public:
+	FTextureParam			BaseColorTextureParam;
+	FTextureParam			MetallicTextureParam;
+	FTextureParam			NormalmapTextureParam;
+	FTextureParam			RoughnessTextureParam;
+
+	FConstantBuffer			FrameConstantBuffer;
+	FConstantBuffer			ObjectConstantBuffer;
+
+	struct FFrameConstantBufferData {
+		float4x4 ViewProj;
+		float4x4 InvView;
+		float3 LightFromDirection;
+	};
+
+	struct FObjectConstantBufferData {
+		float4x4 World;
+	};
+
+	FModelShaderState() :
+		FShaderState(
+			GetShader("Shaders/Model.hlsl", "VShader", "vs_5_0", {}, 0),
+			GetShader("Shaders/Model.hlsl", "PShader", "ps_5_0", {}, 0)) {}
+
+	void InitParams() override final {
+		BaseColorTextureParam = Root->CreateTextureParam("BaseColorTexture");
+		MetallicTextureParam = Root->CreateTextureParam("MetallicTexture");
+		NormalmapTextureParam = Root->CreateTextureParam("NormalmapTexture");
+		RoughnessTextureParam = Root->CreateTextureParam("RoughnessTexture");
+
+		FrameConstantBuffer = Root->CreateConstantBuffer("FrameConstants");
+		ObjectConstantBuffer = Root->CreateConstantBuffer("ObjectConstants");
+	}
+};
+
+void RenderScene(FGPUContext & Context, FModel * model) {
+	static FModelShaderState ModelShaderState;
+	static FPipelineState * PipelineState;
+
+	if (!PipelineState) {
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineDesc = GetDefaultPipelineStateDesc();
+		PipelineDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+		PipelineDesc.NumRenderTargets = 1;
+		PipelineDesc.DSVFormat = DepthBuffer->FatData->Desc.Format;
+		PipelineDesc.DepthStencilState.DepthEnable = true;
+
+		PipelineState = GetGraphicsPipelineState(&ModelShaderState,
+			&PipelineDesc,
+			GetInputLayout({
+				CreateInputElement("POSITION", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+				CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 0, 0),
+				CreateInputElement("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT, 0, 1),
+				})
+			);
+	}
+
+	Context.SetIB(GetIB());
+	Context.SetVB(GetVB(0), 0);
+	Context.SetVB(GetVB(1), 1);
+
+	using namespace DirectX;
+
+	auto ProjectionMatrix = XMMatrixPerspectiveFovLH(
+		3.14f * 0.25f,
+		(float)1024.f / 768.f,
+		0.01f, 1000.f);
+
+	auto ViewMatrix = XMMatrixLookToLH(
+		ToSIMD(Camera.Position),
+		ToSIMD(Camera.Direction),
+		ToSIMD(Camera.Up));
+
+	auto WorldTMatrix = XMMatrixTranspose(
+		XMMatrixScaling(0.05f, 0.05f, 0.05f));
+
+	XMVECTOR Determinant;
+	auto InvViewTMatrix = XMMatrixTranspose(XMMatrixInverse(&Determinant, ViewMatrix));
+	auto ViewProjTMatrix = XMMatrixTranspose(ViewMatrix * ProjectionMatrix);
+
+	Context.SetRoot(ModelShaderState.Root);
+	Context.SetPSO(PipelineState);
+
+	FModelShaderState::FFrameConstantBufferData FrameConstants;
+	XMStoreFloat4x4((XMFLOAT4X4*)&FrameConstants.ViewProj, ViewProjTMatrix);
+	XMStoreFloat4x4((XMFLOAT4X4*)&FrameConstants.InvView, InvViewTMatrix);
+	Context.SetConstantBuffer(&ModelShaderState.FrameConstantBuffer, CreateCBVFromData(&ModelShaderState.FrameConstantBuffer, FrameConstants));
+
+	FModelShaderState::FObjectConstantBufferData ObjectConstants;
+	XMStoreFloat4x4((XMFLOAT4X4*)&ObjectConstants.World, WorldTMatrix);
+	Context.SetConstantBuffer(&ModelShaderState.ObjectConstantBuffer, CreateCBVFromData(&ModelShaderState.ObjectConstantBuffer, ObjectConstants));
+	
+	Context.SetRenderTarget(0, GetBackbuffer()->GetRTV());
+	Context.SetDepthStencil(DepthBuffer->GetDSV());
+	Context.SetViewport(GetBackbuffer()->GetSizeAsViewport());
+
+	u64 MeshesNum = model->Meshes.size();
+	for (u64 MeshIndex = 0; MeshIndex < MeshesNum; MeshIndex++) {
+		auto const & mesh = model->Meshes[MeshIndex];
+		if (model->FatData->FatMeshes[MeshIndex].Material) {
+			Context.SetTexture(&ModelShaderState.BaseColorTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->BaseColorTexture->GetSRV());
+			if (model->FatData->FatMeshes[MeshIndex].Material->FatData->MetallicTexture.IsValid()) {
+				Context.SetTexture(&ModelShaderState.MetallicTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->MetallicTexture->GetSRV());
+			}
+			else {
+				Context.SetTexture(&ModelShaderState.MetallicTextureParam, ColorTexture->GetSRV());
+			}
+			if (model->FatData->FatMeshes[MeshIndex].Material->FatData->NormalMapTexture.IsValid()) {
+				Context.SetTexture(&ModelShaderState.NormalmapTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->NormalMapTexture->GetSRV());
+			}
+			else {
+				Context.SetTexture(&ModelShaderState.NormalmapTextureParam, ColorTexture->GetSRV());
+			}
+			if (model->FatData->FatMeshes[MeshIndex].Material->FatData->RoughnessTexture.IsValid()) {
+				Context.SetTexture(&ModelShaderState.RoughnessTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->RoughnessTexture->GetSRV());
+			}
+			else {
+				Context.SetTexture(&ModelShaderState.RoughnessTextureParam, ColorTexture->GetSRV());
+			}
+		}
+		else {
+			Context.SetTexture(&ModelShaderState.BaseColorTextureParam, ColorTexture->GetSRV());
+			Context.SetTexture(&ModelShaderState.MetallicTextureParam, ColorTexture->GetSRV());
+			Context.SetTexture(&ModelShaderState.NormalmapTextureParam, ColorTexture->GetSRV());
+			Context.SetTexture(&ModelShaderState.RoughnessTextureParam, ColorTexture->GetSRV());
+		}
+
+		Context.DrawIndexed(mesh.IndexCount, mesh.StartIndex, mesh.BaseVertex);
+	}
+}
 
 FModel* DrawModel;
 
@@ -497,20 +491,6 @@ void ShowSceneWindow() {
 	ImGui::End();
 }
 
-void ShowAppStats() {
-	ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-	if (ImGui::CollapsingHeader("Shaders")) {
-		extern u64 GShadersCompilationVersion;
-
-		ImGui::Text("Shaders:\nPSOs:\nCurrent shaders version:"); ImGui::SameLine();
-		ImGui::Text("%u\n%u\n%u", GetShadersNum(), GetPSOsNum(), (u32)GShadersCompilationVersion);
-	}
-	if (ImGui::CollapsingHeader("Memory")) {
-		ShowMemoryInfo();
-	}
-	ImGui::End();
-}
-
 bool FApplication::Update() {
 	ImGuiIO& io = ImGui::GetIO();
 
@@ -549,12 +529,15 @@ bool FApplication::Update() {
 	static FCommandsStream Stream;
 	Stream.Reset();
 	Stream.SetAccess(GetBackbuffer(), EAccessType::WRITE_RT);
+	Stream.SetAccess(DepthBuffer, EAccessType::WRITE_DEPTH);
 	Stream.ClearRTV(GetBackbuffer()->GetRTV(), 0.f);
+	Stream.ClearDSV(DepthBuffer->GetDSV());
 	Stream.Close();
 
 	FGPUContext Context;
 	Context.Open(EContextType::DIRECT);
 	Playback(Context, &Stream);
+	RenderScene(Context, DrawModel);
 	Context.Execute();
 
 	ImGui::Render();

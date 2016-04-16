@@ -6,7 +6,9 @@
 
 #ifdef NDEBUG
 
-#define verify(expression) { expression; }
+template<typename T>
+void __verify(T _Arg) {}
+#define verify(expression) { __verify(expression); }
 
 #else
 

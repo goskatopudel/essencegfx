@@ -3,6 +3,8 @@
 #include <Psapi.h>
 #include "PointerMath.h"
 #include "Device.h"
+#include "Shader.h"
+#include "Pipeline.h"
 
 void ShowMemoryInfo() {
 	auto localMemory = GetLocalMemoryInfo();
@@ -40,4 +42,18 @@ void ShowMemoryInfo() {
 		, Megabytes(perfInfo.PhysicalTotal * perfInfo.PageSize)
 		, Megabytes(perfInfo.PhysicalAvailable * perfInfo.PageSize));
 	ImGui::Unindent();
+}
+
+void ShowAppStats() {
+	ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+	if (ImGui::CollapsingHeader("Shaders")) {
+		extern u64 GShadersCompilationVersion;
+
+		ImGui::Text("Shaders:\nPSOs:\nCurrent shaders version:"); ImGui::SameLine();
+		ImGui::Text("%u\n%u\n%u", GetShadersNum(), GetPSOsNum(), (u32)GShadersCompilationVersion);
+	}
+	if (ImGui::CollapsingHeader("Memory")) {
+		ShowMemoryInfo();
+	}
+	ImGui::End();
 }

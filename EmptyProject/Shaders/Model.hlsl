@@ -1,5 +1,5 @@
 cbuffer FrameConstants : register(b0)
-{       
+{      
     matrix ViewProj;
     matrix InvView;
     float3 LightFromDirection;

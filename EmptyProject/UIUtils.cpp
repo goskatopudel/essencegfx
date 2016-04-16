@@ -1,12 +1,10 @@
-#include "UtilWidgets.h"
+#include "UIUtils.h"
 #include "imgui\imgui.h"
 #include <Psapi.h>
 #include "PointerMath.h"
 #include "Device.h"
 
-void ShowMemoryWidget() {
-	ImGui::Begin("Memory");
-
+void ShowMemoryInfo() {
 	auto localMemory = GetLocalMemoryInfo();
 	auto nonLocalMemory = GetNonLocalMemoryInfo();
 
@@ -42,6 +40,4 @@ void ShowMemoryWidget() {
 		, Megabytes(perfInfo.PhysicalTotal * perfInfo.PageSize)
 		, Megabytes(perfInfo.PhysicalAvailable * perfInfo.PageSize));
 	ImGui::Unindent();
-
-	ImGui::End();
 }

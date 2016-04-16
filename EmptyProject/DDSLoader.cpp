@@ -893,7 +893,7 @@ eastl::hash_map<u64, FOwnedResource> TextureRegistry;
 
 #include "Hash.h"
 
-FOwnedResource	LoadDDSImage(const wchar_t * filename, bool forceSrgb, GPUGraphicsContext & CopyContext) {
+FOwnedResource	LoadDDSImage(const wchar_t * filename, bool forceSrgb, FGPUContext & CopyContext) {
 	
 	u64 textureNameHash = MurmurHash2_64(filename, wcslen(filename) * sizeof(wchar_t), 0);
 	auto findIter = TextureRegistry.find(textureNameHash);
@@ -941,10 +941,10 @@ FOwnedResource	LoadDDSImage(const wchar_t * filename, bool forceSrgb, GPUGraphic
 
 	FillInitData(ResDesc.Width, ResDesc.Height, 1, ResDesc.MipLevels, ResDesc.DepthOrArraySize, ResDesc.Format, 0, ddsData.BitSize, ddsData.Data, twidth, theight, tdepth, skipMip, SubresourceData);
 
-	FBarrierScope scope(CopyContext, result, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	for (u32 mip = 0; mip < ResDesc.MipLevels; ++mip) {
 		CopyContext.CopyDataToSubresource(result, mip, SubresourceData[mip].pData, SubresourceData[mip].RowPitch, SubresourceData[mip].SlicePitch);
 	}
+	CopyContext.Barrier(result, ALL_SUBRESOURCES, EAccessType::COPY_DEST, EAccessType::READ_PIXEL);
 
 	TextureRegistry[textureNameHash] = FOwnedResource(result);
 

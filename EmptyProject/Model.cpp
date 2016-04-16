@@ -63,18 +63,18 @@ public:
 		FeedStream(stream, (u8 const *)&src, sizeof(T));
 	}
 
-	void CreateBuffers(GPUGraphicsContext & CopyContext) {
+	void CreateBuffers(FGPUContext & CopyContext) {
 		IndexBuffer = GetBuffersAllocator()->CreateBuffer(Indices.size() * sizeof(u16), 0, L"IndexBuffer");
 		VertexBuffers[0] = GetBuffersAllocator()->CreateBuffer(Streams[0].Data.size(), 0, L"VertexBuffer0");
 		VertexBuffers[1] = GetBuffersAllocator()->CreateBuffer(Streams[1].Data.size(), 0, L"VertexBuffer1");
 
-		FBarrierScope Scope0(CopyContext, IndexBuffer, 0, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER);
-		FBarrierScope Scope1(CopyContext, VertexBuffers[0], 0, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-		FBarrierScope Scope2(CopyContext, VertexBuffers[1], 0, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-
 		CopyContext.CopyToBuffer(IndexBuffer, Indices.data(), Indices.size() * sizeof(u16));
 		CopyContext.CopyToBuffer(VertexBuffers[0], Streams[0].Data.data(), Streams[0].Data.size());
 		CopyContext.CopyToBuffer(VertexBuffers[1], Streams[1].Data.data(), Streams[1].Data.size());
+
+		CopyContext.Barrier(IndexBuffer, ALL_SUBRESOURCES, EAccessType::COPY_DEST, EAccessType::READ_IB);
+		CopyContext.Barrier(VertexBuffers[0], ALL_SUBRESOURCES, EAccessType::COPY_DEST, EAccessType::READ_VB_CB);
+		CopyContext.Barrier(VertexBuffers[1], ALL_SUBRESOURCES, EAccessType::COPY_DEST, EAccessType::READ_VB_CB);
 	}
 };
 
@@ -146,7 +146,7 @@ FBufferLocation GetVB(u32 stream) {
 	return result;
 }
 
-void UpdateGeometryBuffers(GPUGraphicsContext & Context) {
+void UpdateGeometryBuffers(FGPUContext & Context) {
 	VertexContainer.CreateBuffers(Context);
 }
 
@@ -183,10 +183,16 @@ void	LoadMaterialTextures() {
 
 #include <EASTL/set.h>
 
-void	LoadModelTextures(GPUGraphicsContext & Context, FModel* Model) {
+void	LoadModelTextures(FGPUContext & Context, FModel* Model) {
 	for (auto & Mesh : Model->FatData->FatMeshes) {
 		if (Mesh.Material) {
 			Mesh.Material->FatData->BaseColorTexture = LoadDDSImage(Mesh.Material->FatData->BaseColorTextureFilename.c_str(), true, Context);
+			Mesh.Material->FatData->MetallicTexture = LoadDDSImage(Mesh.Material->FatData->MetallicTextureFilename.c_str(), false, Context);
+			Mesh.Material->FatData->NormalMapTexture = LoadDDSImage(Mesh.Material->FatData->NormalMapTextureFilename.c_str(), false, Context);
+			Mesh.Material->FatData->RoughnessTexture = LoadDDSImage(Mesh.Material->FatData->RoughnessTextureFilename.c_str(), false, Context);
+			if (Mesh.Material->FatData->AlphaMaskTextureFilename.size() > 0) {
+				Mesh.Material->FatData->AlphaMaskTexture = LoadDDSImage(Mesh.Material->FatData->AlphaMaskTextureFilename.c_str(), false, Context);
+			}
 		}
 	}
 }

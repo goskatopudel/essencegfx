@@ -13,7 +13,7 @@
 class FGPUResource;
 
 class FModel;
-class GPUGraphicsContext;
+class FGPUContext;
 class FMaterial;
 class FModelFat;
 class FMaterialFat;
@@ -89,8 +89,8 @@ public:
 FModel* LoadModelFromOBJ(const wchar_t* filename);
 void	ConvertObjToBinary(const wchar_t* inFilename, const wchar_t* outFilename);
 FModel*	LoadModelFromBinary(const wchar_t* filename);
-void	LoadModelTextures(GPUGraphicsContext & Context, FModel* Model);
-void	UpdateGeometryBuffers(GPUGraphicsContext & Context);
+void	LoadModelTextures(FGPUContext & Context, FModel* Model);
+void	UpdateGeometryBuffers(FGPUContext & Context);
 
 FBufferLocation GetIB();
 FBufferLocation GetVB(u32 stream);

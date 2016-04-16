@@ -1,5 +1,22 @@
 #include "Resource.h"
 
+bool IsExclusiveAccess(EAccessType Type) {
+	switch (Type) {
+	case EAccessType::WRITE_RT:
+	case EAccessType::WRITE_DEPTH:
+	case EAccessType::WRITE_UAV:
+	case EAccessType::COPY_DEST:
+	case EAccessType::COMMON:
+		return true;
+	}
+
+	return false;
+}
+
+bool IsReadAccess(EAccessType Type) {
+	return (Type & (EAccessType::READ_PIXEL | EAccessType::READ_NON_PIXEL | EAccessType::READ_DEPTH | EAccessType::COPY_SRC | EAccessType::READ_IB | EAccessType::READ_VB_CB)) != EAccessType::UNSPECIFIED;
+}
+
 FGPUResource::FGPUResource(ID3D12Resource* resource, DXGI_FORMAT viewFormat) : D12Resource(resource), FatData(new FGPUResourceFat()) {
 	FatData->Desc = resource->GetDesc();
 
@@ -7,6 +24,9 @@ FGPUResource::FGPUResource(ID3D12Resource* resource, DXGI_FORMAT viewFormat) : D
 	FatData->ViewFormat = viewFormat;
 	FatData->ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	FatData->PlanesNum = 1;
+
+	FatData->AutomaticBarriers = 1;
+	GetResourceStateRegistry()->SetCurrentState(this, ALL_SUBRESOURCES, EAccessType::COMMON);
 }
 
 FGPUResource::~FGPUResource() {
@@ -73,7 +93,7 @@ EAccessType	FGPUResource::GetDefaultAccess() const {
 	if (FatData->IsUnorderedAccess) {
 		return EAccessType::WRITE_UAV;
 	}
-	return EAccessType::INVALID;
+	return EAccessType::UNSPECIFIED;
 }
 
 bool	FGPUResource::IsFixedState() const {

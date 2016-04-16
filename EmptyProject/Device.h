@@ -51,3 +51,5 @@ DXGI_FORMAT						GetBackbufferFormat();
 void							ListAdapters();
 DXGI_QUERY_VIDEO_MEMORY_INFO	GetLocalMemoryInfo();
 DXGI_QUERY_VIDEO_MEMORY_INFO	GetNonLocalMemoryInfo();
+
+const u32 ALL_SUBRESOURCES = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;

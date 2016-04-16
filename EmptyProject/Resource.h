@@ -8,6 +8,9 @@
 #include <EASTL/vector.h>
 #include <EASTL/hash_map.h>
 
+bool IsExclusiveAccess(EAccessType Type);
+bool IsReadAccess(EAccessType Type);
+
 enum TextureFlags {
 	TEXTURE_NO_FLAGS = 0,
 	ALLOW_RENDER_TARGET = 1,
@@ -109,11 +112,12 @@ public:
 	u32						IsReserved : 1;
 	u32						IsCpuReadable : 1;
 	u32						IsCpuWriteable : 1;
-	DXGI_FORMAT				ViewFormat;
 	u32						IsRenderTarget : 1;
 	u32						IsDepthStencil : 1;
 	u32						IsUnorderedAccess : 1;
 	u32						IsShaderReadable : 1;
+	u32						AutomaticBarriers : 1;
+	DXGI_FORMAT				ViewFormat;
 	u64						DataSizeBytes;
 	u64						UnaliasedHeapMemoryBytes;
 	void*					CpuPtr = nullptr;
@@ -200,4 +204,4 @@ struct FOwnedResource {
 	}
 };
 
-FOwnedResource	LoadDDSImage(const wchar_t * filename, bool forceSrgb, GPUGraphicsContext & CopyContext);
+FOwnedResource	LoadDDSImage(const wchar_t * filename, bool forceSrgb, FGPUContext & CopyContext);

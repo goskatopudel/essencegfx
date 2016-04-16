@@ -183,8 +183,8 @@ template <typename T> struct Matrix<T, 4, 4> {
 	}
 };
 
-typedef Matrix<float, 2, 2> Matrix2x2f;
-typedef Matrix<float, 2, 3> Matrix2x3f;
-typedef Matrix<float, 3, 3> Matrix3x3f;
-typedef Matrix<float, 3, 4> Matrix3x4f;
-typedef Matrix<float, 4, 4> Matrix4x4f;
+typedef Matrix<float, 2, 2> float2x2;
+typedef Matrix<float, 2, 3> float2x3;
+typedef Matrix<float, 3, 3> float3x3;
+typedef Matrix<float, 3, 4> float3x4;
+typedef Matrix<float, 4, 4> float4x4;

@@ -589,6 +589,24 @@ FOwnedResource FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depth
 	else {
 		D3D12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 		D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON;
+		if (result->FatData->IsRenderTarget) {
+			initialState = D3D12_RESOURCE_STATE_RENDER_TARGET;
+			result->FatData->AutomaticBarriers = 1;
+			GetResourceStateRegistry()->SetCurrentState(result, ALL_SUBRESOURCES, EAccessType::WRITE_RT);
+		}
+		else if (result->FatData->IsDepthStencil) {
+			initialState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+			result->FatData->AutomaticBarriers = 1;
+			GetResourceStateRegistry()->SetCurrentState(result, ALL_SUBRESOURCES, EAccessType::WRITE_DEPTH);
+		}
+		else if (result->FatData->IsUnorderedAccess) {
+			initialState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+			result->FatData->AutomaticBarriers = 1;
+			GetResourceStateRegistry()->SetCurrentState(result, ALL_SUBRESOURCES, EAccessType::WRITE_UAV);
+		}
+		else {
+			initialState = D3D12_RESOURCE_STATE_COPY_DEST;
+		}
 
 		result->FatData->IsCommited = 1;
 		result->FatData->HeapProperties = heapProperties;

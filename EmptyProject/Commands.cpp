@@ -45,10 +45,10 @@ public:
 	StateEnum									State;
 	eastl::queue<SyncPoint>						Fences;
 	CommandListPool*							Owner;
-	ContextLifetime								Lifetime;
+	EContextLifetime							Lifetime;
 	u32											ApproximateWorkload = 0;
 
-	CommandAllocator(CommandListPool* owner, ContextLifetime lifetime);
+	CommandAllocator(CommandListPool* owner, EContextLifetime lifetime);
 	void Recycle(SyncPoint fence);
 	bool CanReset();
 	void Reset();
@@ -155,7 +155,7 @@ public:
 
 class CommandListPool {
 public:
-	using AllocatorsPool = eastl::array<eastl::queue<eastl::unique_ptr<CommandAllocator>>, (u32)ContextLifetime::CONTEXT_LIFETIMES_COUNT>;
+	using AllocatorsPool = eastl::array<eastl::queue<eastl::unique_ptr<CommandAllocator>>, (u32)EContextLifetime::CONTEXT_LIFETIMES_COUNT>;
 
 	D3D12_COMMAND_LIST_TYPE								Type;
 	eastl::vector<eastl::unique_ptr<GPUCommandList>>	CommandLists;
@@ -164,7 +164,7 @@ public:
 	u32													ListsNum = 0;
 	u32													AllocatorsNum = 0;
 
-	CommandAllocator* ObtainAllocator(ContextLifetime lifetime) {
+	CommandAllocator* ObtainAllocator(EContextLifetime lifetime) {
 		decltype(ReadyAllocators[0])& AllocatorPool = ReadyAllocators[(u32)lifetime];
 	
 		if (!AllocatorPool.size()) {
@@ -183,15 +183,15 @@ public:
 	}
 
 	void Recycle(CommandAllocator* allocator) {
-		if (allocator->Lifetime == ContextLifetime::FRAME) {
-			ReadyAllocators[(u32)ContextLifetime::FRAME].emplace_back(allocator);
+		if (allocator->Lifetime == EContextLifetime::FRAME) {
+			ReadyAllocators[(u32)EContextLifetime::FRAME].emplace_back(allocator);
 		}
 		else {
-			PendingAllocators[(u32)ContextLifetime::ASYNC].emplace_back(allocator);
+			PendingAllocators[(u32)EContextLifetime::ASYNC].emplace_back(allocator);
 		}
 	}
 
-	GPUCommandList*	ObtainList(ContextLifetime lifetime) {
+	GPUCommandList*	ObtainList(EContextLifetime lifetime) {
 		if (!CommandLists.size()) {
 			ListsNum++;
 			PrintFormated(L"Creating CommandList, type: %u, lifetime: %u, (%u)\n", Type, lifetime, ListsNum);
@@ -226,7 +226,7 @@ public:
 	}
 };
 
-CommandAllocator::CommandAllocator(CommandListPool* owner, ContextLifetime lifetime) : Owner(owner), Lifetime(lifetime), State(ReadyState) {
+CommandAllocator::CommandAllocator(CommandListPool* owner, EContextLifetime lifetime) : Owner(owner), Lifetime(lifetime), State(ReadyState) {
 	VERIFYDX12(GetPrimaryDevice()->D12Device->CreateCommandAllocator(Owner->Type, IID_PPV_ARGS(D12CommandAllocator.get_init())));
 	VERIFYDX12(D12CommandAllocator->Reset());
 }
@@ -412,48 +412,93 @@ GPUCommandQueue*		GetCopyQueue() {
 	return ComputeQueue.get();
 }
 
-void GPUContext::Close() {	
+void FGPUContext::Close() {
 	FlushBarriers();
 	check(CommandList->State == GPUCommandList::RecordingState);
 	CommandList->Close();
 }
 
-void GPUContext::Execute() {
+void FGPUContext::Execute() {
 	if (CommandList->State == GPUCommandList::RecordingState) {
 		Close();
 	}
 	check(CommandList->State == GPUCommandList::ClosedState);
+	if (BarriersList.size()) {
+		for (u32 Index = 0; Index < BarriersList.size(); Index++) {
+			if (BarriersList[Index].Resource->FatData->AutomaticBarriers) {
+				GetResourceStateRegistry()->SetCurrentState(BarriersList[Index].Resource, BarriersList[Index].Subresource, BarriersList[Index].To);
+			}
+		}
+	}
 	Queue->Execute(CommandList);
 	CommandList = nullptr;
 }
 
-void GPUContext::ExecuteImmediately() {
+void FGPUContext::ExecuteImmediately() {
 	Execute();
 	Queue->Flush();
 }
 
-SyncPoint GPUContext::GetCompletionSyncPoint() {
+SyncPoint FGPUContext::GetCompletionSyncPoint() {
 	return CommandList->SyncPoint;
 }
 
-void GPUContext::Barrier(FGPUResource* resource, u32 subresource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after) {
-	D3D12_RESOURCE_BARRIER barrier = {};
-	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	barrier.Transition.pResource = resource->D12Resource.get();
-	barrier.Transition.StateBefore = before;
-	barrier.Transition.StateAfter = after;
-	barrier.Transition.Subresource = subresource;
-	Barriers.push_back(barrier);
+u32 HasFlag(EAccessType A, EAccessType B) {
+	return (u32)(A & B) > 0 ? 1 : 0;
 }
 
-void GPUContext::FlushBarriers() {
-	if (Barriers.size()) {
-		GetCL()->ResourceBarrier((u32)Barriers.size(), Barriers.data());
-		Barriers.clear();
+D3D12_RESOURCE_STATES GetAPIResourceState(EAccessType Access) {
+	check(Access != EAccessType::UNSPECIFIED);
+	D3D12_RESOURCE_STATES State = D3D12_RESOURCE_STATE_COMMON;
+	const D3D12_RESOURCE_STATES NULL_FLAG = D3D12_RESOURCE_STATE_COMMON;
+	State |= HasFlag(Access, EAccessType::WRITE_DEPTH) ? D3D12_RESOURCE_STATE_DEPTH_WRITE : NULL_FLAG;
+	State |= HasFlag(Access, EAccessType::WRITE_RT) ? D3D12_RESOURCE_STATE_RENDER_TARGET : NULL_FLAG;
+	State |= HasFlag(Access, EAccessType::WRITE_UAV) ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS : NULL_FLAG;
+	State |= HasFlag(Access, EAccessType::READ_DEPTH) ? D3D12_RESOURCE_STATE_DEPTH_READ : NULL_FLAG;
+	State |= HasFlag(Access, EAccessType::READ_NON_PIXEL) ? D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE : NULL_FLAG;
+	State |= HasFlag(Access, EAccessType::READ_PIXEL) ? D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE : NULL_FLAG;
+	State |= HasFlag(Access, EAccessType::COPY_DEST) ? D3D12_RESOURCE_STATE_COPY_DEST : NULL_FLAG;
+	State |= HasFlag(Access, EAccessType::COPY_SRC) ? D3D12_RESOURCE_STATE_COPY_SOURCE : NULL_FLAG;
+	State |= HasFlag(Access, EAccessType::READ_IB) ? D3D12_RESOURCE_STATE_INDEX_BUFFER : NULL_FLAG;
+	State |= HasFlag(Access, EAccessType::READ_VB_CB) ? D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER : NULL_FLAG;
+	return State;
+}
+
+void FGPUContext::Barriers(FResourceBarrier const * Barriers, u32 Num) {
+	for (u32 Index = 0; Index < Num; Index++) {
+		BarriersList.push_back(Barriers[Index]);
 	}
 }
 
-void GPUGraphicsContext::CopyDataToSubresource(FGPUResource* Dst, u32 Subresource, void const * Src, u64 RowPitch, u64 SlicePitch) {
+void FGPUContext::Barrier(FGPUResource* resource, u32 subresource, EAccessType before, EAccessType after) {
+	FResourceBarrier Barrier = {};
+	Barrier.Resource = resource;
+	Barrier.Subresource = subresource;
+	Barrier.From = before;
+	Barrier.To = after;
+	BarriersList.push_back(Barrier);
+}
+
+void FGPUContext::FlushBarriers() {
+	if (BarriersList.size() - FlushCounter) {
+		eastl::vector<D3D12_RESOURCE_BARRIER> ScratchMem;
+		ScratchMem.reserve(BarriersList.size() - FlushCounter);
+
+		for (u32 Index = FlushCounter; Index < BarriersList.size(); Index++) {
+			D3D12_RESOURCE_BARRIER barrier = {};
+			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			barrier.Transition.pResource = BarriersList[Index].Resource->D12Resource.get();
+			barrier.Transition.StateBefore = GetAPIResourceState(BarriersList[Index].From);
+			barrier.Transition.StateAfter = GetAPIResourceState(BarriersList[Index].To);
+			barrier.Transition.Subresource = BarriersList[Index].Subresource;
+
+		}
+		FlushCounter = (u32)BarriersList.size();
+		RawCommandList()->ResourceBarrier((u32)ScratchMem.size(), ScratchMem.data());
+	}
+}
+
+void FGPUContext::CopyDataToSubresource(FGPUResource* Dst, u32 Subresource, void const * Src, u64 RowPitch, u64 SlicePitch) {
 	FlushBarriers();
 
 	D3D12_SUBRESOURCE_DATA SubresourceData;
@@ -481,11 +526,11 @@ void GPUGraphicsContext::CopyDataToSubresource(FGPUResource* Dst, u32 Subresourc
 	DstLocation.SubresourceIndex = Subresource;
 	DstLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 
-	GetCL()->CopyTextureRegion(&DstLocation, 0, 0, 0, &SrcLocation, nullptr);
+	RawCommandList()->CopyTextureRegion(&DstLocation, 0, 0, 0, &SrcLocation, nullptr);
 	uploadBuffer.Release(GetCompletionSyncPoint());
 }
 
-void GPUGraphicsContext::CopyToBuffer(FGPUResource * Dst, void const* Src, u64 Size) {
+void FGPUContext::CopyToBuffer(FGPUResource * Dst, void const* Src, u64 Size) {
 	FlushBarriers();
 
 	D3D12_SUBRESOURCE_DATA SubresourceData;
@@ -496,61 +541,83 @@ void GPUGraphicsContext::CopyToBuffer(FGPUResource * Dst, void const* Src, u64 S
 	auto uploadBuffer = GetUploadAllocator()->CreateBuffer(Size, 0);
 	memcpy(uploadBuffer->GetMappedPtr(), Src, Size);
 
-	GetCL()->CopyBufferRegion(Dst->D12Resource.get(), 0, uploadBuffer->D12Resource.get(), 0, Size);
+	RawCommandList()->CopyBufferRegion(Dst->D12Resource.get(), 0, uploadBuffer->D12Resource.get(), 0, Size);
 
 	uploadBuffer.Release(GetCompletionSyncPoint());
 }
 
-void GPUComputeContext::Open(ContextLifetime lifetime) {
-	Queue = GetComputeQueue();
-	CommandList = ComputePool.ObtainList(lifetime);
-}
-
-ID3D12GraphicsCommandList* GPUContext::GetCL() const {
+ID3D12GraphicsCommandList* FGPUContext::RawCommandList() const {
 	return CommandList->D12CommandList.get();
 }
 
-void GPUGraphicsContext::Open(ContextLifetime lifetime) {
-	CommandList = DirectPool.ObtainList(lifetime);
-	Queue = GetDirectQueue();
-	Device = GetPrimaryDevice()->D12Device.get();
+void FGPUContext::Open(EContextType Type, EContextLifetime Lifetime) {
+	if (Lifetime == EContextLifetime::DEFAULT) {
+		switch (Type) {
+		case EContextType::DIRECT:
+			Lifetime = EContextLifetime::FRAME;
+			break;
+		case EContextType::COMPUTE:
+		case EContextType::COPY:
+			Lifetime = EContextLifetime::ASYNC;
+			break;
+		}
+	}
 
-	Reset();
+	if (Type == EContextType::DIRECT) {
+		CommandList = DirectPool.ObtainList(Lifetime);
+		Queue = GetDirectQueue();
+		Device = GetPrimaryDevice()->D12Device.get();
 
-	ID3D12DescriptorHeap * Heaps[] = { GetOnlineDescriptorsAllocator()->D12DescriptorHeap.get() };
-	GetCL()->SetDescriptorHeaps(_countof(Heaps), Heaps);
+		Reset();
 
-	SetTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	SetScissorRect(CD3DX12_RECT(0, 0, 32768, 32768));
-}
+		ID3D12DescriptorHeap * Heaps[] = { GetOnlineDescriptorsAllocator()->D12DescriptorHeap.get() };
+		RawCommandList()->SetDescriptorHeaps(_countof(Heaps), Heaps);
 
-void GPUGraphicsContext::ClearRTV(D3D12_CPU_DESCRIPTOR_HANDLE rtv, float4 color) {
-	CommandList->D12CommandList->ClearRenderTargetView(rtv, &color.x, 0, nullptr);
-}
+		SetTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		SetScissorRect(CD3DX12_RECT(0, 0, 32768, 32768));
+	}
+	else if (Type == EContextType::COMPUTE) {
+		CommandList = ComputePool.ObtainList(Lifetime);
+		Queue = GetComputeQueue();
+		Device = GetPrimaryDevice()->D12Device.get();
 
-void GPUGraphicsContext::ClearDSV(D3D12_CPU_DESCRIPTOR_HANDLE dsv, float depth, u8 stencil) {
-	CommandList->D12CommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, depth, stencil, 0, nullptr);
-}
+		Reset();
 
-void GPUGraphicsContext::CopyResource(FGPUResource* dst, FGPUResource* src) {
-	FlushBarriers();
-	GetCL()->CopyResource(dst->D12Resource.get(), src->D12Resource.get());
-}
-
-void GPUGraphicsContext::SetPSO(FPipelineState const* pso) {
-	if (PipelineState != pso) {
-		PipelineState = pso;
-		GetCL()->SetPipelineState(GetRawPSO(pso));
+		ID3D12DescriptorHeap * Heaps[] = { GetOnlineDescriptorsAllocator()->D12DescriptorHeap.get() };
+		RawCommandList()->SetDescriptorHeaps(_countof(Heaps), Heaps);
+	}
+	else if (Type == EContextType::COPY) {
+		check(0);
 	}
 }
 
-void GPUGraphicsContext::SetRoot(FGraphicsRootLayout const* rootLayout) {
+void FGPUContext::ClearRTV(D3D12_CPU_DESCRIPTOR_HANDLE rtv, float4 color) {
+	CommandList->D12CommandList->ClearRenderTargetView(rtv, &color.x, 0, nullptr);
+}
+
+void FGPUContext::ClearDSV(D3D12_CPU_DESCRIPTOR_HANDLE dsv, float depth, u8 stencil) {
+	CommandList->D12CommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, depth, stencil, 0, nullptr);
+}
+
+void FGPUContext::CopyResource(FGPUResource* dst, FGPUResource* src) {
+	FlushBarriers();
+	RawCommandList()->CopyResource(dst->D12Resource.get(), src->D12Resource.get());
+}
+
+void FGPUContext::SetPSO(FPipelineState const* pso) {
+	if (PipelineState != pso) {
+		PipelineState = pso;
+		RawCommandList()->SetPipelineState(GetRawPSO(pso));
+	}
+}
+
+void FGPUContext::SetRoot(FGraphicsRootLayout const* rootLayout) {
 	if (RootLayout != rootLayout) {
 		RootLayout = rootLayout;
 
 		if (RootSignature != RootLayout->RootSignature) {
 			RootSignature = RootLayout->RootSignature;
-			GetCL()->SetGraphicsRootSignature(GetRawRootSignature(rootLayout));
+			RawCommandList()->SetGraphicsRootSignature(GetRawRootSignature(rootLayout));
 
 			for (u32 index = 0; index < RootLayout->RootParamsNum; index++) {
 				u32 L = RootLayout->RootParams[index].TableLen;
@@ -566,14 +633,14 @@ void GPUGraphicsContext::SetRoot(FGraphicsRootLayout const* rootLayout) {
 	}
 }
 
-void GPUGraphicsContext::SetTopology(D3D_PRIMITIVE_TOPOLOGY topology) {
+void FGPUContext::SetTopology(D3D_PRIMITIVE_TOPOLOGY topology) {
 	if (Topology != topology) {
 		Topology = topology;
-		GetCL()->IASetPrimitiveTopology(topology);
+		RawCommandList()->IASetPrimitiveTopology(topology);
 	}
 }
 
-void GPUGraphicsContext::SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE dsv) {
+void FGPUContext::SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE dsv) {
 	if (DSV != dsv) {
 		DirtyRTVs = true;
 		UsesDepth = dsv.ptr > 0;
@@ -581,7 +648,7 @@ void GPUGraphicsContext::SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE dsv) {
 	}
 }
 
-void GPUGraphicsContext::SetRenderTarget(u32 index, D3D12_CPU_DESCRIPTOR_HANDLE rtv) {
+void FGPUContext::SetRenderTarget(u32 index, D3D12_CPU_DESCRIPTOR_HANDLE rtv) {
 	if (RTVs[index] == rtv) {
 		return;
 	}
@@ -605,10 +672,10 @@ void GPUGraphicsContext::SetRenderTarget(u32 index, D3D12_CPU_DESCRIPTOR_HANDLE 
 	}
 }
 
-void GPUGraphicsContext::SetViewport(D3D12_VIEWPORT viewport) {
+void FGPUContext::SetViewport(D3D12_VIEWPORT viewport) {
 	if (Viewport != viewport) {
 		Viewport = viewport;
-		GetCL()->RSSetViewports(1, &viewport);
+		RawCommandList()->RSSetViewports(1, &viewport);
 	}
 }
 
@@ -616,20 +683,20 @@ bool operator != (D3D12_RECT const& A, D3D12_RECT const& B) {
 	return A.bottom != B.bottom || A.left != B.left || A.right != B.right || A.top != B.top;
 }
 
-void GPUGraphicsContext::SetScissorRect(D3D12_RECT rect) {
+void FGPUContext::SetScissorRect(D3D12_RECT rect) {
 	if (ScissorRect != rect) {
-		GetCL()->RSSetScissorRects(1, &rect);
+		RawCommandList()->RSSetScissorRects(1, &rect);
 	}
 }
 
-void GPUGraphicsContext::Draw(u32 vertexCount, u32 startVertex, u32 instances, u32 startInstance) {
+void FGPUContext::Draw(u32 vertexCount, u32 startVertex, u32 instances, u32 startInstance) {
 	PreDraw();
-	GetCL()->DrawInstanced(vertexCount, instances, startVertex, startInstance);
+	RawCommandList()->DrawInstanced(vertexCount, instances, startVertex, startInstance);
 }
 
-void GPUGraphicsContext::DrawIndexed(u32 indexCount, u32 startIndex, i32 baseVertex, u32 instances, u32 startInstance) {
+void FGPUContext::DrawIndexed(u32 indexCount, u32 startIndex, i32 baseVertex, u32 instances, u32 startInstance) {
 	PreDraw();
-	GetCL()->DrawIndexedInstanced(indexCount, instances, startIndex, baseVertex, startInstance);
+	RawCommandList()->DrawIndexedInstanced(indexCount, instances, startIndex, baseVertex, startInstance);
 }
 
 bool operator != (D3D12_VERTEX_BUFFER_VIEW const& A, D3D12_VERTEX_BUFFER_VIEW const & B) {
@@ -640,7 +707,7 @@ bool operator != (D3D12_INDEX_BUFFER_VIEW const& A, D3D12_INDEX_BUFFER_VIEW cons
 	return A.BufferLocation != B.BufferLocation || A.SizeInBytes != B.SizeInBytes || A.Format != B.Format;
 }
 
-void GPUGraphicsContext::SetVB(FBufferLocation BufferView, u32 Stream) {
+void FGPUContext::SetVB(FBufferLocation BufferView, u32 Stream) {
 	D3D12_VERTEX_BUFFER_VIEW VBV;
 	VBV.BufferLocation = BufferView.Address;
 	VBV.StrideInBytes = BufferView.Stride;
@@ -665,18 +732,21 @@ void GPUGraphicsContext::SetVB(FBufferLocation BufferView, u32 Stream) {
 	}
 }
 
-void GPUGraphicsContext::SetIB(FBufferLocation BufferView) {
+void FGPUContext::SetIB(FBufferLocation BufferView) {
 	D3D12_INDEX_BUFFER_VIEW NewIBV;
 	NewIBV.BufferLocation = BufferView.Address;
 	NewIBV.Format = BufferView.Stride == 4 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
 	NewIBV.SizeInBytes = BufferView.Size;
 	if (IBV != NewIBV) {
 		IBV = NewIBV;
-		GetCL()->IASetIndexBuffer(&IBV);
+		RawCommandList()->IASetIndexBuffer(&IBV);
 	}
 }
 
-void GPUGraphicsContext::Reset() {
+void FGPUContext::Reset() {
+	FlushCounter = 0;
+	BarriersList.clear();
+
 	RootLayout = nullptr;
 	RootSignature = nullptr;
 	PipelineState = nullptr;
@@ -701,15 +771,19 @@ void GPUGraphicsContext::Reset() {
 	NumVertexBuffers = 0;
 }
 
-void GPUGraphicsContext::SetConstantBuffer(FConstantBufferParam const * ConstantBuffer) {
+void FGPUContext::SetConstantBuffer(FConstantBuffer const * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV) {
 	auto bind = RootLayout->ConstantBuffers.find(ConstantBuffer->BindId)->second.Bind;
 	auto& Param = RootParams[bind.RootParam];
-	Param.Dirty |= Param.SrcRanges[bind.DescOffset] != ConstantBuffer->CPUHandle;
-	Param.SrcRanges[bind.DescOffset] = ConstantBuffer->CPUHandle;
+	Param.Dirty |= Param.SrcRanges[bind.DescOffset] != CBV;
+	Param.SrcRanges[bind.DescOffset] = CBV;
 	Param.SrcRangesNums[bind.DescOffset] = 1;
 }
 
-void GPUGraphicsContext::SetTexture(FShaderParam const * Texture, D3D12_CPU_DESCRIPTOR_HANDLE View) {
+void FGPUContext::SetTexture(FTextureParam const * Texture, D3D12_CPU_DESCRIPTOR_HANDLE View) {
+	auto BindIter = RootLayout->Textures.find(Texture->BindId);
+	if (BindIter == RootLayout->Textures.end()) {
+		return;
+	}
 	auto bind = RootLayout->Textures.find(Texture->BindId)->second;
 	auto& Param = RootParams[bind.RootParam];
 	Param.Dirty |= View != Param.SrcRanges[bind.DescOffset];
@@ -717,7 +791,7 @@ void GPUGraphicsContext::SetTexture(FShaderParam const * Texture, D3D12_CPU_DESC
 	Param.SrcRangesNums[bind.DescOffset] = 1;
 }
 
-void GPUGraphicsContext::SetRWTexture(FShaderParam const * RWTexture, D3D12_CPU_DESCRIPTOR_HANDLE View) {
+void FGPUContext::SetRWTexture(FRWTextureParam const * RWTexture, D3D12_CPU_DESCRIPTOR_HANDLE View) {
 	auto bind = RootLayout->RWTextures.find(RWTexture->BindId)->second;
 	auto& Param = RootParams[bind.RootParam];
 	Param.Dirty |= View != Param.SrcRanges[bind.DescOffset];
@@ -725,16 +799,16 @@ void GPUGraphicsContext::SetRWTexture(FShaderParam const * RWTexture, D3D12_CPU_
 	Param.SrcRangesNums[bind.DescOffset] = 1;
 }
 
-void GPUGraphicsContext::PreDraw() {
+void FGPUContext::PreDraw() {
 	FlushBarriers();
 
 	if (DirtyRTVs) {
-		GetCL()->OMSetRenderTargets(NumRenderTargets, RTVs, false, UsesDepth ? &DSV : nullptr);
+		RawCommandList()->OMSetRenderTargets(NumRenderTargets, RTVs, false, UsesDepth ? &DSV : nullptr);
 		DirtyRTVs = false;
 	}
 
 	if (DirtyVBVs) {
-		GetCL()->IASetVertexBuffers(0, NumVertexBuffers, VBVs);
+		RawCommandList()->IASetVertexBuffers(0, NumVertexBuffers, VBVs);
 		DirtyVBVs = false;
 	}
 
@@ -746,7 +820,7 @@ void GPUGraphicsContext::PreDraw() {
 			auto destHandle = Param.Descriptors.GetCPUHandle(0);
 
 			Device->CopyDescriptors(1, &destHandle, &Param.Descriptors.DescriptorsNum, Param.Descriptors.DescriptorsNum, Param.SrcRanges.data(), Param.SrcRangesNums.data(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			GetCL()->SetGraphicsRootDescriptorTable(index, Param.Descriptors.GetGPUHandle(0));
+			RawCommandList()->SetGraphicsRootDescriptorTable(index, Param.Descriptors.GetGPUHandle(0));
 		}
 	}
 }
@@ -806,4 +880,298 @@ void EndFrame() {
 		PendingFrameSyncPoints.front().WaitForCompletion();
 		PendingFrameSyncPoints.pop();
 	}
+}
+
+eastl::unique_ptr<FResourceStateRegistry>	GResourceStateRegistry;
+
+FResourceStateRegistry * GetResourceStateRegistry() {
+	if (!GResourceStateRegistry.get()) {
+		GResourceStateRegistry.reset(new FResourceStateRegistry());
+	}
+	return GResourceStateRegistry.get();
+}
+
+void ProcessResourceBarriers(
+	FGPUResource * Resource,
+	eastl::vector<FResourceAccessNode>& InitialNodes,
+	eastl::vector<FResourceAccess> const& Requests,
+	eastl::hash_map<u32, eastl::vector<FResourceBarrier>> &OutBarriers
+	) {
+	auto & Nodes = InitialNodes;
+
+	u32 LastAllSubresNode = 0;
+	eastl::hash_map<u32, u32> LastSubresourceNode;
+	u32 LastComplementaryNode = -1;
+
+	if (Nodes[0].Complementary == 1) {
+		LastAllSubresNode = -1;
+		LastComplementaryNode = 0;
+
+		for (u32 Index = 1; Index < Nodes.size(); Index++) {
+			LastSubresourceNode[Nodes[Index].Subresource] = Index;
+		}
+	}
+
+	auto SpawnNode = [&](u32 Prev, EAccessType Access, u32 Subres, u32 BatchIndex) {
+		FResourceAccessNode NewNode = {};
+		NewNode.Access = Access;
+		if (IsReadAccess(Access) && IsReadAccess(Nodes[Prev].Access)) {
+			NewNode.Access |= Nodes[Prev].Access;
+		}
+		NewNode.Subresource = Subres;
+		NewNode.PrevIndices.push_back(Prev);
+		NewNode.BatchIndex = BatchIndex;
+		return (u32)Nodes.size() - 1;
+	};
+
+	auto AddConnection = [&](u32 Prev, u32 Post) {
+		Nodes[Post].PrevIndices.push_back(Prev);
+		if (IsReadAccess(Nodes[Post].Access) && IsReadAccess(Nodes[Prev].Access)) {
+			Nodes[Post].Access |= Nodes[Prev].Access;
+		}
+	};
+
+	eastl::queue<u32> HelperQueue;
+	auto PropagateRead = [&](u32 Index, EAccessType Access) {
+		HelperQueue.empty();
+		check(IsReadAccess(Access));
+		if (IsReadAccess(Nodes[Index].Access) && !Nodes[Index].Immutable && (Nodes[Index].Access | Access) != Nodes[Index].Access) {
+			HelperQueue.push(Index);
+		}
+		while (!HelperQueue.empty()) {
+			u32 Node = HelperQueue.front();
+			HelperQueue.pop();
+			Nodes[Node].Access |= Access;
+			for (u32 i = 0; i < Nodes[Node].PrevIndices.size(); i++) {
+				u32 Prev = Nodes[Node].PrevIndices[i];
+				if (IsReadAccess(Nodes[Prev].Access) && !Nodes[Prev].Immutable && (Nodes[Prev].Access | Access) != Nodes[Prev].Access) {
+					HelperQueue.push(Prev);
+				}
+			}
+		}
+	};
+
+	auto NeedNewNode = [&](u32 Prev, EAccessType Access) -> bool {
+		bool Differs = Access != Nodes[Prev].Access;
+		return (IsExclusiveAccess(Access) || Nodes[Prev].Immutable) && Differs;
+	};
+
+	for (auto & Request : Requests) {
+		if (Request.Subresource == ALL_SUBRESOURCES) {
+			bool ResourceInSameState = LastSubresourceNode.size() == 0 && LastComplementaryNode == -1;
+			if (ResourceInSameState) {
+				u32 Prev = LastAllSubresNode;
+
+				if (NeedNewNode(Prev, Request.Access)) {
+					LastAllSubresNode = SpawnNode(Prev, Request.Access, Request.Subresource, Request.BatchIndex);
+				}
+				else if (IsReadAccess(Request.Access)) {
+					PropagateRead(Prev, Request.Access);
+				}
+			}
+			// !ResourceInSameState
+			else {
+				// LastComplementaryNode
+				LastAllSubresNode = SpawnNode(LastComplementaryNode, Request.Access, Request.Subresource, Request.BatchIndex);
+				// foreach LastSubresourceNode
+				for (auto PrevPair : LastSubresourceNode) {
+					u32 Prev = PrevPair.second;
+					u32 Subres = PrevPair.first;
+
+					AddConnection(Prev, LastAllSubresNode);
+				}
+
+				LastSubresourceNode.clear();
+				LastComplementaryNode = -1;
+				PropagateRead(LastAllSubresNode, Request.Access);
+			}
+		}
+		// Request.Subresource != ALL_SUBRESOURCES
+		else {
+			auto SubresFindIter = LastSubresourceNode.find(Request.Subresource);
+			if (SubresFindIter != LastSubresourceNode.end()) {
+				if (NeedNewNode(SubresFindIter->second, Request.Access)) {
+					LastSubresourceNode[Request.Subresource] = SpawnNode(SubresFindIter->second, Request.Access, Request.Subresource, Request.BatchIndex);
+				}
+				else if (IsReadAccess(Request.Access)) {
+					PropagateRead(SubresFindIter->second, Request.Access);
+				}
+			}
+			else if (LastSubresourceNode.size()) {
+				if (NeedNewNode(LastComplementaryNode, Request.Access)) {
+					LastSubresourceNode[Request.Subresource] = SpawnNode(LastComplementaryNode, Request.Access, Request.Subresource, Request.BatchIndex);
+				}
+				else if (IsReadAccess(Request.Access)) {
+					PropagateRead(LastComplementaryNode, Request.Access);
+				}
+			}
+			else {
+				if (NeedNewNode(LastAllSubresNode, Request.Access)) {
+					LastComplementaryNode = SpawnNode(LastAllSubresNode, Nodes[LastAllSubresNode].Access, ALL_SUBRESOURCES, Request.BatchIndex);
+					Nodes[LastComplementaryNode].Complementary = 1;
+					LastSubresourceNode[Request.Subresource] = SpawnNode(LastAllSubresNode, Request.Access, Request.Subresource, Request.BatchIndex);
+				}
+				else if (IsReadAccess(Request.Access)) {
+					PropagateRead(LastAllSubresNode, Request.Access);
+				}
+			}
+		}
+	}
+
+	for (u32 Index = 0; Index < Nodes.size(); Index++) {
+		for (u32 Prev : Nodes[Index].PrevIndices) {
+			if (Nodes[Prev].Access != Nodes[Index].Access) {
+				FResourceBarrier Barrier = {};
+				Barrier.Resource = Resource;
+				Barrier.Subresource = Nodes[Index].Subresource;
+				Barrier.From = Nodes[Prev].Access;
+				Barrier.To = Nodes[Index].Access;
+
+				OutBarriers[Nodes[Prev].BatchIndex].push_back(Barrier);
+			}
+		}
+	}
+}
+
+void FResourceStateRegistry::SetCurrentState(FGPUResource* Resource, u32 Subresource, EAccessType Access) {
+	check(Resource->FatData->AutomaticBarriers);
+
+	FResourceEntry & Entry = Resources[Resource];
+	if (Subresource == ALL_SUBRESOURCES) {
+		Entry.AllSubresources = Access;
+		Entry.Complementary = EAccessType::UNSPECIFIED;
+		Entry.Subresources.clear();
+	}
+	else if (Entry.AllSubresources != EAccessType::UNSPECIFIED) {
+		Entry.Complementary = Entry.AllSubresources;
+		Entry.Subresources[Subresource] = Access;
+		Entry.AllSubresources = EAccessType::UNSPECIFIED;
+	}
+	else {
+		Entry.Complementary = Entry.AllSubresources;
+		Entry.Subresources.clear();
+	}
+}
+
+void	FCommandsStream::SetAccess(FGPUResource * Resource, u32 Subresource, EAccessType Access) {
+	check(Resource->FatData->AutomaticBarriers);
+
+	FResourceAccess ResourceAccess;
+	ResourceAccess.Subresource = Subresource;
+	ResourceAccess.Access = Access;
+	ResourceAccess.BatchIndex = -1;
+
+	bool Ignore = ResourceAccessList[Resource].Accesses.size()
+		&& ResourceAccessList[Resource].Accesses.back().Subresource == Subresource
+		&& ResourceAccessList[Resource].Accesses.back().Access == Access;
+
+	if (!Ignore) {
+		ResourceAccessList[Resource].Accesses.push_back(ResourceAccess);
+		ProcessList.insert(Resource);
+	}
+}
+
+void	FCommandsStream::ReserveStreamSize(u64 Size) {
+	u8 * NewData = new u8[Size];
+	memcpy(NewData, Data.get(), MaxSize);
+	Data.reset(NewData);
+	MaxSize = Size;
+}
+
+void*   FCommandsStream::Reserve(u64 Size) {
+	while (Offset + Size > MaxSize) {
+		ReserveStreamSize(MaxSize * 2);
+	}
+	u64 CurrentOffset = Offset;
+	Offset += Size;
+	return Data.get() + CurrentOffset;
+}
+
+void FCommandsStream::Reset() {
+	Offset = 0;
+}
+
+void FCommandsStream::Close() {
+	BatchBarriers();
+	ProcessBarriersPreExecution(*GetResourceStateRegistry());
+}
+
+void FCommandsStream::ProcessBarriersPreExecution(FResourceStateRegistry & Registry) {
+	eastl::vector<FResourceAccessNode>	InitialGraph;
+	Barriers.clear();
+
+	for (auto & ResourceAccess : ResourceAccessList) {
+		check(Registry.Resources.find(ResourceAccess.first) != Registry.Resources.end());
+
+		InitialGraph.clear();
+		check(ResourceAccess.second.BatchedNum == ResourceAccess.second.Accesses.size());
+
+		if (Registry.Resources[ResourceAccess.first].AllSubresources != EAccessType::UNSPECIFIED) {
+			FResourceAccessNode Node = {};
+			Node.Access = Registry.Resources[ResourceAccess.first].AllSubresources;
+			Node.Subresource = ALL_SUBRESOURCES;
+			Node.Immutable = 1;
+			InitialGraph.push_back(Node);
+		}
+		else {
+			check(Registry.Resources[ResourceAccess.first].Complementary != EAccessType::UNSPECIFIED);
+			FResourceAccessNode Node = {};
+			Node.Access = Registry.Resources[ResourceAccess.first].Complementary;
+			Node.Subresource = ALL_SUBRESOURCES;
+			Node.Immutable = 1;
+			Node.Complementary = 1;
+			InitialGraph.push_back(Node);
+
+			for (auto SubresourceAccess : Registry.Resources[ResourceAccess.first].Subresources) {
+				Node.Access = SubresourceAccess.second;
+				Node.Subresource = SubresourceAccess.first;
+				Node.Immutable = 1;
+				Node.Complementary = 0;
+				InitialGraph.push_back(Node);
+			}
+		}
+
+		ProcessResourceBarriers(ResourceAccess.first, InitialGraph, ResourceAccess.second.Accesses, Barriers);
+	}
+}
+
+void FCommandsStream::BatchBarriers() {
+	if (ProcessList.size()) {
+		for (FGPUResource* Resource : ProcessList) {
+			auto & List = ResourceAccessList[Resource];
+			for (u32 Index = List.BatchedNum; Index < List.Accesses.size(); Index++) {
+				List.Accesses[Index].BatchIndex = BatchCounter;
+			}
+			List.BatchedNum = (u32)List.Accesses.size();
+		}
+
+		ProcessList.clear();
+
+		auto Data = ReservePacket<FRenderCmdBarriersBatch, FRenderCmdBarriersBatchFunc>();
+		Data->This = this;
+		Data->BatchIndex = BatchCounter;
+
+		BatchCounter++;
+	}
+}
+
+void FCommandsStream::ExecuteBatchedBarriers(FGPUContext * Context, u32 BatchIndex) {
+	if (Barriers[BatchIndex].size()) {
+		Context->Barriers(Barriers[BatchIndex].data(), (u32)Barriers[BatchIndex].size());
+		Context->FlushBarriers();
+	}
+}
+
+void Playback(FGPUContext & Context, FCommandsStream * Stream) {
+	u64 Offset = 0;
+	while (Offset < Stream->Offset) {
+		FRenderCmdHeader * Header = (FRenderCmdHeader*)pointer_add(Stream->Data.get(), Offset);
+		Offset += Header->Func(&Context, Header + 1);
+	}
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE CreateCBVFromData(FConstantBuffer *, void const * Data, u64 Size) {
+	auto allocation = GetConstantsAllocator()->Allocate(Size);
+	memcpy(allocation.CPUPtr, Data, Size);
+	return allocation.CPUHandle;;
 }

@@ -1,4 +1,4 @@
-cbuffer ConstantBuffer : register(b0)
+cbuffer Constants : register(b0) 
 {
 	matrix Projection;
 };

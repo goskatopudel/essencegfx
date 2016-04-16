@@ -111,17 +111,11 @@
     <ClCompile Include="tiny_obj_loader.cc">
       <Filter>Rendering\Models</Filter>
     </ClCompile>
-    <ClCompile Include="UtilWidgets.cpp">
-      <Filter>ImGui</Filter>
-    </ClCompile>
     <ClCompile Include="Model.cpp">
       <Filter>Rendering\Models</Filter>
     </ClCompile>
     <ClCompile Include="Camera.cpp">
       <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="Barriers.cpp">
-      <Filter>Rendering</Filter>
     </ClCompile>
     <ClCompile Include="ImGui\imgui.cpp">
       <Filter>ImGui</Filter>
@@ -131,6 +125,15 @@
     </ClCompile>
     <ClCompile Include="ImGui\imgui_draw.cpp">
       <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="UIUtils.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderMaterial.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="CommandStream.cpp">
+      <Filter>Rendering</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -203,9 +206,6 @@
     <ClInclude Include="mikktspace.h">
       <Filter>Rendering\Models</Filter>
     </ClInclude>
-    <ClInclude Include="UtilWidgets.h">
-      <Filter>ImGui</Filter>
-    </ClInclude>
     <ClInclude Include="Model.h">
       <Filter>Rendering\Models</Filter>
     </ClInclude>
@@ -217,9 +217,6 @@
     </ClInclude>
     <ClInclude Include="Camera.h">
       <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="Barriers.h">
-      <Filter>Rendering</Filter>
     </ClInclude>
     <ClInclude Include="ImGui\imconfig.h">
       <Filter>ImGui</Filter>
@@ -238,6 +235,15 @@
     </ClInclude>
     <ClInclude Include="ImGui\stb_truetype.h">
       <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="UIUtils.h">
+      <Filter>ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderMaterial.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="CommandStream.h">
+      <Filter>Rendering</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -159,9 +159,9 @@
     <ClCompile Include="..\EASTL\source\red_black_tree.cpp" />
     <ClCompile Include="..\EASTL\source\string.cpp" />
     <ClCompile Include="..\EASTL\source\thread_support.cpp" />
-    <ClCompile Include="Barriers.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Commands.cpp" />
+    <ClCompile Include="CommandStream.cpp" />
     <ClCompile Include="DDSLoader.cpp" />
     <ClCompile Include="Descriptors.cpp" />
     <ClCompile Include="FileIO.cpp" />
@@ -170,7 +170,8 @@
     <ClCompile Include="ImGui\imgui_demo.cpp" />
     <ClCompile Include="ImGui\imgui_draw.cpp" />
     <ClCompile Include="Model.cpp" />
-    <ClCompile Include="UtilWidgets.cpp" />
+    <ClCompile Include="RenderMaterial.cpp" />
+    <ClCompile Include="UIUtils.cpp" />
     <ClCompile Include="mikktspace.c" />
     <ClCompile Include="NewDefinitions.cpp" />
     <ClCompile Include="Application.cpp" />
@@ -187,9 +188,9 @@
   <ItemGroup>
     <ClInclude Include="Application.h" />
     <ClInclude Include="AssertionMacros.h" />
-    <ClInclude Include="Barriers.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Commands.h" />
+    <ClInclude Include="CommandStream.h" />
     <ClInclude Include="Descriptors.h" />
     <ClInclude Include="Device.h" />
     <ClInclude Include="Essence.h" />
@@ -204,8 +205,9 @@
     <ClInclude Include="ImGui\stb_rect_pack.h" />
     <ClInclude Include="ImGui\stb_textedit.h" />
     <ClInclude Include="ImGui\stb_truetype.h" />
+    <ClInclude Include="RenderMaterial.h" />
     <ClInclude Include="MathMatrix.h" />
-    <ClInclude Include="UtilWidgets.h" />
+    <ClInclude Include="UIUtils.h" />
     <ClInclude Include="mikktspace.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="Pipeline.h" />

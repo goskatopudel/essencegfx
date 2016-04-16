@@ -5,7 +5,6 @@
 #include <EASTL\string.h>
 #include <EASTL\initializer_list.h>
 #include <EASTL\sort.h>
-#include <EASTL\shared_ptr.h>
 #include <EASTL\vector.h>
 #include "Print.h"
 #include "FileIO.h"
@@ -16,34 +15,21 @@
 #include "Hash.h"
 #include "Device.h"
 
-class CompiledShader {
+class FCompiledShader {
 public:
 	eastl::unique_ptr<u8[]>			Bytecode;
 	u64								Size;
 	u64								Hash;
 
-	CompiledShader() = default;
-	CompiledShader(u8* code, u64 size, u64 hash) : Size(size), Hash(hash) {
+	FCompiledShader() = default;
+	FCompiledShader(u8* code, u64 size, u64 hash) : Size(size), Hash(hash) {
 		Bytecode = eastl::make_unique<u8[]>(size);
 		memcpy(Bytecode.get(), code, Size);
 	}
 };
 
-class FShader {
-public:
-	eastl::shared_ptr<CompiledShader>		Bytecode;
-	u64										ValueHash;
-	eastl::string							File;
-	eastl::string							Func;
-	const char*								Target;
-	eastl::unique_ptr<D3D_SHADER_MACRO[]>	Macros;
-	u32										Flags;
-
-	void Compile();
-};	
-
 u64 GetShaderHash(FShader const* shader) {
-	return shader->ValueHash;
+	return shader->LocationHash;
 }
 
 struct ShaderHash {
@@ -55,9 +41,11 @@ bool operator != (ShaderHash a, ShaderHash b) { return a.hash != b.hash; };
 
 template<>
 struct eastl::hash<ShaderHash> { u64 operator()(ShaderHash h) const { return h.hash; } };
+			
+eastl::hash_map<ShaderHash, eastl::shared_ptr<FShader>>			ShadersLocationLookup;
+eastl::hash_map<ShaderHash, eastl::shared_ptr<FCompiledShader>>	ShadersCodeLookup;
 
-eastl::hash_map<ShaderHash, eastl::shared_ptr<FShader>> ShadersLocationLookup;
-eastl::hash_map<ShaderHash, eastl::shared_ptr<CompiledShader>> ShadersCodeLookup;
+u64			GShadersCompilationVersion = 0;
 
 void FShader::Compile() {
 	auto ShaderCode = ReadEntireFile(File.c_str());
@@ -66,13 +54,15 @@ void FShader::Compile() {
 	unique_com_ptr<ID3DBlob> ErrorsBlob;
 	HRESULT preprocessResult = D3DPreprocess(ShaderCode.Data, ShaderCode.Bytesize, File.c_str(), Macros.get(), D3D_COMPILE_STANDARD_FILE_INCLUDE, CodeBlob.get_init(), ErrorsBlob.get_init());
 
-	ShaderHash hashLookup = { MurmurHash2_64(CodeBlob->GetBufferPointer(), CodeBlob->GetBufferSize(), 0) };
+	ShaderHash hashLookup = { MurmurHash2_64(CodeBlob->GetBufferPointer(), CodeBlob->GetBufferSize(), LocationHash) };
 	auto codeCacheFind = ShadersCodeLookup.find(hashLookup);
 	if (codeCacheFind != ShadersCodeLookup.end()) {
-		Bytecode = codeCacheFind->second;
+		if (Bytecode.get() != codeCacheFind->second.get()) {
+			Bytecode = codeCacheFind->second;
+			LastChangedVersion = GShadersCompilationVersion;
+		}
 	}
-
-	if (CodeBlob.get() && CodeBlob->GetBufferPointer()) {
+	else if (CodeBlob.get() && CodeBlob->GetBufferPointer()) {
 		HRESULT hr = D3DCompile2(ShaderCode.Data, ShaderCode.Bytesize, File.c_str(), Macros.get(), D3D_COMPILE_STANDARD_FILE_INCLUDE, Func.c_str(), Target, Flags, 0, 0, nullptr, 0, CodeBlob.get_init(), ErrorsBlob.get_init());
 
 		if (ErrorsBlob.get() && ErrorsBlob->GetBufferPointer()) {
@@ -80,8 +70,10 @@ void FShader::Compile() {
 		}
 
 		if (CodeBlob.get() && CodeBlob->GetBufferPointer()) {
-			Bytecode = ShadersCodeLookup[hashLookup] = eastl::make_shared<CompiledShader>((u8*)CodeBlob->GetBufferPointer(), CodeBlob->GetBufferSize(), hashLookup.hash);
+			Bytecode = ShadersCodeLookup[hashLookup] = eastl::make_shared<FCompiledShader>((u8*)CodeBlob->GetBufferPointer(), CodeBlob->GetBufferSize(), hashLookup.hash);
 		}
+
+		LastChangedVersion = GShadersCompilationVersion;
 	}
 }
 
@@ -124,9 +116,21 @@ FShader* GetShader(eastl::string file, eastl::string func, const char* target, e
 	shader->Target = target;
 	shader->Macros = std::move(d3dmacros);
 	shader->Flags = flags;
-	shader->ValueHash = hashLookup.hash;
+	shader->LocationHash = hashLookup.hash;
 
 	shader->Compile();
 
 	return shader;
+}
+
+void RecompileChangedShaders() {
+	GShadersCompilationVersion++;
+
+	for (auto & ShaderEntry : ShadersLocationLookup) {
+		ShaderEntry.second->Compile();
+	}
+}
+
+u32 GetShadersNum() {
+	return (u32)ShadersCodeLookup.size();
 }

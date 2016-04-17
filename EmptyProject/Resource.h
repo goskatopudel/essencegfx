@@ -95,6 +95,7 @@ public:
 
 	EAccessType							GetDefaultAccess() const;
 	bool								IsFixedState() const;
+	DXGI_FORMAT							GetFormat() const;
 };
 
 class FGPUResourceFat {

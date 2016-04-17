@@ -14,3 +14,5 @@ inline void PrintFormatedVA(const wchar_t* pFormat, va_list args) {
 }
 
 eastl::wstring ConvertToWString(const char* src, u64 len);
+eastl::string ConvertToString(const wchar_t* src, u64 len);
+eastl::wstring ConvertToWString(eastl::string const& str);

@@ -5,6 +5,15 @@
 #include "Resource.h"
 #include "VideoMemory.h"
 
+#include <DirectXMath.h>
+#include "UVAtlas\UVAtlas.h"
+
+#if _DEBUG
+#pragma comment(lib, "UVAtlas/debug/UVAtlas.lib")
+#else 
+#pragma comment(lib, "UVAtlas/release/UVAtlas.lib")
+#endif
+
 #include <EASTL/string.h>
 #include <EASTL/vector.h>
 #include <EASTL/array.h>
@@ -12,24 +21,6 @@
 #include "MathVector.h"
 #include "MathFunctions.h"
 #include <EASTL/unique_ptr.h>
-
-eastl::string ConvertToString(const wchar_t* src, u64 len) {
-	eastl::string str;
-	// dunno why easstl::DecodePart needs more space
-	str.resize(len + 64);
-
-	auto srcBegin = src;
-	auto srcEnd = src + len;
-	auto dstBegin = &str[0];
-	auto dstEnd = dstBegin + len + 64;
-	eastl::DecodePart(srcBegin, srcEnd, dstBegin, dstEnd);
-
-	return std::move(str);
-}
-
-eastl::wstring ConvertToWString(eastl::string const& str) {
-	return std::move(ConvertToWString(str.c_str(), str.size()));
-}
 
 class FVertexContainer {
 public:

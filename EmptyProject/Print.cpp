@@ -21,3 +21,21 @@ eastl::wstring ConvertToWString(const char* src, u64 len) {
 
 	return std::move(wstr);
 }
+
+eastl::string ConvertToString(const wchar_t* src, u64 len) {
+	eastl::string str;
+	// dunno why easstl::DecodePart needs more space
+	str.resize(len + 64);
+
+	auto srcBegin = src;
+	auto srcEnd = src + len;
+	auto dstBegin = &str[0];
+	auto dstEnd = dstBegin + len + 64;
+	eastl::DecodePart(srcBegin, srcEnd, dstBegin, dstEnd);
+
+	return std::move(str);
+}
+
+eastl::wstring ConvertToWString(eastl::string const& str) {
+	return std::move(ConvertToWString(str.c_str(), str.size()));
+}

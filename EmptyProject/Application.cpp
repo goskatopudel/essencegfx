@@ -397,7 +397,39 @@ void RenderScene(FGPUContext & Context, FModel * model) {
 	}
 }
 
-FModel* DrawModel;
+#include "Viewer.h"
+#include "ModelHelpers.h"
+
+void RenderModelViewer(FGPUContext & Context) {
+	static FEditorModel * Model;
+	if (Model == nullptr) {
+		Model = new FEditorModel();
+		Model->AddMesh(CreateRock(1, 3));
+		Model->Meshes[0].CopyDataToBuffers(Context);
+	}
+
+	FTransformation Transformation;
+	Transformation.Position = float3(0, 0, 0);
+	Transformation.Scale = 1.f;
+
+	static FViewParams ViewParams;
+	ViewParams.Mode = EViewMode::Normals;
+
+	if (ImGui::CollapsingHeader("Params")) {
+		ImGui::Checkbox("Wireframe", &ViewParams.Wireframe);
+		ImGui::Checkbox("Normal vectors", &ViewParams.DrawNormals);
+	}
+
+	FRenderViewport Viewport;
+	Viewport.RenderTarget = GetBackbuffer();
+	Viewport.DepthBuffer = DepthBuffer;
+	Viewport.Camera = &Camera;
+	Viewport.Resolution = Vec2i(1024, 768);
+
+	RenderModel(Context, Model, Transformation, Viewport, ViewParams);
+}
+
+#include "ModelHelpers.h"
 
 void FApplication::Init() {
 	ListAdapters();
@@ -448,16 +480,16 @@ void FApplication::Init() {
 
 	//DrawModel = LoadModelFromOBJ(L"Models/cube.obj");
 	//ConvertObjToBinary(L"Models/sponza.obj", L"Models/sponza.bin");
-	DrawModel = LoadModelFromBinary(L"Models/sponza.bin");
+	/*DrawModel = LoadModelFromBinary(L"Models/sponza.bin");
+	LoadOBJ(L"Models/sponza.obj", L"Models/sponza.cachedobj");*/
 
 	FGPUContext Context;
 	Context.Open(EContextType::DIRECT);
 	Context.CopyDataToSubresource(UITexture, 0, pixels, sizeof(u32) * width, sizeof(u32) * width * height);
-
 	Context.Barrier(UITexture, ALL_SUBRESOURCES, EAccessType::COPY_DEST, EAccessType::READ_PIXEL);
 
-	LoadModelTextures(Context, DrawModel);
-	UpdateGeometryBuffers(Context);
+	//LoadModelTextures(Context, DrawModel);
+	//UpdateGeometryBuffers(Context);
 
 	ColorTexture = LoadDDSImage(L"Textures/uvchecker.DDS", true, Context);
 
@@ -475,7 +507,7 @@ void FApplication::Shutdown() {
 }
 
 void ShowSceneWindow() {
-	ImGui::Begin("Scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+	ImGui::Begin("Scene");
 	if (ImGui::CollapsingHeader("Directional Light")) {
 		static float AzimuthAngle;
 		static float HorizontalAngle;
@@ -521,10 +553,10 @@ bool FApplication::Update() {
 
 	ImGui::NewFrame();
 
-	ShowSceneWindow();
 	ShowAppStats();
-
-	ImGui::ShowTestWindow();
+	ShowSceneWindow();
+	
+	//ImGui::ShowTestWindow();
 
 	static FCommandsStream Stream;
 	Stream.Reset();
@@ -537,7 +569,8 @@ bool FApplication::Update() {
 	FGPUContext Context;
 	Context.Open(EContextType::DIRECT);
 	Playback(Context, &Stream);
-	RenderScene(Context, DrawModel);
+	//RenderScene(Context, DrawModel);
+	RenderModelViewer(Context);
 	Context.Execute();
 
 	ImGui::Render();

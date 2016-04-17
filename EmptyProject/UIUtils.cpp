@@ -45,7 +45,7 @@ void ShowMemoryInfo() {
 }
 
 void ShowAppStats() {
-	ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+	ImGui::Begin("Stats");
 	if (ImGui::CollapsingHeader("Shaders")) {
 		extern u64 GShadersCompilationVersion;
 

@@ -135,6 +135,18 @@
     <ClCompile Include="CommandStream.cpp">
       <Filter>Rendering</Filter>
     </ClCompile>
+    <ClCompile Include="ModelHelpers.cpp">
+      <Filter>Rendering\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="yocto_obj.c">
+      <Filter>Rendering\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="par_shapes.c">
+      <Filter>Rendering\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="Viewer.cpp">
+      <Filter>Rendering\Models</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Essence.h">
@@ -244,6 +256,18 @@
     </ClInclude>
     <ClInclude Include="CommandStream.h">
       <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="ModelHelpers.h">
+      <Filter>Rendering\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="par_shapes.h">
+      <Filter>Rendering\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="yocto_obj.h">
+      <Filter>Rendering\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="Viewer.h">
+      <Filter>Rendering\Models</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

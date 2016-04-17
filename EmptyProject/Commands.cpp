@@ -772,7 +772,11 @@ void FGPUContext::Reset() {
 }
 
 void FGPUContext::SetConstantBuffer(FConstantBuffer const * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV) {
-	auto bind = RootLayout->ConstantBuffers.find(ConstantBuffer->BindId)->second.Bind;
+	auto BindIter = RootLayout->ConstantBuffers.find(ConstantBuffer->BindId);
+	if (BindIter == RootLayout->ConstantBuffers.end()) {
+		return;
+	}
+	auto bind = BindIter->second.Bind;
 	auto& Param = RootParams[bind.RootParam];
 	Param.Dirty |= Param.SrcRanges[bind.DescOffset] != CBV;
 	Param.SrcRanges[bind.DescOffset] = CBV;

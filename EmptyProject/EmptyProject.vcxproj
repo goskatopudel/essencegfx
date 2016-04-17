@@ -170,6 +170,8 @@
     <ClCompile Include="ImGui\imgui_demo.cpp" />
     <ClCompile Include="ImGui\imgui_draw.cpp" />
     <ClCompile Include="Model.cpp" />
+    <ClCompile Include="ModelHelpers.cpp" />
+    <ClCompile Include="par_shapes.c" />
     <ClCompile Include="RenderMaterial.cpp" />
     <ClCompile Include="UIUtils.cpp" />
     <ClCompile Include="mikktspace.c" />
@@ -183,7 +185,9 @@
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="tiny_obj_loader.cc" />
     <ClCompile Include="VideoMemory.cpp" />
+    <ClCompile Include="Viewer.cpp" />
     <ClCompile Include="Win32Application.cpp" />
+    <ClCompile Include="yocto_obj.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
@@ -205,6 +209,8 @@
     <ClInclude Include="ImGui\stb_rect_pack.h" />
     <ClInclude Include="ImGui\stb_textedit.h" />
     <ClInclude Include="ImGui\stb_truetype.h" />
+    <ClInclude Include="ModelHelpers.h" />
+    <ClInclude Include="par_shapes.h" />
     <ClInclude Include="RenderMaterial.h" />
     <ClInclude Include="MathMatrix.h" />
     <ClInclude Include="UIUtils.h" />
@@ -221,7 +227,9 @@
     <ClInclude Include="SwapChain.h" />
     <ClInclude Include="tiny_obj_loader.h" />
     <ClInclude Include="VideoMemory.h" />
+    <ClInclude Include="Viewer.h" />
     <ClInclude Include="Win32Application.h" />
+    <ClInclude Include="yocto_obj.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ProcessNode.cpp" />

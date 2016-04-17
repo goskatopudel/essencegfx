@@ -100,6 +100,10 @@ bool	FGPUResource::IsFixedState() const {
 	return FatData->HeapProperties.Type == D3D12_HEAP_TYPE_UPLOAD || FatData->HeapProperties.Type == D3D12_HEAP_TYPE_READBACK;
 }
 
+DXGI_FORMAT	FGPUResource::GetFormat() const {
+	return FatData->Desc.Format;
+}
+
 FSubresourceInfo FGPUResource::GetSubresourceInfo(u32 subresourceIndex) const {
 	FSubresourceInfo Info = {};
 	u32 Mips = FatData->Desc.MipLevels;

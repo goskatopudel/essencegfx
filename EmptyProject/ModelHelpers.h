@@ -5,8 +5,7 @@
 #include "CommandStream.h"
 #include "par_shapes.h"
 #include "Resource.h"
-
-void LoadOBJ(const wchar_t* filename, const wchar_t * CachedFilename);
+#include "BVH.h"
 
 struct FEditorMeshVertex{
 	float3		Position;
@@ -29,8 +28,13 @@ public:
 	eastl::vector<Color4b>	Colors;
 	eastl::vector<u32>		Indices;
 
-	u32						VerticesNum;
-	u32						IndicesNum;
+	struct FAtlasInfo {
+		u32		ResolutionX;
+		u32		ResolutionY;
+	} AtlasInfo;
+
+	u32						GetVerticesNum();
+	u32						GetIndicesNum();
 
 	void Clear();
 	void Consume(par_shapes_mesh * ParShapesMesh);
@@ -49,6 +53,12 @@ public:
 	eastl::vector<FEditorMesh>	Meshes;
 
 	void AddMesh(FEditorMesh && Mesh);
+	void CopyDataToBuffers(FGPUContext & Context);
 };
 
+FEditorMesh CreatePlane(i32 slices, i32 stacks);
 FEditorMesh CreateRock(i32 seed, i32 nsubdivisions);
+FEditorMesh CreateSphere(i32 nsubdivisions);
+FEditorMesh CreateKleinBottle(i32 slices, i32 stacks);
+
+void LoadOBJ(FEditorModel * Model, const wchar_t* Filename, const wchar_t * CachedFilename);

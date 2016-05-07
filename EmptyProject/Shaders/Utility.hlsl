@@ -18,7 +18,7 @@ VOut VShader(uint vertexId : SV_VertexID)
 	return output;
 }
 
-Texture2D<float4> 	Image : register(t0, space0);
+Texture2D<float4> 	Image : register(t0);
 SamplerState    	Sampler : register(s0);
 
 float4 				WriteColor;

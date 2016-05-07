@@ -141,6 +141,15 @@ Vector<T, n>& operator /=(Vector<T, n>& lhs, T rhs) {
 }
 
 template<typename T, i32 n>
+Vector<T, n> operator /(T lhs, Vector<T, n>const& rhs) {
+	Vector<T, n> v;
+	for (i32 i = 0; i < n; ++i) {
+		v[i] = lhs / rhs[i];
+	}
+	return v;
+}
+
+template<typename T, i32 n>
 T dot(Vector<T, n>& lhs, Vector<T, n>const& rhs) {
 	T v = 0;
 	for (i32 i = 0; i < n; ++i) {
@@ -151,11 +160,6 @@ T dot(Vector<T, n>& lhs, Vector<T, n>const& rhs) {
 
 template<typename T, i32 n>
 Vector<T, n> cross(Vector<T, n>const& lhs, Vector<T, n>const& rhs);
-
-template<typename T>
-Vector<T, 3> cross(Vector<T, 3>const& lhs, Vector<T, 3>const& rhs) {
-	return{ lhs.y * rhs.z - lhs.z * rhs.y, lhs.z * rhs.x - lhs.x * rhs.z, lhs.x * rhs.y - lhs.y * rhs.x };
-}
 
 template<i32 n>
 Vector<float, n> normalize(Vector<float, n>const& v) {
@@ -267,4 +271,65 @@ Vector<T, n> max(Vector<T, n>const& lhs, Vector<T, n>const& rhs) {
 		result[i] = lhs[i] > rhs[i] ? lhs[i] : rhs[i];
 	}
 	return result;
+}
+
+
+
+// specialization for float3
+
+
+template<typename T>
+Vector<T, 3> operator /(T lhs, Vector<T, 3>const& rhs) {
+	return Vector<T, 3>(lhs / rhs.x, lhs / rhs.y, lhs / rhs.z);
+}
+
+template<typename T> Vector<T, 3> operator *(Vector<T, 3>const& lhs, T rhs) {
+	return Vector<T, 3>(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs);
+}
+
+template<typename T> Vector<T, 3> operator *(Vector<T, 3>const& lhs, Vector<T, 3>const&  rhs) {
+	return Vector<T, 3>(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z);
+}
+
+template<typename T> Vector<T, 3> operator /(Vector<T, 3>const& lhs, T rhs) {
+	float rcp = 1 / rhs;
+	return lhs * rcp;
+}
+
+template<typename T> Vector<T, 3> operator /(Vector<T, 3>const& lhs, Vector<T, 3>const&  rhs) {
+	return Vector<T, 3>(lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z);
+}
+
+template<typename T> Vector<T, 3> operator +(Vector<T, 3>const& lhs, T rhs) {
+	return Vector<T, 3>(lhs.x + rhs, lhs.y + rhs, lhs.z + rhs);
+}
+
+template<typename T> Vector<T, 3> operator +(Vector<T, 3>const& lhs, Vector<T, 3>const&  rhs) {
+	return Vector<T, 3>(lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z);
+}
+
+template<typename T> Vector<T, 3> operator -(Vector<T, 3>const& lhs, T rhs) {
+	return Vector<T, 3>(lhs.x - rhs, lhs.y - rhs, lhs.z - rhs);
+}
+
+template<typename T> Vector<T, 3> operator -(Vector<T, 3>const& lhs, Vector<T, 3>const&  rhs) {
+	return Vector<T, 3>(lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z);
+}
+
+template<typename T> Vector<T, 3> min(Vector<T, 3>const& lhs, Vector<T, 3>const& rhs) {
+	return Vector<T, 3>(eastl::min(lhs.x, rhs.x), eastl::min(lhs.y, rhs.y), eastl::min(lhs.z, rhs.z));
+}
+
+template<typename T> Vector<T, 3> max(Vector<T, 3>const& lhs, Vector<T, 3>const& rhs) {
+	return Vector<T, 3>(eastl::max(lhs.x, rhs.x), eastl::max(lhs.y, rhs.y), eastl::max(lhs.z, rhs.z));
+}
+
+template<typename T>
+T dot(Vector<T, 3>const& lhs, Vector<T, 3>const& rhs) {
+	return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
+}
+
+template<typename T>
+Vector<T, 3> cross(Vector<T, 3>const& lhs, Vector<T, 3>const& rhs) {
+	return{ lhs.y * rhs.z - lhs.z * rhs.y, lhs.z * rhs.x - lhs.x * rhs.z, lhs.x * rhs.y - lhs.y * rhs.x };
 }

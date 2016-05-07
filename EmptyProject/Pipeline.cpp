@@ -36,23 +36,6 @@ D3D12_GRAPHICS_PIPELINE_STATE_DESC	GetDefaultPipelineStateDesc() {
 	return Desc;
 }
 
-class FInputLayout {
-public:
-	eastl::unique_ptr<D3D12_INPUT_ELEMENT_DESC[]>	Elements;
-	u32 ElementsNum;
-	u64 ValueHash;
-
-	FInputLayout() = default;
-	FInputLayout(u64 hash, std::initializer_list<D3D12_INPUT_ELEMENT_DESC> elements) : ValueHash(hash) {
-		Elements = eastl::make_unique<D3D12_INPUT_ELEMENT_DESC[]>(elements.size());
-		u32 index = 0;
-		for (auto &element : elements) {
-			Elements[index++] = element;
-		}
-		ElementsNum = (u32)elements.size();
-	}
-};
-
 eastl::hash_map<u64, eastl::shared_ptr<FInputLayout>> InputLayoutsLookup;
 
 FInputLayout* GetInputLayout(std::initializer_list<D3D12_INPUT_ELEMENT_DESC> elements) {
@@ -74,6 +57,13 @@ FInputLayout* GetInputLayout(std::initializer_list<D3D12_INPUT_ELEMENT_DESC> ele
 }
 
 #include <EASTL/set.h>
+
+bool Contains(SlotsRange const& lhs, SlotsRange const& rhs) {
+	return lhs.type == rhs.type
+	&& (lhs.visibility == rhs.visibility || lhs.visibility == D3D12_SHADER_VISIBILITY_ALL)
+	&& (lhs.space == rhs.space)
+	&& (lhs.baseRegister + lhs.len > rhs.baseRegister && lhs.baseRegister < rhs.baseRegister + rhs.len);
+}
 
 bool Intersects(SlotsRange const& lhs, SlotsRange const& rhs) {
 	return lhs.type == rhs.type
@@ -116,7 +106,7 @@ bool FRootSignature::ContainsSlot(RootSlotType type, u32 baseRegister, u32 space
 
 	auto lbIter = Slots.lower_bound(lookupRange);
 
-	if (lbIter != Slots.end() && Intersects(lbIter->first, range)) {
+	if (lbIter != Slots.end() && Contains(lbIter->first, range)) {
 		return true;
 	}
 
@@ -126,7 +116,7 @@ bool FRootSignature::ContainsSlot(RootSlotType type, u32 baseRegister, u32 space
 		lbIter = Slots.lower_bound(lookupRange);
 
 		if (lbIter != Slots.end()) {
-			return Intersects(lbIter->first, range);
+			return Contains(lbIter->first, range);
 		}
 	}
 
@@ -979,6 +969,8 @@ void FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_V
 }
 
 bool CanRunWithRootSignature(FShaderBindings* bindings, FRootSignature* signature) {
+	// todo: we might want ALL and have separate in PIXEL, VERTEX
+
 	for (auto& cbv : bindings->CBVs) {
 		if (!signature->ContainsSlot(
 			cbv.second.Binding.Slot.type, 
@@ -1075,4 +1067,163 @@ FConstantBuffer FGraphicsRootLayout::CreateConstantBuffer(char const * name) {
 	Param.Layout = this;
 	Param.Size = ConstantBuffers[Param.BindId].Size;
 	return Param;
+}
+
+//
+
+
+void SetD3D12StateDefaults(D3D12_RASTERIZER_DESC *pDest) {
+	*pDest = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+}
+
+void SetD3D12StateDefaults(D3D12_DEPTH_STENCIL_DESC *pDest) {
+	*pDest = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+}
+
+void SetD3D12StateDefaults(D3D12_BLEND_DESC *pDest) {
+	*pDest = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+}
+
+bool IsDepthReadOnly(D3D12_GRAPHICS_PIPELINE_STATE_DESC const* desc) {
+	return
+		desc->DepthStencilState.DepthEnable == false ||
+		desc->DepthStencilState.DepthFunc == D3D12_COMPARISON_FUNC_NEVER ||
+		desc->DepthStencilState.DepthWriteMask == 0;
+}
+
+bool IsStencilReadOnly(D3D12_GRAPHICS_PIPELINE_STATE_DESC const* desc) {
+	return
+		desc->DepthStencilState.StencilEnable == false ||
+		desc->DepthStencilState.StencilWriteMask == 0 ||
+		(desc->DepthStencilState.FrontFace.StencilFunc == D3D12_COMPARISON_FUNC_NEVER ||
+		(desc->DepthStencilState.FrontFace.StencilDepthFailOp == D3D12_STENCIL_OP_KEEP
+			&& desc->DepthStencilState.FrontFace.StencilFailOp == D3D12_STENCIL_OP_KEEP
+			&& desc->DepthStencilState.FrontFace.StencilPassOp == D3D12_STENCIL_OP_KEEP)) ||
+			(desc->DepthStencilState.BackFace.StencilFunc == D3D12_COMPARISON_FUNC_NEVER ||
+		(desc->DepthStencilState.BackFace.StencilDepthFailOp == D3D12_STENCIL_OP_KEEP
+			&& desc->DepthStencilState.BackFace.StencilFailOp == D3D12_STENCIL_OP_KEEP
+			&& desc->DepthStencilState.BackFace.StencilPassOp == D3D12_STENCIL_OP_KEEP));
+}
+
+D3D12_PRIMITIVE_TOPOLOGY_TYPE GetPrimitiveTopologyType(D3D_PRIMITIVE_TOPOLOGY topology) {
+	switch (topology)
+	{
+	case D3D_PRIMITIVE_TOPOLOGY_POINTLIST:
+		return D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+	case D3D_PRIMITIVE_TOPOLOGY_LINELIST:
+	case D3D_PRIMITIVE_TOPOLOGY_LINESTRIP:
+		return D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+	case D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST:
+	case D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP:
+		return D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	}
+	return D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED;
+}
+
+FPipelineFactory::FPipelineFactory() {
+	Reset();
+}
+
+void FPipelineFactory::SetInputLayout(FInputLayout * inInputLayout) {
+	if (InputLayout != inInputLayout) {
+		InputLayout = inInputLayout;
+		Dirty = 1;
+	}
+}
+
+void FPipelineFactory::SetShaderState(FShaderState * inShaderState) {
+	if (ShaderState != inShaderState) {
+		ShaderState = inShaderState;
+		Dirty = 1;
+	}
+}
+
+void FPipelineFactory::SetRenderTarget(DXGI_FORMAT Format, u32 Index) {
+	if (PipelineDesc.RTVFormats[Index] == Format) {
+		return;
+	}
+
+	Dirty = 1;
+	PipelineDesc.RTVFormats[Index] = Format;
+
+	if (Format != DXGI_FORMAT_UNKNOWN) {
+		PipelineDesc.NumRenderTargets = eastl::max(PipelineDesc.NumRenderTargets, Index + 1);
+	}
+	else {
+		i32 maxIndex = PipelineDesc.NumRenderTargets;
+		for (i32 i = (i32)PipelineDesc.NumRenderTargets - 1; i >= 0; --i) {
+			if (PipelineDesc.RTVFormats[i] == DXGI_FORMAT_UNKNOWN) {
+				--PipelineDesc.NumRenderTargets;
+				check(i > 0 || PipelineDesc.NumRenderTargets == 0);
+			}
+			else {
+				break;
+			}
+		}
+	}
+}
+
+void FPipelineFactory::SetDepthStencil(DXGI_FORMAT Format) {
+	if (Format != PipelineDesc.DSVFormat) {
+		PipelineDesc.DSVFormat = Format;
+		Dirty = 1;
+	}
+}
+
+void FPipelineFactory::SetTopology(D3D_PRIMITIVE_TOPOLOGY inTopology) {
+	if (GetPrimitiveTopologyType(inTopology) != PipelineDesc.PrimitiveTopologyType) {
+		PipelineDesc.PrimitiveTopologyType = GetPrimitiveTopologyType(inTopology);
+		Dirty = 1;
+	}
+}
+
+void FPipelineFactory::SetRasterizerState(D3D12_RASTERIZER_DESC const& RasterizerState) {
+	PipelineDesc.RasterizerState = RasterizerState;
+	Dirty = 1;
+}
+
+void FPipelineFactory::SetDepthStencilState(D3D12_DEPTH_STENCIL_DESC const& DepthStencilState) {
+	PipelineDesc.DepthStencilState = DepthStencilState;
+	Dirty = 1;
+}
+
+void FPipelineFactory::SetBlendState(D3D12_BLEND_DESC const& BlendState) {
+	PipelineDesc.BlendState = BlendState;
+	Dirty = 1;
+}
+
+FPipelineState * FPipelineFactory::GetPipelineState() {
+	if (Dirty) {
+		u64 Hash = MurmurHash2_64(&PipelineDesc, sizeof(PipelineDesc), 0);
+		Hash = HashCombine64(Hash, ShaderState->ContentHash);
+		Hash = HashCombine64(Hash, InputLayout->ValueHash);
+
+		auto Iter = Cached.find(Hash);
+		if (Iter == Cached.end()) {
+			CurrentPipelineState = GetGraphicsPipelineState(ShaderState, &PipelineDesc, InputLayout);
+
+			Cached[Hash] = CurrentPipelineState;
+		}
+		else {
+			CurrentPipelineState = Iter->second;
+		}
+
+		Dirty = 0;
+	}
+
+	return CurrentPipelineState;
+}
+
+void FPipelineFactory::Reset() {
+	CurrentPipelineState = nullptr;
+
+	ShaderState = nullptr;
+	InputLayout = nullptr;
+
+	PipelineDesc = {};
+	PipelineDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	PipelineDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	PipelineDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	PipelineDesc.SampleMask = UINT_MAX;
+	PipelineDesc.SampleDesc.Count = 1;
 }

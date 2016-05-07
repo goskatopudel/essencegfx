@@ -399,6 +399,10 @@ public:
 		Data->Index = Index;
 		Data->RTV = RTV;
 	}
+	inline void SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE DSV) {
+		auto Data = ReservePacket<FRenderCmdSetDepthStencil, FRenderCmdSetDepthStencilFunc>();
+		Data->DSV = DSV;
+	}
 
 	void	ReserveStreamSize(u64 Size);
 	void *	Reserve(u64 Size);

@@ -528,6 +528,11 @@ FOwnedResource FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depth
 	if ((flags & ALLOW_DEPTH_STENCIL) && HasStencil(format)) {
 		result->FatData->PlanesNum = 2;
 	}
+
+	if ((flags & ALLOW_RENDER_TARGET) && clearFormat == DXGI_FORMAT_UNKNOWN) {
+		clearFormat = format;
+	}
+
 	D3D12_CLEAR_VALUE clearValue;
 	if (clearFormat != DXGI_FORMAT_UNKNOWN) {
 		clearValue.Format = clearFormat;

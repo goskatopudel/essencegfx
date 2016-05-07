@@ -42,6 +42,24 @@ bool operator != (GlobalBindId a, GlobalBindId b);
 template<>
 struct eastl::hash<GlobalBindId> { u64 operator()(GlobalBindId h) const { return h.hash; } };
 
+class FInputLayout {
+public:
+	eastl::unique_ptr<D3D12_INPUT_ELEMENT_DESC[]>	Elements;
+	u32 ElementsNum;
+	u64 ValueHash;
+
+	FInputLayout() = default;
+	FInputLayout(u64 hash, std::initializer_list<D3D12_INPUT_ELEMENT_DESC> elements) : ValueHash(hash) {
+		Elements = eastl::make_unique<D3D12_INPUT_ELEMENT_DESC[]>(elements.size());
+		u32 index = 0;
+		for (auto &element : elements) {
+			Elements[index++] = element;
+		}
+		ElementsNum = (u32)elements.size();
+	}
+};
+
+
 class FShaderState {
 public:
 	FShader *				VertexShader;
@@ -243,3 +261,39 @@ public:
 
 inline bool operator == (GlobalBindId a, GlobalBindId b) { return a.hash == b.hash; };
 inline bool operator != (GlobalBindId a, GlobalBindId b) { return a.hash != b.hash; };
+
+
+void SetD3D12StateDefaults(D3D12_RASTERIZER_DESC *pDest);
+void SetD3D12StateDefaults(D3D12_DEPTH_STENCIL_DESC *pDest);
+void SetD3D12StateDefaults(D3D12_BLEND_DESC *pDest);
+bool IsDepthReadOnly(D3D12_GRAPHICS_PIPELINE_STATE_DESC const* desc);
+bool IsStencilReadOnly(D3D12_GRAPHICS_PIPELINE_STATE_DESC const* desc);
+D3D12_PRIMITIVE_TOPOLOGY_TYPE GetPrimitiveTopologyType(D3D_PRIMITIVE_TOPOLOGY topology);
+
+
+class FPipelineFactory {
+public:
+	eastl::hash_map<u64, FPipelineState*>		Cached;
+
+	FShaderState *								ShaderState;
+	FInputLayout *								InputLayout;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC			PipelineDesc;
+
+	u32											Dirty : 1;
+	FPipelineState *							CurrentPipelineState;
+
+	FPipelineFactory();
+
+	void SetInputLayout(FInputLayout * inInputLayout);
+	void SetShaderState(FShaderState * inShaderState);
+	void SetRenderTarget(DXGI_FORMAT Format, u32 Index);
+	void SetDepthStencil(DXGI_FORMAT Format);
+	void SetTopology(D3D_PRIMITIVE_TOPOLOGY inTopology);
+	void SetRasterizerState(D3D12_RASTERIZER_DESC const& RasterizerState);
+	void SetDepthStencilState(D3D12_DEPTH_STENCIL_DESC const& DepthStencilState);
+	void SetBlendState(D3D12_BLEND_DESC const& BlendState);
+	FPipelineState * GetPipelineState();
+	void Reset();
+};
+
+constexpr const DXGI_FORMAT NULL_FORMAT = DXGI_FORMAT_UNKNOWN;

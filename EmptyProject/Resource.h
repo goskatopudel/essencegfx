@@ -96,6 +96,7 @@ public:
 	EAccessType							GetDefaultAccess() const;
 	bool								IsFixedState() const;
 	DXGI_FORMAT							GetFormat() const;
+	DXGI_FORMAT							GetWriteFormat(bool bSRGB = false) const;
 };
 
 class FGPUResourceFat {
@@ -137,6 +138,7 @@ extern			D3D12_CPU_DESCRIPTOR_HANDLE	NULL_TEXTURE2D_UAV_VIEW;
 void			InitNullDescriptors();
 
 u64				BitsPerPixel(DXGI_FORMAT fmt);
+bool			IsSRGB(DXGI_FORMAT format);
 DXGI_FORMAT		MakeSRGB(DXGI_FORMAT format);
 DXGI_FORMAT		GetDepthStencilFormat(DXGI_FORMAT format);
 DXGI_FORMAT		GetDepthReadFormat(DXGI_FORMAT format);

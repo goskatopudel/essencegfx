@@ -1,7 +1,8 @@
 #pragma once
 #include "Essence.h"
 #include "MathVector.h"
-
+#include "MathMatrix.h"
+#include "Viewport.h"
 
 class FGPUResource;
 class FCamera;
@@ -9,20 +10,16 @@ class FGPUContext;
 
 enum class EViewMode {
 	Default,
-	Normals
-};
-
-struct FRenderViewport {
-	FGPUResource *	RenderTarget;
-	FGPUResource *	DepthBuffer;
-	Vec2i			Resolution;
-	FCamera *		Camera;
+	Normals,
+	Texcoord0,
+	Texcoord1
 };
 
 struct FViewParams {
 	EViewMode	Mode;
 	bool		DrawNormals;
 	bool		Wireframe;
+	bool		DrawAtlas;
 };
 
 struct FTransformation {

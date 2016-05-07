@@ -147,6 +147,18 @@
     <ClCompile Include="Viewer.cpp">
       <Filter>Rendering\Models</Filter>
     </ClCompile>
+    <ClCompile Include="UtilStates.cpp">
+      <Filter>Rendering\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="BVH.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="MathGeometry.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="DebugPrimitivesRenderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Essence.h">
@@ -268,6 +280,21 @@
     </ClInclude>
     <ClInclude Include="Viewer.h">
       <Filter>Rendering\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="UtilStates.h">
+      <Filter>Rendering\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="BVH.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="MathGeometry.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="DebugPrimitivesRendering.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Viewport.h">
+      <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

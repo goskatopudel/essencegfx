@@ -104,6 +104,18 @@ DXGI_FORMAT	FGPUResource::GetFormat() const {
 	return FatData->Desc.Format;
 }
 
+DXGI_FORMAT FGPUResource::GetWriteFormat(bool bSRGB) const {
+	if (FatData->IsDepthStencil) {
+		return GetDepthStencilFormat(GetFormat());
+	}
+
+	if (bSRGB && !IsSRGB(GetFormat())) {
+		return MakeSRGB(GetFormat());
+	}
+
+	return GetFormat();
+}
+
 FSubresourceInfo FGPUResource::GetSubresourceInfo(u32 subresourceIndex) const {
 	FSubresourceInfo Info = {};
 	u32 Mips = FatData->Desc.MipLevels;

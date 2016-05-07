@@ -118,20 +118,6 @@ bool ProcessWinMessage(Win32::Message const& Message) {
 	return false;
 }
 
-class FCopyShaderState : public FShaderState {
-public:
-	FTextureParam			SourceTexture;
-
-	FCopyShaderState() :
-		FShaderState(
-			GetShader("Shaders/Utility.hlsl", "VShader", "vs_5_0", {}, 0),
-			GetShader("Shaders/Utility.hlsl", "CopyPS", "ps_5_0", {}, 0)) {}
-
-	void InitParams() override final {
-		SourceTexture = Root->CreateTextureParam("Image");
-	}
-};
-
 class FUIShaderState : public FShaderState {
 public:
 	FTextureParam			AtlasTexture;
@@ -404,8 +390,8 @@ void RenderModelViewer(FGPUContext & Context) {
 	static FEditorModel * Model;
 	if (Model == nullptr) {
 		Model = new FEditorModel();
-		Model->AddMesh(CreateRock(1, 3));
-		Model->Meshes[0].CopyDataToBuffers(Context);
+		LoadOBJ(Model, L"models/tree.obj", L"models/tree.cachedobj");
+		Model->CopyDataToBuffers(Context);
 	}
 
 	FTransformation Transformation;
@@ -413,18 +399,41 @@ void RenderModelViewer(FGPUContext & Context) {
 	Transformation.Scale = 1.f;
 
 	static FViewParams ViewParams;
-	ViewParams.Mode = EViewMode::Normals;
-
+	static int CurrentMode = 0;
+	ViewParams.Mode = (EViewMode)CurrentMode;
 	if (ImGui::CollapsingHeader("Params")) {
+		ImGui::Combo("Mode", &CurrentMode, "Default\0Normals\0Texcoord0\0Texcoord1\0");
 		ImGui::Checkbox("Wireframe", &ViewParams.Wireframe);
 		ImGui::Checkbox("Normal vectors", &ViewParams.DrawNormals);
+
+		ImGui::Checkbox("Draw atlas", &ViewParams.DrawAtlas);
 	}
 
+	using namespace DirectX;
+
 	FRenderViewport Viewport;
+	Viewport.OutputSRGB = 1;
 	Viewport.RenderTarget = GetBackbuffer();
 	Viewport.DepthBuffer = DepthBuffer;
 	Viewport.Camera = &Camera;
 	Viewport.Resolution = Vec2i(1024, 768);
+	
+	auto ProjectionMatrix = XMMatrixPerspectiveFovLH(
+		3.14f * 0.25f,
+		(float)Viewport.Resolution.x / (float)Viewport.Resolution.y,
+		0.01f, 1000.f);
+	auto ViewMatrix = XMMatrixLookToLH(
+		ToSIMD(Viewport.Camera->Position),
+		ToSIMD(Viewport.Camera->Direction),
+		ToSIMD(Viewport.Camera->Up));
+
+	XMVECTOR Determinant;
+	auto ViewProjMatrix = ViewMatrix * ProjectionMatrix;
+	auto InvViewProjMatrix = XMMatrixInverse(&Determinant, ViewProjMatrix);
+	XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.ViewProjectionMatrix, ViewProjMatrix);
+	XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.InvViewProjectionMatrix, InvViewProjMatrix);
+	XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TViewProjectionMatrix, XMMatrixTranspose(ViewProjMatrix));
+	XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TInvViewProjectionMatrix, XMMatrixTranspose(InvViewProjMatrix));
 
 	RenderModel(Context, Model, Transformation, Viewport, ViewParams);
 }

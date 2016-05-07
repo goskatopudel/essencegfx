@@ -40,6 +40,12 @@ template <typename T> struct Vector<T, 2> {
 		y = _v;
 	}
 
+	template<typename K>
+	explicit Vector(Vector<K, 2> const& Other) {
+		x = (T)Other[0];
+		y = (T)Other[1];
+	}
+
 	Vector(T v) {
 		x = v;
 		y = v;
@@ -126,6 +132,14 @@ template <typename T> struct Vector<T, 4> {
 	~Vector() = default;
 
 	template<typename K>
+	explicit Vector(Vector<K, 4> v) {
+		x = (T)v[0];
+		y = (T)v[1];
+		z = (T)v[2];
+		w = (T)v[3];
+	}
+
+	template<typename K>
 	explicit Vector(K v) {
 		T _v = (T)v;
 		x = _v;
@@ -178,6 +192,7 @@ template <typename T> struct Vector<T, 4> {
 	}
 
 	T& operator[](i32 index) { return data[index]; };
+	const T& operator[](i32 index) const { return data[index]; };
 };
 
 typedef Vector<float, 2> Vec2f;

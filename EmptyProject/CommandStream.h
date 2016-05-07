@@ -75,6 +75,12 @@ struct FRenderCmdSetRenderTarget {
 
 u64 FRenderCmdSetRenderTargetFunc(FGPUContext * Context, void * DataVoidPtr);
 
+struct FRenderCmdSetDepthStencil {
+	D3D12_CPU_DESCRIPTOR_HANDLE	DSV;
+};
+
+u64 FRenderCmdSetDepthStencilFunc(FGPUContext * Context, void * DataVoidPtr);
+
 struct FRenderCmdSetTexture {
 	FTextureParam *				Param;
 	D3D12_CPU_DESCRIPTOR_HANDLE	SRV;

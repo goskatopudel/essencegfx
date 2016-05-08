@@ -308,7 +308,7 @@ struct IMGUI_API ImGuiTextEditState
 // Data saved in imgui.ini file
 struct ImGuiIniData
 {
-    char*       Name;
+    char*       AssetName;
     ImGuiID     ID;
     ImVec2      Pos;
     ImVec2      Size;
@@ -582,7 +582,7 @@ struct IMGUI_API ImGuiDrawContext
 // Windows data
 struct IMGUI_API ImGuiWindow
 {
-    char*                   Name;
+    char*                   AssetName;
     ImGuiID                 ID;
     ImGuiWindowFlags        Flags;
     ImVec2                  PosFloat;

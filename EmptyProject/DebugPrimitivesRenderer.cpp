@@ -55,7 +55,8 @@ float4 HSVToSRGB(float4 Color) {
 }
 
 float frac(float X) {
-	return X - fmodf(X, 1);
+	float i;
+	return modf(X, &i);
 }
 
 FPrettyColorFactory::FPrettyColorFactory(float Random) : R(Random) {
@@ -172,6 +173,13 @@ void FDebugPrimitivesAccumulator::AddMeshPolygons(FEditorMesh * Mesh, Color4b Co
 	}
 }
 
+void FDebugPrimitivesAccumulator::AddMeshNormals(FEditorMesh * Mesh, float Scale, Color4b Color) {
+	u32 V = Mesh->GetVerticesNum();
+	for (u32 Index = 0; Index < V; ++Index) {
+		AddLine(Mesh->Positions[Index], Mesh->Positions[Index] + Mesh->Normals[Index] * Scale, Color);
+	}
+}
+
 #include "Pipeline.h"
 #include "Shader.h"
 
@@ -229,17 +237,22 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRender
 	LocalPipelineFactory.SetDepthStencil(Viewport.DepthBuffer ? Viewport.DepthBuffer->GetWriteFormat() : NULL_FORMAT);
 	LocalPipelineFactory.SetRenderTarget(Viewport.RenderTarget->GetWriteFormat(Viewport.OutputSRGB), 0);
 
-	D3D12_BLEND_DESC BlendDesc;
-	SetD3D12StateDefaults(&BlendDesc);
-	BlendDesc.RenderTarget[0].BlendEnable = true;
-	BlendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-	BlendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-	BlendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-	BlendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
-	BlendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-	BlendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-	BlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-	LocalPipelineFactory.SetBlendState(BlendDesc);
+	D3D12_DEPTH_STENCIL_DESC DepthStencilState;
+	SetD3D12StateDefaults(&DepthStencilState);
+	DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	LocalPipelineFactory.SetDepthStencilState(DepthStencilState);
+
+	D3D12_BLEND_DESC BlendState;
+	SetD3D12StateDefaults(&BlendState);
+	BlendState.RenderTarget[0].BlendEnable = true;
+	BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+	BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+	BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	LocalPipelineFactory.SetBlendState(BlendState);
 
 	Context.SetDepthStencil(Viewport.DepthBuffer->GetDSV());
 	Context.SetRenderTarget(0, Viewport.RenderTarget->GetRTV(Viewport.RenderTarget->GetWriteFormat(Viewport.OutputSRGB)));

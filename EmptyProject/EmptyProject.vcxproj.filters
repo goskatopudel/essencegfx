@@ -159,6 +159,9 @@
     <ClCompile Include="DebugPrimitivesRenderer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="EditorModelFormat.cpp">
+      <Filter>Rendering\Models</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Essence.h">
@@ -295,6 +298,9 @@
     </ClInclude>
     <ClInclude Include="Viewport.h">
       <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="EditorModelFormat.h">
+      <Filter>Rendering\Models</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

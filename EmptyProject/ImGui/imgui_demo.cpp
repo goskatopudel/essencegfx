@@ -235,7 +235,7 @@ void ImGui::ShowTestWindow(bool* p_opened)
             for (int i = 0; i < atlas->Fonts.Size; i++)
             {
                 ImFont* font = atlas->Fonts[i];
-                ImGui::BulletText("Font %d: \'%s\', %.2f px, %d glyphs", i, font->ConfigData ? font->ConfigData[0].Name : "", font->FontSize, font->Glyphs.Size);
+                ImGui::BulletText("Font %d: \'%s\', %.2f px, %d glyphs", i, font->ConfigData ? font->ConfigData[0].AssetName : "", font->FontSize, font->Glyphs.Size);
                 ImGui::TreePush((void*)(intptr_t)i);
                 if (i > 0) { ImGui::SameLine(); if (ImGui::SmallButton("Set as default")) { atlas->Fonts[i] = atlas->Fonts[0]; atlas->Fonts[0] = font; } }
                 ImGui::PushFont(font);
@@ -249,7 +249,7 @@ void ImGui::ShowTestWindow(bool* p_opened)
                     for (int config_i = 0; config_i < font->ConfigDataCount; config_i++)
                     {
                         ImFontConfig* cfg = &font->ConfigData[config_i];
-                        ImGui::BulletText("Input %d: \'%s\'\nOversample: (%d,%d), PixelSnapH: %d", config_i, cfg->Name, cfg->OversampleH, cfg->OversampleV, cfg->PixelSnapH);
+                        ImGui::BulletText("Input %d: \'%s\'\nOversample: (%d,%d), PixelSnapH: %d", config_i, cfg->AssetName, cfg->OversampleH, cfg->OversampleV, cfg->PixelSnapH);
                     }
                     ImGui::TreePop();
                 }

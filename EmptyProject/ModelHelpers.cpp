@@ -26,8 +26,8 @@
 #pragma comment(lib, "DirectXMesh/release/DirectXMesh.lib")
 #endif
 
+
 void CreateAtlas(FEditorMesh * Mesh) {
-	return;
 	if (Mesh->Texcoords1.size() == 0) {
 		using namespace DirectX;
 		std::vector<UVAtlasVertex> MeshOutVertexBuffer;
@@ -119,14 +119,17 @@ void CreateAtlas(FEditorMesh * Mesh) {
 		Mesh->Normals = std::move(Normals);
 		Mesh->Indices = std::move(Indices);
 		Mesh->Texcoords1 = std::move(Texcoords1);
+
+		Mesh->AtlasInfo.ResolutionX = 1024;
+		Mesh->AtlasInfo.ResolutionY = 1024;
 	}
 }
 
-u32		FEditorMesh::GetVerticesNum() {
+u32		FEditorMesh::GetVerticesNum() const {
 	return (u32)Positions.size();
 }
 
-u32		FEditorMesh::GetIndicesNum() {
+u32		FEditorMesh::GetIndicesNum() const {
 	return (u32)Indices.size();
 }
 
@@ -238,6 +241,10 @@ void FEditorModel::CopyDataToBuffers(FGPUContext & Context) {
 	for (auto & Mesh : Meshes) {
 		Mesh.CopyDataToBuffers(Context);
 	}
+}
+
+void FEditorModel::Clear() {
+	Meshes.clear();
 }
 
 FEditorMesh CreateRock(i32 seed, i32 nsubdivisions) {
@@ -374,7 +381,7 @@ void LoadOBJ(FEditorModel * Model, const wchar_t * ObjFilename, const wchar_t * 
 			Model->AddMesh(CreateMeshFromTinyObjShape(&Shape));
 		}
 		CreateAtlas(&Model->Meshes[0]);
-		//BuildBVH(&Model->Meshes[0]);
+		//BuildBVH(&Model->Meshes[0], &Model->Meshes[0].BVH);
 	}
 }
 

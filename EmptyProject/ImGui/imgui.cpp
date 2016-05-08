@@ -1519,7 +1519,7 @@ float ImGuiSimpleColumns::CalcExtraSpace(float avail_w)
 
 ImGuiWindow::ImGuiWindow(const char* name)
 {
-    Name = ImStrdup(name);
+    AssetName = ImStrdup(name);
     ID = ImHash(name, 0);
     IDStack.push_back(ID);
     MoveID = GetID("#MOVE");
@@ -1553,7 +1553,7 @@ ImGuiWindow::ImGuiWindow(const char* name)
 
     DrawList = (ImDrawList*)ImGui::MemAlloc(sizeof(ImDrawList));
     new(DrawList) ImDrawList();
-    DrawList->_OwnerName = Name;
+    DrawList->_OwnerName = AssetName;
     RootWindow = NULL;
     RootNonPopupWindow = NULL;
 
@@ -1567,8 +1567,8 @@ ImGuiWindow::~ImGuiWindow()
     DrawList->~ImDrawList();
     ImGui::MemFree(DrawList);
     DrawList = NULL;
-    ImGui::MemFree(Name);
-    Name = NULL;
+    ImGui::MemFree(AssetName);
+    AssetName = NULL;
 }
 
 ImGuiID ImGuiWindow::GetID(const char* str, const char* str_end)
@@ -2084,7 +2084,7 @@ void ImGui::Shutdown()
     g.HoveredWindow = NULL;
     g.HoveredRootWindow = NULL;
     for (int i = 0; i < g.Settings.Size; i++)
-        ImGui::MemFree(g.Settings[i].Name);
+        ImGui::MemFree(g.Settings[i].AssetName);
     g.Settings.clear();
     g.ColorModifiers.clear();
     g.StyleModifiers.clear();
@@ -2135,7 +2135,7 @@ static ImGuiIniData* AddWindowSettings(const char* name)
 {
     GImGui->Settings.resize(GImGui->Settings.Size + 1);
     ImGuiIniData* ini = &GImGui->Settings.back();
-    ini->Name = ImStrdup(name);
+    ini->AssetName = ImStrdup(name);
     ini->ID = ImHash(name, 0);
     ini->Collapsed = false;
     ini->Pos = ImVec2(FLT_MAX,FLT_MAX);
@@ -2204,7 +2204,7 @@ static void SaveSettings()
         ImGuiWindow* window = g.Windows[i];
         if (window->Flags & ImGuiWindowFlags_NoSavedSettings)
             continue;
-        ImGuiIniData* settings = FindWindowSettings(window->Name);
+        ImGuiIniData* settings = FindWindowSettings(window->AssetName);
         settings->Pos = window->Pos;
         settings->Size = window->SizeFull;
         settings->Collapsed = window->Collapsed;
@@ -2220,7 +2220,7 @@ static void SaveSettings()
         const ImGuiIniData* settings = &g.Settings[i];
         if (settings->Pos.x == FLT_MAX)
             continue;
-        const char* name = settings->Name;
+        const char* name = settings->AssetName;
         if (const char* p = strstr(name, "###"))  // Skip to the "###" marker if any. We don't skip past to match the behavior of GetID()
             name = p;
         fprintf(f, "[%s]\n", name);
@@ -3335,7 +3335,7 @@ bool ImGui::BeginChild(const char* str_id, const ImVec2& size_arg, bool border, 
     flags |= extra_flags;
 
     char title[256];
-    ImFormatString(title, IM_ARRAYSIZE(title), "%s.%s", window->Name, str_id);
+    ImFormatString(title, IM_ARRAYSIZE(title), "%s.%s", window->AssetName, str_id);
 
     const float alpha = 1.0f;
     bool ret = ImGui::Begin(title, NULL, size, alpha, flags);
@@ -9268,7 +9268,7 @@ void ImGui::ShowMetricsWindow(bool* opened)
 
             static void NodeWindow(ImGuiWindow* window, const char* label)
             {
-                if (!ImGui::TreeNode(window, "%s '%s', %d @ 0x%p", label, window->Name, window->Active || window->WasActive, window))
+                if (!ImGui::TreeNode(window, "%s '%s', %d @ 0x%p", label, window->AssetName, window->Active || window->WasActive, window))
                     return;
                 NodeDrawList(window->DrawList, "DrawList");
                 if (window->RootWindow != window) NodeWindow(window->RootWindow, "RootWindow");
@@ -9292,15 +9292,15 @@ void ImGui::ShowMetricsWindow(bool* opened)
             for (int i = 0; i < g.OpenedPopupStack.Size; i++)
             {
                 ImGuiWindow* window = g.OpenedPopupStack[i].Window;
-                ImGui::BulletText("PopupID: %08x, Window: '%s'%s%s", g.OpenedPopupStack[i].PopupID, window ? window->Name : "NULL", window && (window->Flags & ImGuiWindowFlags_ChildWindow) ? " ChildWindow" : "", window && (window->Flags & ImGuiWindowFlags_ChildMenu) ? " ChildMenu" : "");
+                ImGui::BulletText("PopupID: %08x, Window: '%s'%s%s", g.OpenedPopupStack[i].PopupID, window ? window->AssetName : "NULL", window && (window->Flags & ImGuiWindowFlags_ChildWindow) ? " ChildWindow" : "", window && (window->Flags & ImGuiWindowFlags_ChildMenu) ? " ChildMenu" : "");
             }
             ImGui::TreePop();
         }
         if (ImGui::TreeNode("Basic state"))
         {
-            ImGui::Text("FocusedWindow: '%s'", g.FocusedWindow ? g.FocusedWindow->Name : "NULL");
-            ImGui::Text("HoveredWindow: '%s'", g.HoveredWindow ? g.HoveredWindow->Name : "NULL");
-            ImGui::Text("HoveredRootWindow: '%s'", g.HoveredRootWindow ? g.HoveredRootWindow->Name : "NULL");
+            ImGui::Text("FocusedWindow: '%s'", g.FocusedWindow ? g.FocusedWindow->AssetName : "NULL");
+            ImGui::Text("HoveredWindow: '%s'", g.HoveredWindow ? g.HoveredWindow->AssetName : "NULL");
+            ImGui::Text("HoveredRootWindow: '%s'", g.HoveredRootWindow ? g.HoveredRootWindow->AssetName : "NULL");
             ImGui::Text("HoveredID: 0x%08X/0x%08X", g.HoveredId, g.HoveredIdPreviousFrame); // Data is "in-flight" so depending on when the Metrics window is called we may see current frame information or not
             ImGui::Text("ActiveID: 0x%08X/0x%08X", g.ActiveId, g.ActiveIdPreviousFrame);
             ImGui::TreePop();

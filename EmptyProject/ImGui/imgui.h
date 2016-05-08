@@ -1192,7 +1192,7 @@ struct ImFontConfig
     bool            MergeGlyphCenterV;          // false    // When merging (multiple ImFontInput for one ImFont), vertically center new glyphs instead of aligning their baseline
 
     // [Internal]
-    char            Name[32];                               // Name (strictly for debugging)
+    char            AssetName[32];                               // Name (strictly for debugging)
     ImFont*         DstFont;
 
     IMGUI_API ImFontConfig();

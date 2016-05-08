@@ -18,8 +18,8 @@ public:
 
 	FRenderToAtlasShaderState() :
 		FShaderState(
-			GetShader("Shaders/ModelAtlas.hlsl", "VShader", "vs_5_0", {}, 0),
-			GetShader("Shaders/ModelAtlas.hlsl", "PShader", "ps_5_0", {}, 0)) {}
+			GetShader("Shaders/TextureMap.hlsl", "VShader", "vs_5_0", {}, 0),
+			GetShader("Shaders/TextureMap.hlsl", "PShader", "ps_5_0", {}, 0)) {}
 
 	void InitParams() override final {
 	}
@@ -253,9 +253,17 @@ void RenderModel(
 	Context.SetRenderTarget(0, Viewport.RenderTarget->GetRTV(DXGI_FORMAT_R8G8B8A8_UNORM));
 
 	static FDebugPrimitivesAccumulator DebugRender;
-	FPrettyColorFactory	ColorFactory(0.5f);
+	FPrettyColorFactory	ColorFactory(0.9f);
 
-	DebugRender.AddMeshWireframe(&Model->Meshes[0], ColorFactory.GetNext());
+	for (u32 Index = 0; Index < Model->Meshes.size(); Index++) {
+		Color4b Color = ColorFactory.GetNext();
+		Color.a = 128;
+		DebugRender.AddMeshWireframe(&Model->Meshes[Index], Color);
+	}
+
+	for (u32 Index = 0; Index < Model->Meshes.size(); Index++) {
+		DebugRender.AddMeshNormals(&Model->Meshes[Index], 0.25f);
+	}
 
 	DebugRender.FlushToViewport(Context, Viewport);
 

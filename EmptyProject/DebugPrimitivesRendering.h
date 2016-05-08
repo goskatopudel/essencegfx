@@ -44,6 +44,7 @@ public:
 	void AddBBox(FBBox const& BBox, Color4b Color);
 	void AddMeshWireframe(FEditorMesh * Mesh, Color4b Color);
 	void AddMeshPolygons(FEditorMesh * Mesh, Color4b Color);
+	void AddMeshNormals(FEditorMesh * Mesh, float Scale = 1.f, Color4b Color = Color4b(255, 0, 0, 255));
 
 	// draw
 	void FlushToViewport(FGPUContext & Context, FRenderViewport const& Viewport);

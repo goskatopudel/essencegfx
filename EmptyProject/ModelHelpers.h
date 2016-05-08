@@ -28,13 +28,15 @@ public:
 	eastl::vector<Color4b>	Colors;
 	eastl::vector<u32>		Indices;
 
+	FLinearBVH				BVH;
+
 	struct FAtlasInfo {
 		u32		ResolutionX;
 		u32		ResolutionY;
 	} AtlasInfo;
 
-	u32						GetVerticesNum();
-	u32						GetIndicesNum();
+	u32						GetVerticesNum() const;
+	u32						GetIndicesNum() const;
 
 	void Clear();
 	void Consume(par_shapes_mesh * ParShapesMesh);
@@ -54,6 +56,7 @@ public:
 
 	void AddMesh(FEditorMesh && Mesh);
 	void CopyDataToBuffers(FGPUContext & Context);
+	void Clear();
 };
 
 FEditorMesh CreatePlane(i32 slices, i32 stacks);

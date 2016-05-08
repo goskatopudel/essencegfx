@@ -385,12 +385,17 @@ void RenderScene(FGPUContext & Context, FModel * model) {
 
 #include "Viewer.h"
 #include "ModelHelpers.h"
+#include "EditorModelFormat.h"
 
 void RenderModelViewer(FGPUContext & Context) {
 	static FEditorModel * Model;
 	if (Model == nullptr) {
 		Model = new FEditorModel();
-		LoadOBJ(Model, L"models/tree.obj", L"models/tree.cachedobj");
+		/*LoadOBJ(Model, L"models/tree.obj", L"models/tree.cachedobj");
+
+		SaveEditorModel(Model, L"models/tree.edm");*/
+		LoadEditorModel(Model, L"models/tree.edm");
+
 		Model->CopyDataToBuffers(Context);
 	}
 

@@ -166,6 +166,7 @@
     <ClCompile Include="DDSLoader.cpp" />
     <ClCompile Include="DebugPrimitivesRenderer.cpp" />
     <ClCompile Include="Descriptors.cpp" />
+    <ClCompile Include="EditorModelFormat.cpp" />
     <ClCompile Include="FileIO.cpp" />
     <ClCompile Include="Hash.cpp" />
     <ClCompile Include="ImGui\imgui.cpp" />
@@ -203,6 +204,7 @@
     <ClInclude Include="DebugPrimitivesRendering.h" />
     <ClInclude Include="Descriptors.h" />
     <ClInclude Include="Device.h" />
+    <ClInclude Include="EditorModelFormat.h" />
     <ClInclude Include="Essence.h" />
     <ClInclude Include="FileIO.h" />
     <ClInclude Include="Half.c" />

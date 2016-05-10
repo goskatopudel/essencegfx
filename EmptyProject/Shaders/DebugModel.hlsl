@@ -67,6 +67,10 @@ void PSDebug(VOut interpolated, out float4 OutColor : SV_TARGET0)
 		float4 sample = UVTexture.Sample(TextureSampler, CustomUint0 == 2 ? interpolated.texcoord0 : interpolated.texcoord1 );
 		OutColor = sample;
 	}
+	else if(CustomUint0 == 4) {
+		float4 sample = UVTexture.Sample(TextureSampler, interpolated.texcoord1 );
+		OutColor = sample;
+	}
 	else {
 		OutColor = float4(1, 0.5f, 0.5f, 1.f);
 	}

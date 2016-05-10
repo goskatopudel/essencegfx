@@ -69,6 +69,12 @@ u64 FRenderCmdSetConstantBufferFunc(FGPUContext * Context, void * DataVoidPtr) {
 	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdSetConstantBuffer);
 };
 
+u64 FRenderCmdSetRWTextureFunc(FGPUContext * Context, void * DataVoidPtr) {
+	auto Data = (FRenderCmdSetRWTexture*)DataVoidPtr;
+	Context->SetRWTexture(Data->Param, Data->UAV);
+	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdSetRWTexture);
+}
+
 u64 FRenderCmdSetScissorRectFunc(FGPUContext * Context, void * DataVoidPtr) {
 	auto Data = (FRenderCmdSetScissorRect*)DataVoidPtr;
 	Context->SetScissorRect(Data->Rect);
@@ -86,3 +92,9 @@ u64 FRenderCmdDrawIndexedFunc(FGPUContext * Context, void * DataVoidPtr) {
 	Context->DrawIndexed(Data->IndexCount, Data->StartIndex, Data->BaseVertex, Data->Instances, Data->StartInstance);
 	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdDrawIndexed);
 };
+
+u64 FRenderCmdDispatchFunc(FGPUContext * Context, void * DataVoidPtr) {
+	auto Data = (FRenderCmdDispatch*)DataVoidPtr;
+	Context->Dispatch(Data->X, Data->Y, Data->Z);
+	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdDispatch);
+}

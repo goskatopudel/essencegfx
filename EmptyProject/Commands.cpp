@@ -607,11 +607,12 @@ void FGPUContext::CopyResource(FGPUResource* dst, FGPUResource* src) {
 void FGPUContext::SetPSO(FPipelineState const* pso) {
 	if (PipelineState != pso) {
 		PipelineState = pso;
+		PipelineType = pso->Type;
 		RawCommandList()->SetPipelineState(GetRawPSO(pso));
 	}
 }
 
-void FGPUContext::SetRoot(FGraphicsRootLayout const* rootLayout) {
+void FGPUContext::SetRoot(FRootLayout const* rootLayout) {
 	if (RootLayout != rootLayout) {
 		RootLayout = rootLayout;
 
@@ -743,6 +744,11 @@ void FGPUContext::SetIB(FBufferLocation BufferView) {
 	}
 }
 
+void FGPUContext::Dispatch(u32 X, u32 Y, u32 Z) {
+	PreDraw();
+	RawCommandList()->Dispatch(X, Y, Z);
+}
+
 void FGPUContext::Reset() {
 	FlushCounter = 0;
 	BarriersList.clear();
@@ -806,14 +812,16 @@ void FGPUContext::SetRWTexture(FRWTextureParam const * RWTexture, D3D12_CPU_DESC
 void FGPUContext::PreDraw() {
 	FlushBarriers();
 
-	if (DirtyRTVs) {
-		RawCommandList()->OMSetRenderTargets(NumRenderTargets, RTVs, false, UsesDepth ? &DSV : nullptr);
-		DirtyRTVs = false;
-	}
+	if (PipelineType == EPipelineType::Graphics) {
+		if (DirtyRTVs) {
+			RawCommandList()->OMSetRenderTargets(NumRenderTargets, RTVs, false, UsesDepth ? &DSV : nullptr);
+			DirtyRTVs = false;
+		}
 
-	if (DirtyVBVs) {
-		RawCommandList()->IASetVertexBuffers(0, NumVertexBuffers, VBVs);
-		DirtyVBVs = false;
+		if (DirtyVBVs) {
+			RawCommandList()->IASetVertexBuffers(0, NumVertexBuffers, VBVs);
+			DirtyVBVs = false;
+		}
 	}
 
 	for (u32 index = 0; index < RootParamsNum; ++index) {
@@ -824,7 +832,12 @@ void FGPUContext::PreDraw() {
 			auto destHandle = Param.Descriptors.GetCPUHandle(0);
 
 			Device->CopyDescriptors(1, &destHandle, &Param.Descriptors.DescriptorsNum, Param.Descriptors.DescriptorsNum, Param.SrcRanges.data(), Param.SrcRangesNums.data(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-			RawCommandList()->SetGraphicsRootDescriptorTable(index, Param.Descriptors.GetGPUHandle(0));
+			if (PipelineType == EPipelineType::Graphics) {
+				RawCommandList()->SetGraphicsRootDescriptorTable(index, Param.Descriptors.GetGPUHandle(0));
+			}
+			else {
+				RawCommandList()->SetComputeRootDescriptorTable(index, Param.Descriptors.GetGPUHandle(0));
+			}
 		}
 	}
 }

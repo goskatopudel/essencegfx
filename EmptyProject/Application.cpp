@@ -407,11 +407,14 @@ void RenderModelViewer(FGPUContext & Context) {
 	static int CurrentMode = 0;
 	ViewParams.Mode = (EViewMode)CurrentMode;
 	if (ImGui::CollapsingHeader("Params")) {
-		ImGui::Combo("Mode", &CurrentMode, "Default\0Normals\0Texcoord0\0Texcoord1\0");
+		ImGui::Combo("Mode", &CurrentMode, "Default\0Normals\0Texcoord0\0Texcoord1\0BakedAO\0");
 		ImGui::Checkbox("Wireframe", &ViewParams.Wireframe);
 		ImGui::Checkbox("Normal vectors", &ViewParams.DrawNormals);
 
 		ImGui::Checkbox("Draw atlas", &ViewParams.DrawAtlas);
+		if (ImGui::Button("BakeAO")) {
+			BakeAO(Context, Model);
+		}
 	}
 
 	using namespace DirectX;

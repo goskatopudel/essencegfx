@@ -14,7 +14,7 @@ class FPipelineState;
 class FShader;
 class FShaderBindings;
 class FInputLayout;
-class FGraphicsRootLayout;
+class FRootLayout;
 class FRootSignature;
 struct D3D12_GRAPHICS_PIPELINE_STATE_DESC;
 
@@ -59,18 +59,24 @@ public:
 	}
 };
 
-
 class FShaderState {
 public:
-	FShader *				VertexShader;
-	FShader *				PixelShader;
+	EPipelineType		Type;
+	union {
+		struct {
+			FShader *		VertexShader;
+			FShader *		PixelShader;
+		};
+		FShader *			ComputeShader;
+	};
 	FRootSignature *		RootSignature;
-	FGraphicsRootLayout*	Root;
+	FRootLayout*			Root;
 	bool					FixedRootSignature;
 	u64						ShadersCompilationVersion = 0;
 	u64						ContentHash;
 
 	FShaderState() = default;
+	FShaderState(FShader * inComputeShader, FRootSignature * inRootSignature = nullptr);
 	FShaderState(FShader * inVertexShader, FShader * inPixelShader, FRootSignature * inRootSignature = nullptr);
 
 	virtual void InitParams() = 0;
@@ -81,9 +87,17 @@ public:
 
 class FPipelineState {
 public:
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC	Desc;
+	EPipelineType					Type;
+	union {
+		struct {
+			D3D12_COMPUTE_PIPELINE_STATE_DESC   Desc;
+		} Compute;
+		struct {
+			D3D12_GRAPHICS_PIPELINE_STATE_DESC	Desc;
+			FInputLayout const*					InputLayout;
+		} Graphics;
+	};
 	FShaderState *						ShaderState;
-	FInputLayout const*					InputLayout;
 
 	unique_com_ptr<ID3D12PipelineState>	D12PipelineState;
 	u64									BlobVersion = 0;
@@ -97,11 +111,13 @@ public:
 D3D12_GRAPHICS_PIPELINE_STATE_DESC	GetDefaultPipelineStateDesc();
 FInputLayout*			GetInputLayout(std::initializer_list<D3D12_INPUT_ELEMENT_DESC> elements);
 FPipelineState*			GetGraphicsPipelineState(FShaderState * ShaderState, D3D12_GRAPHICS_PIPELINE_STATE_DESC const *Desc, FInputLayout const * InputLayout);
-FGraphicsRootLayout*	GetRootLayout(FShader const* VS, FShader const* PS, FRootSignature * RootSignature = nullptr);
-FRootSignature*			GetRootSignature(FGraphicsRootLayout const*);
+FPipelineState*			GetComputePipelineState(FShaderState * ShaderState, D3D12_COMPUTE_PIPELINE_STATE_DESC const *Desc);
+FRootLayout*			GetRootLayout(FShader const* VS, FShader const* PS, FRootSignature * RootSignature = nullptr);
+FRootLayout*			GetRootLayout(FShader const* CS, FRootSignature * RootSignature = nullptr);
+FRootSignature*			GetRootSignature(FRootLayout const*);
 u32						GetPSOsNum();
 
-ID3D12RootSignature*	GetRawRootSignature(FGraphicsRootLayout const*);
+ID3D12RootSignature*	GetRawRootSignature(FRootLayout const*);
 ID3D12PipelineState*	GetRawPSO(FPipelineState const*);
 
 void					RecompileChangedPipelines();
@@ -143,7 +159,7 @@ struct FRWTextureParam {
 struct FConstantBuffer {
 	GlobalBindId				BindId;
 	u32							Size;
-	FGraphicsRootLayout const *	Layout;
+	FRootLayout const *	Layout;
 };
 
 #include "PointerMath.h"
@@ -241,7 +257,7 @@ public:
 	void		SerializeAndCreate();
 };
 
-class FGraphicsRootLayout {
+class FRootLayout {
 public:
 	FRootSignature*	RootSignature;
 	eastl::hash_map<GlobalBindId, BindDesc_t>				Textures;
@@ -275,9 +291,11 @@ class FPipelineFactory {
 public:
 	eastl::hash_map<u64, FPipelineState*>		Cached;
 
+	EPipelineType							PipelineType;
 	FShaderState *								ShaderState;
 	FInputLayout *								InputLayout;
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC			PipelineDesc;
+	D3D12_COMPUTE_PIPELINE_STATE_DESC			ComputePipelineDesc;
 
 	u32											Dirty : 1;
 	FPipelineState *							CurrentPipelineState;

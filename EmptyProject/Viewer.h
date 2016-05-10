@@ -12,7 +12,8 @@ enum class EViewMode {
 	Default,
 	Normals,
 	Texcoord0,
-	Texcoord1
+	Texcoord1,
+	BakedAO
 };
 
 struct FViewParams {
@@ -30,3 +31,4 @@ struct FTransformation {
 class FEditorModel;
 
 void RenderModel(FGPUContext &, FEditorModel *, FTransformation, FRenderViewport const&, FViewParams const&);
+void BakeAO(FGPUContext &, FEditorModel *);

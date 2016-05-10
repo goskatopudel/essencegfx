@@ -10,7 +10,7 @@
 
 class FShader;
 class FPipelineState;
-class FGraphicsRootLayout;
+class FRootLayout;
 class GPUCommandList;
 class GPUCommandQueue;
 class FGPUContext;
@@ -219,9 +219,11 @@ public:
 	D3D12_VERTEX_BUFFER_VIEW							VBVs[MAX_VBVS];
 	D3D12_INDEX_BUFFER_VIEW								IBV;
 
+	EPipelineType										PipelineType;
+
 	ID3D12Device*										Device;
 	FPipelineState const *								PipelineState;
-	FGraphicsRootLayout const *							RootLayout;
+	FRootLayout const *									RootLayout;
 	FRootSignature const *								RootSignature;
 	FDescriptorAllocator*								OnlineDescriptors;
 	eastl::array<FBoundRootParam, MAX_ROOT_PARAMS>		RootParams;
@@ -250,11 +252,12 @@ public:
 	void DrawIndexed(u32 indexCount, u32 startIndex = 0, i32 baseVertex = 0, u32 instances = 1, u32 startInstance = 0);
 	void SetVB(FBufferLocation BufferView, u32 Stream = 0);
 	void SetIB(FBufferLocation BufferView);
+	void Dispatch(u32 X, u32 Y = 1, u32 Z = 1);
 
 	// Binding 
 
 	void SetPSO(FPipelineState const* pipelineState);
-	void SetRoot(FGraphicsRootLayout const* rootLayout);
+	void SetRoot(FRootLayout const* rootLayout);
 	void SetConstantBuffer(FConstantBuffer const * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV);
 	void SetTexture(FTextureParam const * Texture, D3D12_CPU_DESCRIPTOR_HANDLE View);
 	void SetRWTexture(FRWTextureParam const * RWTexture, D3D12_CPU_DESCRIPTOR_HANDLE View);
@@ -361,6 +364,13 @@ public:
 		Data->StartInstance = startInstance;
 	}
 
+	inline void Dispatch(u32 X, u32 Y = 1, u32 Z = 1) {
+		auto Data = ReservePacket<FRenderCmdDispatch, FRenderCmdDispatchFunc>();
+		Data->X = X;
+		Data->Y = Y;
+		Data->Z = Z;
+	}
+
 	inline void SetScissorRect(D3D12_RECT const& Rect) {
 		auto Data = ReservePacket<FRenderCmdSetScissorRect, FRenderCmdSetScissorRectFunc>();
 		Data->Rect = Rect;
@@ -376,6 +386,11 @@ public:
 		auto Data = ReservePacket<FRenderCmdSetTexture, FRenderCmdSetTextureFunc>();
 		Data->Param = Texture;
 		Data->SRV = SRV;
+	}
+	inline void SetRWTexture(FRWTextureParam * Texture, D3D12_CPU_DESCRIPTOR_HANDLE UAV) {
+		auto Data = ReservePacket<FRenderCmdSetRWTexture, FRenderCmdSetRWTextureFunc>();
+		Data->Param = Texture;
+		Data->UAV = UAV;
 	}
 	inline void SetPipelineState(FPipelineState * PipelineState) {
 		auto Data = ReservePacket<FRenderCmdSetPipelineState, FRenderCmdSetPipelineStateFunc>();

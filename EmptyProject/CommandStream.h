@@ -4,6 +4,11 @@
 #include <d3d12.h>
 #include "MathVector.h"
 
+enum class EPipelineType {
+	Graphics,
+	Compute
+};
+
 struct FBufferLocation {
 	GPU_VIRTUAL_ADDRESS		Address;
 	u32						Size;
@@ -13,6 +18,7 @@ struct FBufferLocation {
 class FGPUContext;
 class FPipelineState;
 struct FTextureParam;
+struct FRWTextureParam;
 struct FConstantBuffer;
 
 using RenderCmdFunc = u64(*) (FGPUContext *, void *);
@@ -95,6 +101,13 @@ struct FRenderCmdSetConstantBuffer {
 
 u64 FRenderCmdSetConstantBufferFunc(FGPUContext * Context, void * DataVoidPtr);
 
+struct FRenderCmdSetRWTexture {
+	FRWTextureParam *			Param;
+	D3D12_CPU_DESCRIPTOR_HANDLE	UAV;
+};
+
+u64 FRenderCmdSetRWTextureFunc(FGPUContext * Context, void * DataVoidPtr);
+
 struct FRenderCmdSetScissorRect {
 	D3D12_RECT	Rect;
 };
@@ -119,3 +132,11 @@ struct FRenderCmdDrawIndexed {
 };
 
 u64 FRenderCmdDrawIndexedFunc(FGPUContext * Context, void * DataVoidPtr);
+
+struct FRenderCmdDispatch {
+	u32 X;
+	u32 Y;
+	u32 Z;
+};
+
+u64 FRenderCmdDispatchFunc(FGPUContext * Context, void * DataVoidPtr);

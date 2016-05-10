@@ -140,6 +140,35 @@ public:
 #include "BVH.h"
 #include "DebugPrimitivesRendering.h"
 
+FOwnedResource AOTexture;
+
+class FBakeAOShaderState : public FShaderState {
+public:
+
+	FBakeAOShaderState() :
+		FShaderState(
+			GetShader("Shaders/BakeTextureSignal.hlsl", "BakeAO", "cs_5_0", {}, 0)) {}
+
+	void InitParams() override final {
+	}
+};
+
+void BakeAO(FGPUContext & Context, FEditorModel * Model) {
+	if (!AOTexture.IsValid()) {
+		AOTexture = GetTexturesAllocator()->CreateTexture(1024, 1024, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_UNORDERED_ACCESS, L"AO");
+	}
+
+	static FBakeAOShaderState ShaderState;
+	static FPipelineFactory LocalPipelineFactory;
+
+	LocalPipelineFactory.SetShaderState(&ShaderState);
+	FPipelineState * PipelineState = LocalPipelineFactory.GetPipelineState();
+
+	Context.SetRoot(ShaderState.Root);
+	Context.SetPSO(PipelineState);
+	/*Context.Dispatch(1024 / 8, 1024 / 8, 1);*/
+}
+
 void RenderModel(
 	FGPUContext & Context,
 	FEditorModel * Model, 
@@ -158,6 +187,12 @@ void RenderModel(
 		CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 1, 0),
 		CreateInputElement("COLOR", DXGI_FORMAT_R8G8B8A8_UNORM, 0, 0),
 	});
+
+	if (ViewParams.DrawAtlas) {
+		RenderAtlasView(Context, Model);
+		return;
+	}
+
 	FDebugModelShaderState * UsedShaderState = nullptr;
 	FPipelineState * UsedPipelineState = nullptr;
 
@@ -191,6 +226,13 @@ void RenderModel(
 			UsedPipelineState = PipelineState;
 		}
 		else if (ViewParams.Mode == EViewMode::Texcoord0 || ViewParams.Mode == EViewMode::Texcoord1) {
+			SRGBTarget = true;
+			static FPipelineState * PipelineState;
+			PipelineDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+			PipelineState = GetGraphicsPipelineState(&ModelShaderState, &PipelineDesc, InputLayout);
+			UsedPipelineState = PipelineState;
+		}
+		else if (ViewParams.Mode == EViewMode::BakedAO) {
 			SRGBTarget = true;
 			static FPipelineState * PipelineState;
 			PipelineDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
@@ -233,7 +275,12 @@ void RenderModel(
 	XMStoreFloat4x4((XMFLOAT4X4*)&Constants.InvView, InvViewTMatrix);
 	Constants.CustomUint0 = (u32)ViewParams.Mode;
 	Context.SetConstantBuffer(&UsedShaderState->ConstantBuffer, CreateCBVFromData(&UsedShaderState->ConstantBuffer, Constants));
-	Context.SetTexture(&UsedShaderState->UVTexture, UVMappingTexture->GetSRV());
+	if (ViewParams.Mode == EViewMode::Texcoord0 || ViewParams.Mode == EViewMode::Texcoord1) {
+		Context.SetTexture(&UsedShaderState->UVTexture, UVMappingTexture->GetSRV());
+	}
+	else {
+		Context.SetTexture(&UsedShaderState->UVTexture, UVMappingTexture->GetSRV());
+	}
 
 	Context.SetRenderTarget(0, Viewport.RenderTarget->GetRTV(SRGBTarget ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM));
 	Context.SetDepthStencil(Viewport.DepthBuffer->GetDSV());
@@ -244,10 +291,6 @@ void RenderModel(
 		Context.SetIB(Model->Meshes[MeshIndex].GetIndexBuffer());
 		Context.SetVB(Model->Meshes[MeshIndex].GetVertexBuffer(), 0);
 		Context.DrawIndexed(Model->Meshes[MeshIndex].GetIndicesNum());
-	}
-
-	if (ViewParams.DrawAtlas) {
-		RenderAtlasView(Context, Model);
 	}
 
 	Context.SetRenderTarget(0, Viewport.RenderTarget->GetRTV(DXGI_FORMAT_R8G8B8A8_UNORM));

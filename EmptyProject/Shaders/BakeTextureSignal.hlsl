@@ -7,7 +7,7 @@ struct BVHNode {
 };
 
 StructuredBuffer<BVHNode>	BVH : register(t2);
-RWTexture2D BakedSignal : register(u0);
+RWTexture2D<float4> BakedSignal : register(u0);
 
 [numthreads(8, 8, 1)]
 void BakeAO(uint3 DTid : SV_DispatchThreadID) {

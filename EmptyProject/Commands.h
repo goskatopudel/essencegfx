@@ -216,6 +216,7 @@ public:
 	u32													DirtyRTVs : 1;
 	u32													UsesDepth : 1;
 	u32													DirtyVBVs : 1;
+	u32													DirtyRoot : 1;
 	D3D12_VERTEX_BUFFER_VIEW							VBVs[MAX_VBVS];
 	D3D12_INDEX_BUFFER_VIEW								IBV;
 
@@ -365,6 +366,7 @@ public:
 	}
 
 	inline void Dispatch(u32 X, u32 Y = 1, u32 Z = 1) {
+		BatchBarriers();
 		auto Data = ReservePacket<FRenderCmdDispatch, FRenderCmdDispatchFunc>();
 		Data->X = X;
 		Data->Y = Y;

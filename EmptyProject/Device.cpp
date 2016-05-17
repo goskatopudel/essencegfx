@@ -232,7 +232,7 @@ WinSwapChain::WinSwapChain() :
 	for (u32 i = 0; i < BackbuffersNum; ++i) {
 		ID3D12Resource* resource;
 		VERIFYDX12(SwapChain->GetBuffer(i, IID_PPV_ARGS(&resource)));
-		Backbuffers.emplace_back(new FGPUResource(resource, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB));
+		Backbuffers.emplace_back(eastl::make_unique<FGPUResource>(resource, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB));
 		AllocateResourceViews(Backbuffers.back().get());
 	}
 }
@@ -255,8 +255,11 @@ void WinSwapChain::Resize(u32 width, u32 height) {
 	for (u32 i = 0; i < BackbuffersNum; ++i) {
 		ID3D12Resource* resource;
 		VERIFYDX12(SwapChain->GetBuffer(i, IID_PPV_ARGS(&resource)));
-		Backbuffers.emplace_back(new FGPUResource(resource, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB));
+		Backbuffers.emplace_back(eastl::make_unique<FGPUResource>(resource, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB));
+		AllocateResourceViews(Backbuffers.back().get());
 	}
+
+	CurrentBackbufferIndex = 0;
 }
 
 void WinSwapChain::Present() {

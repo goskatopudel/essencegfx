@@ -406,7 +406,7 @@ void AllocateResourceViews(FGPUResource* resource, DXGI_FORMAT format, FResource
 	else if (resource->FatData->ViewDimension == D3D12_SRV_DIMENSION_TEXTURE2DARRAY) {
 		check(0);
 	}
-	else {
+	else if(resource->FatData->ViewDimension == D3D12_SRV_DIMENSION_TEXTURE2D) {
 		if (resource->FatData->IsShaderReadable) {
 			check(!outViews.MainSRV.IsValid());
 			outViews.MainSRV = SOVsAllocator->Allocate(resource->FatData->PlanesNum);
@@ -493,6 +493,42 @@ void AllocateResourceViews(FGPUResource* resource, DXGI_FORMAT format, FResource
 				DSVDesc.Flags = D3D12_DSV_FLAG_READ_ONLY_DEPTH | D3D12_DSV_FLAG_READ_ONLY_STENCIL;
 				GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v * 4 + 3));
 			}
+		}
+
+		if (resource->FatData->IsUnorderedAccess) {
+			check(!outViews.SubresourcesUAVs.IsValid());
+			u32 subresourcesWithViewsNum = resource->GetSubresourcesNum();
+			outViews.SubresourcesUAVs = SOVsAllocator->Allocate(subresourcesWithViewsNum);
+
+			D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc = {};
+			UAVDesc.Format = format;
+			UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+			UAVDesc.Texture2D.MipSlice = 0;
+			UAVDesc.Texture2D.PlaneSlice = 0;
+
+			for (u32 s = 0; s < subresourcesWithViewsNum; ++s) {
+				auto subresInfo = resource->GetSubresourceInfo(s);
+				UAVDesc.Texture2D.MipSlice = s;
+				UAVDesc.Texture2D.PlaneSlice = subresInfo.Plane;
+				GetPrimaryDevice()->D12Device->CreateUnorderedAccessView(resource->D12Resource.get(), nullptr, &UAVDesc, outViews.SubresourcesUAVs.GetCPUHandle(s));
+			}
+		}
+	}
+	else if (resource->FatData->ViewDimension == D3D12_SRV_DIMENSION_BUFFER) {
+		if (resource->FatData->IsShaderReadable) {
+			check(!outViews.MainSRV.IsValid());
+			outViews.MainSRV = SOVsAllocator->Allocate(1);
+
+			D3D12_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+			SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+			SRVDesc.Buffer.FirstElement = 0;
+			SRVDesc.Buffer.NumElements = (u32)resource->FatData->Desc.Width / resource->FatData->BufferStride;
+			SRVDesc.Buffer.StructureByteStride = resource->FatData->BufferStride;
+			SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+			SRVDesc.Format = DXGI_FORMAT_UNKNOWN;
+			SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+			GetPrimaryDevice()->D12Device->CreateShaderResourceView(resource->D12Resource.get(), &SRVDesc, outViews.MainSRV.GetCPUHandle(0));
 		}
 	}
 }
@@ -641,7 +677,7 @@ FOwnedResource FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depth
 	return result;
 }
 
-FOwnedResource FBuffersAllocator::CreateBuffer(u64 size, u64 alignment, wchar_t const * debugName) {
+FOwnedResource FBuffersAllocator::CreateSimpleBuffer(u64 size, u64 alignment, wchar_t const * debugName) {
 	FOwnedResource result = Allocate();
 
 	D3D12_RESOURCE_DESC desc = {};
@@ -676,6 +712,58 @@ FOwnedResource FBuffersAllocator::CreateBuffer(u64 size, u64 alignment, wchar_t 
 
 	if (debugName) {
 		SetDebugName(result->D12Resource.get(), debugName);
+	}
+
+	return result;
+}
+
+bool Any(EBufferFlags E) {
+	return (u32)E != 0;
+}
+
+FOwnedResource	FBuffersAllocator::CreateBuffer(u64 size, u64 alignment, u32 stride, EBufferFlags flags, wchar_t const * debugName) {
+	FOwnedResource result = Allocate();
+
+	D3D12_RESOURCE_DESC desc = {};
+	desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	desc.Width = size * stride;
+	desc.Height = 1;
+	desc.DepthOrArraySize = 1;
+	desc.MipLevels = 1;
+	desc.Format = DXGI_FORMAT_UNKNOWN;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	result->FatData->BufferStride = stride;
+	result->FatData->IsShaderReadable = Any(flags & EBufferFlags::ShaderReadable) ? 1 : 0;
+	result->FatData->ViewDimension = Any(flags & EBufferFlags::ShaderReadable) ? D3D12_SRV_DIMENSION_BUFFER : D3D12_SRV_DIMENSION_UNKNOWN;
+	D3D12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+	D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON;
+
+	result->FatData->IsCommited = 1;
+	result->FatData->HeapProperties = heapProperties;
+
+	VERIFYDX12(GetPrimaryDevice()->D12Device->CreateCommittedResource(
+		&heapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&desc,
+		initialState,
+		nullptr,
+		IID_PPV_ARGS(result->D12Resource.get_init())
+	));
+
+	result->FatData->Desc = result->D12Resource->GetDesc();
+	result->FatData->Name = eastl::wstring(debugName);
+
+	if (debugName) {
+		SetDebugName(result->D12Resource.get(), debugName);
+	}
+
+	AllocateResourceViews(result, result->FatData->ViewFormat, result->FatData->Views.MainSet);
+	if (result->IsReadOnly()) {
+		result->ReadOnlySRV = result->FatData->Views.MainSet.MainSRV.GetCPUHandle(0);
 	}
 
 	return result;

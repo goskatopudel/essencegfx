@@ -27,6 +27,57 @@ public:
 
 #include "UtilStates.h"
 
+void RenderAtlas(FCommandsStream & CmdStream, FEditorModel * Model) {
+	if (!ObjectPositionsTexture.IsValid()) {
+		ObjectPositionsTexture = GetTexturesAllocator()->CreateTexture(1024, 1024, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, ALLOW_RENDER_TARGET, L"Positions");
+		ObjectNormalsTexture = GetTexturesAllocator()->CreateTexture(1024, 1024, 1, DXGI_FORMAT_R16G16B16A16_FLOAT, ALLOW_RENDER_TARGET, L"Normals");
+	}
+
+	static FInputLayout * InputLayout = GetInputLayout({
+		CreateInputElement("POSITION", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("TANGENT", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 0, 0),
+		CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 1, 0),
+		CreateInputElement("COLOR", DXGI_FORMAT_R8G8B8A8_UNORM, 0, 0),
+	});
+
+	FPipelineState * PipelineState = nullptr;
+	static FRenderToAtlasShaderState ModelShaderState;
+
+	if (!PipelineState) {
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineDesc = GetDefaultPipelineStateDesc();
+		PipelineDesc.RTVFormats[0] = ObjectPositionsTexture->GetWriteFormat();
+		PipelineDesc.RTVFormats[1] = ObjectNormalsTexture->GetWriteFormat();
+		PipelineDesc.NumRenderTargets = 2;
+
+		PipelineState = GetGraphicsPipelineState(&ModelShaderState, &PipelineDesc, InputLayout);
+	}
+
+	CmdStream.SetAccess(ObjectPositionsTexture, EAccessType::WRITE_RT);
+	CmdStream.SetAccess(ObjectNormalsTexture, EAccessType::WRITE_RT);
+
+	CmdStream.SetPipelineState(PipelineState);
+
+	CmdStream.SetRenderTarget(0, ObjectPositionsTexture->GetRTV());
+	CmdStream.SetRenderTarget(1, ObjectNormalsTexture->GetRTV());
+	CmdStream.SetDepthStencil({});
+	CmdStream.SetViewport(ObjectPositionsTexture->GetSizeAsViewport());
+
+	u64 MeshesNum = Model->Meshes.size();
+	for (u64 MeshIndex = 0; MeshIndex < MeshesNum; MeshIndex++) {
+		CmdStream.SetIB(Model->Meshes[MeshIndex].GetIndexBuffer());
+		CmdStream.SetVB(Model->Meshes[MeshIndex].GetVertexBuffer(), 0);
+		CmdStream.DrawIndexed(Model->Meshes[MeshIndex].GetIndicesNum());
+	}
+
+	CmdStream.SetRenderTarget(1, {});
+}
+
+FOwnedResource AOTexture;
+FOwnedResource AOTexture1;
+
 void RenderAtlasView(FGPUContext & Context, FEditorModel * Model) {
 	if (!ObjectPositionsTexture.IsValid()) {
 		ObjectPositionsTexture = GetTexturesAllocator()->CreateTexture(1024, 1024, 1, DXGI_FORMAT_R32G32B32A32_FLOAT, ALLOW_RENDER_TARGET, L"Positions");
@@ -48,9 +99,8 @@ void RenderAtlasView(FGPUContext & Context, FEditorModel * Model) {
 
 	if (!PipelineState) {
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineDesc = GetDefaultPipelineStateDesc();
-		// PipelineDesc.SetRT(0, );
-		PipelineDesc.RTVFormats[0] = DXGI_FORMAT_R32G32B32_FLOAT;
-		PipelineDesc.RTVFormats[1] = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		PipelineDesc.RTVFormats[0] = ObjectPositionsTexture->GetWriteFormat();
+		PipelineDesc.RTVFormats[1] = ObjectNormalsTexture->GetWriteFormat();
 		PipelineDesc.NumRenderTargets = 2;
 
 		PipelineState = GetGraphicsPipelineState(&ModelShaderState, &PipelineDesc, InputLayout);
@@ -85,8 +135,8 @@ void RenderAtlasView(FGPUContext & Context, FEditorModel * Model) {
 
 	if (!CopyPipelineState) {
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineDesc = GetDefaultPipelineStateDesc();
-		// PipelineDesc.SetRT(0, );
 		PipelineDesc.RTVFormats[0] = GetBackbufferFormat();
+		PipelineDesc.RTVFormats[1] = NULL_FORMAT;
 		PipelineDesc.NumRenderTargets = 1;
 
 		CopyPipelineState = GetGraphicsPipelineState(CopyShaderState, &PipelineDesc, InputLayout);
@@ -95,9 +145,10 @@ void RenderAtlasView(FGPUContext & Context, FEditorModel * Model) {
 	Stream.SetPipelineState(CopyPipelineState);
 
 	Stream.SetRenderTarget(0, GetBackbuffer()->GetRTV());
+	Stream.SetRenderTarget(1, {});
 	Stream.SetDepthStencil({});
 	Stream.SetViewport(GetBackbuffer()->GetSizeAsViewport());
-	Stream.SetTexture(&CopyShaderState->SourceTexture, ObjectNormalsTexture->GetSRV());
+	Stream.SetTexture(&CopyShaderState->SourceTexture, AOTexture->GetSRV());
 	Stream.Draw(3);
 
 	Stream.Close();
@@ -140,23 +191,107 @@ public:
 #include "BVH.h"
 #include "DebugPrimitivesRendering.h"
 
-FOwnedResource AOTexture;
+float Halton(u32 Index, u32 Base) {
+	float result = 0;
+	float invbase = 1.f / (float)Base;
+	float f = 1;
+	u32 i = Index;
+	while (i > 0) {
+		f = f * invbase;
+		result = result + f * (i % Base);
+		i = i / Base;
+	}
+	return result;
+}
 
 class FBakeAOShaderState : public FShaderState {
 public:
+	FTextureParam	PositionsInput;
+	FTextureParam	NormalsInput;
+	FRWTextureParam OutTexture;
+	FTextureParam	BVHNodes;
+	FTextureParam	Primitives;
+	FTextureParam	PositionsBuffer;
+	FTextureParam	IndicesBuffer;
+	FTextureParam	BlendTexture;
+
+	FConstantBuffer			ConstantBuffer;
+
+	struct FConstantBufferData {
+		float2	Samples[16];
+	};
 
 	FBakeAOShaderState() :
 		FShaderState(
 			GetShader("Shaders/BakeTextureSignal.hlsl", "BakeAO", "cs_5_0", {}, 0)) {}
 
 	void InitParams() override final {
+		PositionsInput = Root->CreateTextureParam("PositionsTexture");
+		NormalsInput = Root->CreateTextureParam("NormalsTexture");
+		OutTexture = Root->CreateRWTextureParam("BakedSignal");
+		BVHNodes = Root->CreateTextureParam("BVHNodes");
+		Primitives = Root->CreateTextureParam("Primitives");
+		PositionsBuffer = Root->CreateTextureParam("PositionsBuffer");
+		IndicesBuffer = Root->CreateTextureParam("IndicesBuffer");
+		BlendTexture = Root->CreateTextureParam("BlendTexture");
+
+		ConstantBuffer = Root->CreateConstantBuffer("Constants");
 	}
 };
+
+FOwnedResource BVHNodes;
+FOwnedResource BVHPrimitives;
+FOwnedResource BVHIndices;
+FOwnedResource BVHPositions;
+
+void TransferBVHToGPU(FGPUContext & Context, FLinearBVH const * LinearBVH) {
+	
+	struct GPUBVHNode {
+		float3 	VMin;
+		u32		SecondChild;
+		float3 	VMax;
+		u32		PrimitivesNum;
+		u32		PrimitivesOffset;
+		u32		SplitAxis;
+	};
+
+
+	BVHNodes = GetBuffersAllocator()->CreateBuffer(LinearBVH->Nodes.size(), 4, sizeof(GPUBVHNode), EBufferFlags::ShaderReadable, L"BVHNodes");
+	BVHPrimitives = GetBuffersAllocator()->CreateBuffer(LinearBVH->Primitives.size(), 4, sizeof(u32), EBufferFlags::ShaderReadable, L"BVHPrimitives");
+	BVHPositions = GetBuffersAllocator()->CreateBuffer(LinearBVH->PositionsNum, 4, sizeof(float3), EBufferFlags::ShaderReadable, L"BVHPositions");
+	BVHIndices = GetBuffersAllocator()->CreateBuffer(LinearBVH->IndicesNum, 4, sizeof(u32), EBufferFlags::ShaderReadable, L"BVHIndices");
+
+	eastl::vector<GPUBVHNode> GPUNodes;
+	GPUNodes.reserve(LinearBVH->Nodes.size());
+
+	for (u32 Index = 0; Index < LinearBVH->Nodes.size(); Index++) {
+		GPUNodes.push_back_uninitialized();
+		GPUNodes.back().VMin = LinearBVH->Nodes[Index].Bounds.VMin;
+		GPUNodes.back().SecondChild = LinearBVH->Nodes[Index].SecondChild;
+		GPUNodes.back().VMax = LinearBVH->Nodes[Index].Bounds.VMax;
+		GPUNodes.back().PrimitivesNum = LinearBVH->Nodes[Index].PrimitivesNum;
+		GPUNodes.back().PrimitivesOffset = LinearBVH->Nodes[Index].PrimitivesOffset;
+		GPUNodes.back().SplitAxis = LinearBVH->Nodes[Index].SplitAxis;
+	}
+
+	Context.CopyToBuffer(BVHNodes, GPUNodes.data(), LinearBVH->Nodes.size() * sizeof(GPUBVHNode));
+	Context.CopyToBuffer(BVHPrimitives, LinearBVH->Primitives.data(), LinearBVH->Primitives.size() * sizeof(u32));
+	Context.CopyToBuffer(BVHPositions, LinearBVH->Positions, LinearBVH->PositionsNum * sizeof(float3));
+	Context.CopyToBuffer(BVHIndices, LinearBVH->Indices, LinearBVH->IndicesNum * sizeof(u32));
+
+	Context.Barrier(BVHNodes, 0, EAccessType::COPY_DEST, EAccessType::READ_NON_PIXEL);
+	Context.Barrier(BVHPrimitives, 0, EAccessType::COPY_DEST, EAccessType::READ_NON_PIXEL);
+	Context.Barrier(BVHPositions, 0, EAccessType::COPY_DEST, EAccessType::READ_NON_PIXEL);
+	Context.Barrier(BVHIndices, 0, EAccessType::COPY_DEST, EAccessType::READ_NON_PIXEL);
+}
 
 void BakeAO(FGPUContext & Context, FEditorModel * Model) {
 	if (!AOTexture.IsValid()) {
 		AOTexture = GetTexturesAllocator()->CreateTexture(1024, 1024, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_UNORDERED_ACCESS, L"AO");
+		AOTexture1 = GetTexturesAllocator()->CreateTexture(1024, 1024, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_UNORDERED_ACCESS, L"AO1");
 	}
+
+	TransferBVHToGPU(Context, &Model->Meshes[0].BVH);
 
 	static FBakeAOShaderState ShaderState;
 	static FPipelineFactory LocalPipelineFactory;
@@ -164,9 +299,45 @@ void BakeAO(FGPUContext & Context, FEditorModel * Model) {
 	LocalPipelineFactory.SetShaderState(&ShaderState);
 	FPipelineState * PipelineState = LocalPipelineFactory.GetPipelineState();
 
-	Context.SetRoot(ShaderState.Root);
-	Context.SetPSO(PipelineState);
-	/*Context.Dispatch(1024 / 8, 1024 / 8, 1);*/
+	static FCommandsStream CmdStream;
+	CmdStream.Reset();
+
+	RenderAtlas(CmdStream, Model);
+
+	eastl::swap(AOTexture, AOTexture1);
+
+	CmdStream.SetAccess(ObjectPositionsTexture, EAccessType::READ_NON_PIXEL);
+	CmdStream.SetAccess(ObjectNormalsTexture, EAccessType::READ_NON_PIXEL);
+	CmdStream.SetAccess(AOTexture, EAccessType::WRITE_UAV);
+	CmdStream.SetAccess(AOTexture1, EAccessType::READ_NON_PIXEL);
+
+	CmdStream.SetPipelineState(PipelineState);
+	CmdStream.SetTexture(&ShaderState.PositionsInput, ObjectPositionsTexture->GetSRV());
+	CmdStream.SetTexture(&ShaderState.NormalsInput, ObjectNormalsTexture->GetSRV());
+	CmdStream.SetRWTexture(&ShaderState.OutTexture, AOTexture->GetUAV());
+	CmdStream.SetTexture(&ShaderState.BVHNodes, BVHNodes->GetSRV());
+	CmdStream.SetTexture(&ShaderState.Primitives, BVHPrimitives->GetSRV());
+	CmdStream.SetTexture(&ShaderState.PositionsBuffer, BVHPositions->GetSRV());
+	CmdStream.SetTexture(&ShaderState.IndicesBuffer, BVHIndices->GetSRV());
+	CmdStream.SetTexture(&ShaderState.BlendTexture, AOTexture1->GetSRV());
+
+	static u32 HaltonIndex = 0;
+
+	FBakeAOShaderState::FConstantBufferData Constants;
+	for (u32 Index = 0; Index < 16; ++Index) {
+		Constants.Samples[Index].x = Halton(HaltonIndex, 2);
+		Constants.Samples[Index].y = Halton(HaltonIndex, 2);
+		++HaltonIndex;
+	}
+	CmdStream.SetConstantBuffer(&ShaderState.ConstantBuffer, CreateCBVFromData(&ShaderState.ConstantBuffer, Constants));
+
+	CmdStream.Dispatch(1024 / 8, 1024 / 8, 1);
+
+	CmdStream.SetAccess(AOTexture, EAccessType::READ_PIXEL);
+	CmdStream.SetAccess(AOTexture1, EAccessType::READ_PIXEL);
+
+	CmdStream.Close();
+	Playback(Context, &CmdStream);
 }
 
 void RenderModel(
@@ -278,6 +449,9 @@ void RenderModel(
 	if (ViewParams.Mode == EViewMode::Texcoord0 || ViewParams.Mode == EViewMode::Texcoord1) {
 		Context.SetTexture(&UsedShaderState->UVTexture, UVMappingTexture->GetSRV());
 	}
+	else if (ViewParams.Mode == EViewMode::BakedAO) {
+		Context.SetTexture(&UsedShaderState->UVTexture, AOTexture->GetSRV());
+	}
 	else {
 		Context.SetTexture(&UsedShaderState->UVTexture, UVMappingTexture->GetSRV());
 	}
@@ -298,7 +472,7 @@ void RenderModel(
 	static FDebugPrimitivesAccumulator DebugRender;
 	FPrettyColorFactory	ColorFactory(0.9f);
 
-	for (u32 Index = 0; Index < Model->Meshes.size(); Index++) {
+	/*for (u32 Index = 0; Index < Model->Meshes.size(); Index++) {
 		Color4b Color = ColorFactory.GetNext();
 		Color.a = 128;
 		DebugRender.AddMeshWireframe(&Model->Meshes[Index], Color);
@@ -306,7 +480,7 @@ void RenderModel(
 
 	for (u32 Index = 0; Index < Model->Meshes.size(); Index++) {
 		DebugRender.AddMeshNormals(&Model->Meshes[Index], 0.25f);
-	}
+	}*/
 
 	DebugRender.FlushToViewport(Context, Viewport);
 

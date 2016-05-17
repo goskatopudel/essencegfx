@@ -354,7 +354,7 @@ public:
 		return Node;
 	}
 
-	void Build(float3 * Positions, u32 * Indices, u32 PrimitivesNum, FLinearBVH & LBVH) {
+	void Build(float3 * Positions, u32 PositionsNum, u32 * Indices, u32 IndicesNum, u32 PrimitivesNum, FLinearBVH & LBVH) {
 		eastl::vector<FBBox> PrimitivesBBoxes;
 		PrimitivesBBoxes.reserve(PrimitivesNum);
 
@@ -368,7 +368,9 @@ public:
 		RecursiveBuild(0, PrimitivesNum);
 
 		LBVH.Positions = Positions;
+		LBVH.PositionsNum = PositionsNum;
 		LBVH.Indices = Indices;
+		LBVH.IndicesNum = IndicesNum;
 		LBVH.Nodes.clear();
 		LBVH.Primitives.clear();
 
@@ -440,7 +442,10 @@ public:
 
 void BuildBVH(FEditorMesh * Mesh, FLinearBVH * BVH) {
 	FBVHBuilder Builder;
-	Builder.Build(Mesh->Positions.data(), Mesh->Indices.data(), Mesh->GetIndicesNum() / 3, *BVH);
+	Builder.Build(
+		Mesh->Positions.data(), (u32)Mesh->Positions.size(), 
+		Mesh->Indices.data(), (u32)Mesh->Indices.size(),
+		Mesh->GetIndicesNum() / 3, *BVH);
 }
 
 

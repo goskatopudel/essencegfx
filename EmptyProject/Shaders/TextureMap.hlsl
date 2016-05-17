@@ -31,6 +31,6 @@ void PShader(VOut interpolated, out float4 OutPosition : SV_TARGET0, out float4 
 {
 	float3 N = normalize(interpolated.normal);
 	OutPosition = float4(interpolated.wposition, 1);
-	OutNormal = float4(N * 0.5 + 0.5, 1);
+	OutNormal = float4(N, 1);
 }
 

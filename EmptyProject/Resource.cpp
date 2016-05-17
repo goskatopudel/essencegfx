@@ -63,6 +63,10 @@ D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetSRV() const {
 	return FatData->Views.MainSet.MainSRV.GetCPUHandle(0);
 }
 
+D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetUAV() const {
+	return FatData->Views.MainSet.SubresourcesUAVs.GetCPUHandle(0);
+}
+
 D3D12_VIEWPORT FGPUResource::GetSizeAsViewport() const {
 	return { 0.f, 0.f, (float)FatData->Desc.Width, (float)FatData->Desc.Height, 0.f, 1.f } ;
 }

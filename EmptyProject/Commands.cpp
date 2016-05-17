@@ -607,6 +607,9 @@ void FGPUContext::CopyResource(FGPUResource* dst, FGPUResource* src) {
 void FGPUContext::SetPSO(FPipelineState const* pso) {
 	if (PipelineState != pso) {
 		PipelineState = pso;
+		if (PipelineType != pso->Type) {
+			DirtyRoot = 1;
+		}
 		PipelineType = pso->Type;
 		RawCommandList()->SetPipelineState(GetRawPSO(pso));
 	}
@@ -618,7 +621,7 @@ void FGPUContext::SetRoot(FRootLayout const* rootLayout) {
 
 		if (RootSignature != RootLayout->RootSignature) {
 			RootSignature = RootLayout->RootSignature;
-			RawCommandList()->SetGraphicsRootSignature(GetRawRootSignature(rootLayout));
+			DirtyRoot = 1;
 
 			for (u32 index = 0; index < RootLayout->RootParamsNum; index++) {
 				u32 L = RootLayout->RootParams[index].TableLen;
@@ -753,6 +756,8 @@ void FGPUContext::Reset() {
 	FlushCounter = 0;
 	BarriersList.clear();
 
+	PipelineType = EPipelineType::Graphics;
+
 	RootLayout = nullptr;
 	RootSignature = nullptr;
 	PipelineState = nullptr;
@@ -794,7 +799,7 @@ void FGPUContext::SetTexture(FTextureParam const * Texture, D3D12_CPU_DESCRIPTOR
 	if (BindIter == RootLayout->Textures.end()) {
 		return;
 	}
-	auto bind = RootLayout->Textures.find(Texture->BindId)->second;
+	auto bind = BindIter->second;
 	auto& Param = RootParams[bind.RootParam];
 	Param.Dirty |= View != Param.SrcRanges[bind.DescOffset];
 	Param.SrcRanges[bind.DescOffset] = View;
@@ -802,7 +807,11 @@ void FGPUContext::SetTexture(FTextureParam const * Texture, D3D12_CPU_DESCRIPTOR
 }
 
 void FGPUContext::SetRWTexture(FRWTextureParam const * RWTexture, D3D12_CPU_DESCRIPTOR_HANDLE View) {
-	auto bind = RootLayout->RWTextures.find(RWTexture->BindId)->second;
+	auto BindIter = RootLayout->RWTextures.find(RWTexture->BindId);
+	if (BindIter == RootLayout->RWTextures.end()) {
+		return;
+	}
+	auto bind = BindIter->second;
 	auto& Param = RootParams[bind.RootParam];
 	Param.Dirty |= View != Param.SrcRanges[bind.DescOffset];
 	Param.SrcRanges[bind.DescOffset] = View;
@@ -811,6 +820,15 @@ void FGPUContext::SetRWTexture(FRWTextureParam const * RWTexture, D3D12_CPU_DESC
 
 void FGPUContext::PreDraw() {
 	FlushBarriers();
+
+	if (DirtyRoot) {
+		if (PipelineType == EPipelineType::Graphics) {
+			RawCommandList()->SetGraphicsRootSignature(GetRawRootSignature(RootLayout));
+		}
+		else {
+			RawCommandList()->SetComputeRootSignature(GetRawRootSignature(RootLayout));
+		}
+	}
 
 	if (PipelineType == EPipelineType::Graphics) {
 		if (DirtyRTVs) {

@@ -17,6 +17,15 @@
 
 #include "VideoMemory.h"
 
+namespace GApplication {
+bool			WindowSizeChanged;
+u32				WndWidth;
+u32				WndHeight;
+const wchar_t*	WndTitle;
+i64				Time;
+i64				CpuFrequency;
+}
+
 FOwnedResource RenderTargetRed;
 FOwnedResource RenderTarget;
 FOwnedResource UATarget;
@@ -26,6 +35,12 @@ FOwnedResource MipmappedRT;
 FOwnedResource ColorTexture;
 
 FCamera Camera;
+
+void AllocateScreenResources() {
+	RenderTargetRed = GetTexturesAllocator()->CreateTexture(GApplication::WndWidth, GApplication::WndHeight, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_RENDER_TARGET, L"A", DXGI_FORMAT_R8G8B8A8_UNORM, float4(1, 0, 0, 0));
+	RenderTarget = GetTexturesAllocator()->CreateTexture(GApplication::WndWidth, GApplication::WndHeight, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_RENDER_TARGET, L"A", DXGI_FORMAT_R8G8B8A8_UNORM);
+	DepthBuffer = GetTexturesAllocator()->CreateTexture(GApplication::WndWidth, GApplication::WndHeight, 1, DXGI_FORMAT_D24_UNORM_S8_UINT, ALLOW_DEPTH_STENCIL, L"DepthStencil", DXGI_FORMAT_D24_UNORM_S8_UINT);
+}
 
 void UpdateCamera() {
 	ImGuiIO& io = ImGui::GetIO();
@@ -64,8 +79,8 @@ void UpdateCamera() {
 		}
 	}
 
-	float dx = (float)io.MouseDelta.x / (float)1024.f;
-	float dy = (float)io.MouseDelta.y / (float)768.f;
+	float dx = (float)io.MouseDelta.x / (float)GApplication::WndWidth;
+	float dy = (float)io.MouseDelta.y / (float)GApplication::WndHeight;
 	if (io.MouseDown[1]) {
 		Camera.Rotate(dy, dx);
 	}
@@ -207,7 +222,7 @@ void RenderImDrawLists(ImDrawData *draw_data) {
 
 	auto matrix = XMMatrixTranspose(
 		XMMatrixOrthographicOffCenterLH(
-			0, (float)1024, (float)768, 0, 0, 1));
+			0, (float)GApplication::WndWidth, (float)GApplication::WndHeight, 0, 0, 1));
 
 	Stream.SetAccess(GetBackbuffer(), 0, EAccessType::WRITE_RT);
 
@@ -317,7 +332,7 @@ void RenderScene(FGPUContext & Context, FModel * model) {
 
 	auto ProjectionMatrix = XMMatrixPerspectiveFovLH(
 		3.14f * 0.25f,
-		(float)1024.f / 768.f,
+		(float)GApplication::WndWidth / GApplication::WndHeight,
 		0.01f, 1000.f);
 
 	auto ViewMatrix = XMMatrixLookToLH(
@@ -424,7 +439,7 @@ void RenderModelViewer(FGPUContext & Context) {
 	Viewport.RenderTarget = GetBackbuffer();
 	Viewport.DepthBuffer = DepthBuffer;
 	Viewport.Camera = &Camera;
-	Viewport.Resolution = Vec2i(1024, 768);
+	Viewport.Resolution = Vec2i(GApplication::WndWidth, GApplication::WndHeight);
 	
 	auto ProjectionMatrix = XMMatrixPerspectiveFovLH(
 		3.14f * 0.25f,
@@ -454,7 +469,7 @@ void FApplication::Init() {
 
 	Win32::SetCustomMessageFunc(ProcessWinMessage);
 
-	QueryPerformanceFrequency((LARGE_INTEGER *)&CpuFrequency);
+	QueryPerformanceFrequency((LARGE_INTEGER *)&GApplication::CpuFrequency);
 
 	ImGuiIO& io = ImGui::GetIO();
 	io.KeyMap[ImGuiKey_Tab] = VK_TAB;                     
@@ -484,10 +499,9 @@ void FApplication::Init() {
 	Camera.Up = float3(0, 1.f, 0);
 	Camera.Direction = normalize(float3(0) - Camera.Position);
 
-	RenderTargetRed = GetTexturesAllocator()->CreateTexture(1024, 768, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_RENDER_TARGET, L"A", DXGI_FORMAT_R8G8B8A8_UNORM, float4(1,0,0,0));
-	RenderTarget = GetTexturesAllocator()->CreateTexture(1024, 768, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_RENDER_TARGET, L"A", DXGI_FORMAT_R8G8B8A8_UNORM);
+	AllocateScreenResources();
+
 	UATarget = GetTexturesAllocator()->CreateTexture(512, 512, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_UNORDERED_ACCESS, L"B");
-	DepthBuffer = GetTexturesAllocator()->CreateTexture(1024, 768, 1, DXGI_FORMAT_D24_UNORM_S8_UINT, ALLOW_DEPTH_STENCIL, L"DepthStencil", DXGI_FORMAT_D24_UNORM_S8_UINT);
 	
 	io.Fonts->AddFontDefault();
 	unsigned char* pixels;
@@ -541,6 +555,14 @@ void ShowSceneWindow() {
 }
 
 bool FApplication::Update() {
+	if (GApplication::WindowSizeChanged) {
+		GetDirectQueue()->WaitForCompletion();
+		GetSwapChain()->Resize(GApplication::WndWidth, GApplication::WndHeight);
+		GApplication::WindowSizeChanged = 0;
+
+		AllocateScreenResources();
+	}
+
 	ImGuiIO& io = ImGui::GetIO();
 
 	// Setup display size (every frame to accommodate for window resizing)
@@ -550,8 +572,8 @@ bool FApplication::Update() {
 
 	i64 CurrentTime;
 	QueryPerformanceCounter((LARGE_INTEGER *)&CurrentTime);
-	io.DeltaTime = (float)(CurrentTime - Time) / CpuFrequency;
-	Time = CurrentTime;
+	io.DeltaTime = (float)(CurrentTime - GApplication::Time) / GApplication::CpuFrequency;
+	GApplication::Time = CurrentTime;
 
 	// Read keyboard modifiers inputs
 	io.KeyCtrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;

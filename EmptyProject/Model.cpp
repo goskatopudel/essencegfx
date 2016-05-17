@@ -55,9 +55,9 @@ public:
 	}
 
 	void CreateBuffers(FGPUContext & CopyContext) {
-		IndexBuffer = GetBuffersAllocator()->CreateBuffer(Indices.size() * sizeof(u16), 0, L"IndexBuffer");
-		VertexBuffers[0] = GetBuffersAllocator()->CreateBuffer(Streams[0].Data.size(), 0, L"VertexBuffer0");
-		VertexBuffers[1] = GetBuffersAllocator()->CreateBuffer(Streams[1].Data.size(), 0, L"VertexBuffer1");
+		IndexBuffer = GetBuffersAllocator()->CreateSimpleBuffer(Indices.size() * sizeof(u16), 0, L"IndexBuffer");
+		VertexBuffers[0] = GetBuffersAllocator()->CreateSimpleBuffer(Streams[0].Data.size(), 0, L"VertexBuffer0");
+		VertexBuffers[1] = GetBuffersAllocator()->CreateSimpleBuffer(Streams[1].Data.size(), 0, L"VertexBuffer1");
 
 		CopyContext.CopyToBuffer(IndexBuffer, Indices.data(), Indices.size() * sizeof(u16));
 		CopyContext.CopyToBuffer(VertexBuffers[0], Streams[0].Data.data(), Streams[0].Data.size());

@@ -90,10 +90,17 @@ public:
 	FOwnedResource	CreateTexture(u64 width, u32 height, u32 depthOrArraySize, DXGI_FORMAT format, TextureFlags flags, wchar_t const * debugName, DXGI_FORMAT clearFormat = DXGI_FORMAT_UNKNOWN, float4 clearColor = float4(0, 0, 0, 0), float clearDepth = 1.f, u8 clearStencil = 0);
 };
 
+enum class EBufferFlags {
+	NoFlags = 0,
+	ShaderReadable = 1,
+};
+DEFINE_ENUM_FLAG_OPERATORS(EBufferFlags);
+
 class FBuffersAllocator : public FResourceAllocator {
 public:
 	FBuffersAllocator(u32 MaxResources) : FResourceAllocator(MaxResources) {}
-	FOwnedResource	CreateBuffer(u64 size, u64 alignment, wchar_t const * debugName);
+	FOwnedResource	CreateSimpleBuffer(u64 size, u64 alignment, wchar_t const * debugName);
+	FOwnedResource	CreateBuffer(u64 size, u64 alignment, u32 stride, EBufferFlags flags, wchar_t const * debugName);
 };
 
 FLinearAllocator *			GetConstantsAllocator();

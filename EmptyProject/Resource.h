@@ -80,6 +80,7 @@ public:
 	D3D12_CPU_DESCRIPTOR_HANDLE			GetRTV(DXGI_FORMAT);
 	D3D12_CPU_DESCRIPTOR_HANDLE			GetDSV() const;
 	D3D12_CPU_DESCRIPTOR_HANDLE			GetSRV() const;
+	D3D12_CPU_DESCRIPTOR_HANDLE			GetUAV() const;
 
 	D3D12_VIEWPORT						GetSizeAsViewport() const;
 	void*								GetMappedPtr() const;
@@ -105,6 +106,7 @@ public:
 	ResourceType			Type;
 	FResourceViews			Views;
 	D3D12_RESOURCE_DESC		Desc;
+	u32						BufferStride;
 	D3D12_SRV_DIMENSION		ViewDimension;
 	D3D12_HEAP_PROPERTIES	HeapProperties;
 	FResourceAllocator*		Allocator = nullptr;

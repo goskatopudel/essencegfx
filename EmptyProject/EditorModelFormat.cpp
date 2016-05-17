@@ -212,5 +212,7 @@ void LoadEditorModel(FEditorModel * Model, const wchar_t * Filename) {
 		}
 
 		Model->AddMesh(std::move(Mesh));
+
+		BuildBVH(&Model->Meshes.back(), &Model->Meshes.back().BVH);
 	}
 }

@@ -19,7 +19,9 @@ public:
 	eastl::vector<FBVHNode>	Nodes;
 	eastl::vector<u32>		Primitives;
 	float3 *				Positions;
+	u32						PositionsNum;
 	u32 *					Indices;
+	u32						IndicesNum;
 
 	u32 GetDepth() const;
 	bool CastRay(FRay const& Ray, float &MinT, u32 &PrimitiveId);

@@ -52,7 +52,9 @@ FDescriptorsAllocation FDescriptorAllocator::AllocateFromBucketBlock(BucketBlock
 }
 
 void FDescriptorAllocator::FreeToBucketBlock(BucketBlock &Block, u32 freedIndex) {
-	Block.FreeRanges[Block.NextFreeRange] = freedIndex;
+	if (Block.NextFreeRange != FREELIST_GUARD) {
+		Block.FreeRanges[Block.NextFreeRange] = freedIndex;
+	}
 	Block.NextFreeRange = freedIndex;
 }
 

@@ -169,8 +169,8 @@ void FEditorMesh::Consume(par_shapes_mesh * ParShapesMesh) {
 }
 
 void FEditorMesh::CopyDataToBuffers(FGPUContext & Context) {
-	IndexBuffer = GetBuffersAllocator()->CreateBuffer(Indices.size() * sizeof(u32), 0, L"IndexBuffer");
-	VertexBuffer = GetBuffersAllocator()->CreateBuffer(sizeof(FEditorMeshVertex) * GetVerticesNum(), 0, L"VertexBuffer");
+	IndexBuffer = GetBuffersAllocator()->CreateSimpleBuffer(Indices.size() * sizeof(u32), 0, L"IndexBuffer");
+	VertexBuffer = GetBuffersAllocator()->CreateSimpleBuffer(sizeof(FEditorMeshVertex) * GetVerticesNum(), 0, L"VertexBuffer");
 
 	Context.CopyToBuffer(IndexBuffer, Indices.data(), Indices.size() * sizeof(u32));
 

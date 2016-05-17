@@ -1021,6 +1021,7 @@ void FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_V
 			}
 			break;
 		case D3D_SIT_TEXTURE:
+		case D3D_SIT_STRUCTURED:
 			{
 				//bindDesc.Dimension;
 				range.type = RootSlotType::SRV;
@@ -1033,6 +1034,8 @@ void FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_V
 				UpdateEntry(UAVs, bindDesc.Name, nameHash, range);
 			}
 			break;
+		default:
+			check(0);
 		}
 	}
 
@@ -1040,6 +1043,10 @@ void FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_V
 		auto cbReflection = shaderReflection->GetConstantBufferByIndex(i);
 		D3D12_SHADER_BUFFER_DESC bufferDesc;
 		VERIFYDX12(cbReflection->GetDesc(&bufferDesc));
+
+		if (bufferDesc.Type == D3D_CT_RESOURCE_BIND_INFO) {
+			continue;
+		}
 
 		u64 nameHash = GetStringHash(bufferDesc.Name);
 
@@ -1204,7 +1211,7 @@ FTextureParam FRootLayout::CreateTextureParam(char const * name) {
 
 FRWTextureParam FRootLayout::CreateRWTextureParam(char const * name) {
 	FRWTextureParam Param = {};
-	Param.BindId = CreateTextureGBID(name);
+	Param.BindId = CreateRWTextureGBID(name);
 	return Param;
 }
 

@@ -68,13 +68,13 @@ int		Run(FApplication* app, HINSTANCE hInstance, int nCmdShow) {
 		hInstance,
 		nullptr);
 
-	Application->Init();
+	Application->CoreInit();
 
 	ShowWindow(Hwnd, nCmdShow);
 
 	// Main sample loop.
 	MSG msg = {};
-	while (msg.message != WM_QUIT && Application->Update())
+	while (msg.message != WM_QUIT && Application->CoreUpdate())
 	{
 		// Process any messages in the queue.
 		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
@@ -88,7 +88,7 @@ int		Run(FApplication* app, HINSTANCE hInstance, int nCmdShow) {
 		}
 	}
 
-	Application->Shutdown();
+	Application->CoreShutdown();
 
 	// Return this part of the WM_QUIT message to Windows.
 	return static_cast<char>(msg.wParam);

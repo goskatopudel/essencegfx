@@ -183,8 +183,8 @@ public:
 			GetShader("Shaders/DebugModel.hlsl", "PSDebug", "ps_5_0", {}, 0)) {}
 
 	void InitParams() override final {
-		ConstantBuffer = Root->CreateConstantBuffer("Constants");
-		UVTexture = Root->CreateTextureParam("UVTexture");
+		ConstantBuffer = Root->CreateConstantBuffer(this, "Constants");
+		UVTexture = Root->CreateTextureParam(this, "UVTexture");
 	}
 };
 
@@ -226,16 +226,16 @@ public:
 			GetShader("Shaders/BakeTextureSignal.hlsl", "BakeAO", "cs_5_0", {}, 0)) {}
 
 	void InitParams() override final {
-		PositionsInput = Root->CreateTextureParam("PositionsTexture");
-		NormalsInput = Root->CreateTextureParam("NormalsTexture");
-		OutTexture = Root->CreateRWTextureParam("BakedSignal");
-		BVHNodes = Root->CreateTextureParam("BVHNodes");
-		Primitives = Root->CreateTextureParam("Primitives");
-		PositionsBuffer = Root->CreateTextureParam("PositionsBuffer");
-		IndicesBuffer = Root->CreateTextureParam("IndicesBuffer");
-		BlendTexture = Root->CreateTextureParam("BlendTexture");
+		PositionsInput = Root->CreateTextureParam(this, "PositionsTexture");
+		NormalsInput = Root->CreateTextureParam(this, "NormalsTexture");
+		OutTexture = Root->CreateRWTextureParam(this, "BakedSignal");
+		BVHNodes = Root->CreateTextureParam(this, "BVHNodes");
+		Primitives = Root->CreateTextureParam(this, "Primitives");
+		PositionsBuffer = Root->CreateTextureParam(this, "PositionsBuffer");
+		IndicesBuffer = Root->CreateTextureParam(this, "IndicesBuffer");
+		BlendTexture = Root->CreateTextureParam(this, "BlendTexture");
 
-		ConstantBuffer = Root->CreateConstantBuffer("Constants");
+		ConstantBuffer = Root->CreateConstantBuffer(this, "Constants");
 	}
 };
 

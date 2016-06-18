@@ -173,7 +173,9 @@ void SaveEditorModel(FEditorModel const * Model, const wchar_t * Filename) {
 	// TODO
 }
 
-void LoadEditorModel(FEditorModel * Model, const wchar_t * Filename) {
+#include "Print.h"
+
+void LoadEditorModelInternal(FEditorModel * Model, const wchar_t * Filename) {
 	Model->Clear();
 
 	FInStream InStream;
@@ -214,5 +216,13 @@ void LoadEditorModel(FEditorModel * Model, const wchar_t * Filename) {
 		Model->AddMesh(std::move(Mesh));
 
 		BuildBVH(&Model->Meshes.back(), &Model->Meshes.back().BVH);
+	}
+}
+
+void LoadEditorModel(FEditorModel * Model, const wchar_t * Filename) {
+	LoadEditorModelInternal(Model, Filename);
+
+	if (Model == nullptr) {
+		PrintFormated(L"Failed to load %s\n");
 	}
 }

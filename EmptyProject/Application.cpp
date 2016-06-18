@@ -9,12 +9,8 @@
 #include "UIUtils.h"
 #include "MathFunctions.h"
 #include "CommandStream.h"
-
 #include "Shader.h"
 #include "Pipeline.h"
-#include "Model.h"
-#include "Camera.h"
-
 #include "VideoMemory.h"
 
 namespace GApplication {
@@ -26,65 +22,7 @@ i64				Time;
 i64				CpuFrequency;
 }
 
-FOwnedResource RenderTargetRed;
-FOwnedResource RenderTarget;
-FOwnedResource UATarget;
 FOwnedResource UITexture;
-FOwnedResource DepthBuffer;
-FOwnedResource MipmappedRT;
-FOwnedResource ColorTexture;
-
-FCamera Camera;
-
-void AllocateScreenResources() {
-	RenderTargetRed = GetTexturesAllocator()->CreateTexture(GApplication::WndWidth, GApplication::WndHeight, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_RENDER_TARGET, L"A", DXGI_FORMAT_R8G8B8A8_UNORM, float4(1, 0, 0, 0));
-	RenderTarget = GetTexturesAllocator()->CreateTexture(GApplication::WndWidth, GApplication::WndHeight, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_RENDER_TARGET, L"A", DXGI_FORMAT_R8G8B8A8_UNORM);
-	DepthBuffer = GetTexturesAllocator()->CreateTexture(GApplication::WndWidth, GApplication::WndHeight, 1, DXGI_FORMAT_D24_UNORM_S8_UINT, ALLOW_DEPTH_STENCIL, L"DepthStencil", DXGI_FORMAT_D24_UNORM_S8_UINT);
-}
-
-void UpdateCamera() {
-	ImGuiIO& io = ImGui::GetIO();
-	static float rx = 0;
-	static float ry = 0;
-	if (!io.WantCaptureMouse && !io.WantCaptureKeyboard)
-	{
-		float activeSpeed = 10 * io.DeltaTime;
-
-		if (io.KeysDown[VK_SHIFT]) {
-			activeSpeed *= 5.f;
-		}
-		if (io.KeysDown[VK_CONTROL]) {
-			activeSpeed *= 0.2f;
-		}
-		if (io.KeysDown['W']) {
-			Camera.Dolly(activeSpeed);
-		}
-		if (io.KeysDown['S']) {
-			Camera.Dolly(-activeSpeed);
-		}
-		if (io.KeysDown['A']) {
-			Camera.Strafe(-activeSpeed);
-		}
-		if (io.KeysDown['D']) {
-			Camera.Strafe(activeSpeed);
-		}
-		if (io.KeysDown['Q']) {
-			Camera.Roll(-io.DeltaTime * DirectX::XM_PI * 0.66f);
-		}
-		if (io.KeysDown['E']) {
-			Camera.Roll(io.DeltaTime * DirectX::XM_PI * 0.66f);
-		}
-		if (io.KeysDown[VK_SPACE]) {
-			Camera.Climb(activeSpeed);
-		}
-	}
-
-	float dx = (float)io.MouseDelta.x / (float)GApplication::WndWidth;
-	float dy = (float)io.MouseDelta.y / (float)GApplication::WndHeight;
-	if (io.MouseDown[1]) {
-		Camera.Rotate(dy, dx);
-	}
-}
 
 bool ProcessWinMessage(Win32::Message const& Message) {
 	ImGuiIO& io = ImGui::GetIO();
@@ -148,8 +86,8 @@ public:
 			GetShader("Shaders/Ui.hlsl", "PShader", "ps_5_0", {}, 0)) {}
 
 	void InitParams() override final {
-		AtlasTexture = Root->CreateTextureParam("Image");
-		ConstantBuffer = Root->CreateConstantBuffer("Constants");
+		AtlasTexture = Root->CreateTextureParam(this, "Image");
+		ConstantBuffer = Root->CreateConstantBuffer(this, "Constants");
 	}
 };
 
@@ -260,210 +198,16 @@ void RenderImDrawLists(ImDrawData *draw_data) {
 		vtxOffset += cmd_list->VtxBuffer.size();
 	}
 
+	Stream.Close();
+
 	FGPUContext Context;
 	Context.Open(EContextType::DIRECT);
 	Playback(Context, &Stream);
 	Context.Execute();
 }
 
-
-class FModelShaderState : public FShaderState {
-public:
-	FTextureParam			BaseColorTextureParam;
-	FTextureParam			MetallicTextureParam;
-	FTextureParam			NormalmapTextureParam;
-	FTextureParam			RoughnessTextureParam;
-
-	FConstantBuffer			FrameConstantBuffer;
-	FConstantBuffer			ObjectConstantBuffer;
-
-	struct FFrameConstantBufferData {
-		float4x4 ViewProj;
-		float4x4 InvView;
-		float3 LightFromDirection;
-	};
-
-	struct FObjectConstantBufferData {
-		float4x4 World;
-	};
-
-	FModelShaderState() :
-		FShaderState(
-			GetShader("Shaders/Model.hlsl", "VShader", "vs_5_0", {}, 0),
-			GetShader("Shaders/Model.hlsl", "PShader", "ps_5_0", {}, 0)) {}
-
-	void InitParams() override final {
-		BaseColorTextureParam = Root->CreateTextureParam("BaseColorTexture");
-		MetallicTextureParam = Root->CreateTextureParam("MetallicTexture");
-		NormalmapTextureParam = Root->CreateTextureParam("NormalmapTexture");
-		RoughnessTextureParam = Root->CreateTextureParam("RoughnessTexture");
-
-		FrameConstantBuffer = Root->CreateConstantBuffer("FrameConstants");
-		ObjectConstantBuffer = Root->CreateConstantBuffer("ObjectConstants");
-	}
-};
-
-void RenderScene(FGPUContext & Context, FModel * model) {
-	static FModelShaderState ModelShaderState;
-	static FPipelineState * PipelineState;
-
-	if (!PipelineState) {
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineDesc = GetDefaultPipelineStateDesc();
-		PipelineDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-		PipelineDesc.NumRenderTargets = 1;
-		PipelineDesc.DSVFormat = DepthBuffer->FatData->Desc.Format;
-		PipelineDesc.DepthStencilState.DepthEnable = true;
-
-		PipelineState = GetGraphicsPipelineState(&ModelShaderState,
-			&PipelineDesc,
-			GetInputLayout({
-				CreateInputElement("POSITION", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
-				CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 0, 0),
-				CreateInputElement("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT, 0, 1),
-				})
-			);
-	}
-
-	Context.SetIB(GetIB());
-	Context.SetVB(GetVB(0), 0);
-	Context.SetVB(GetVB(1), 1);
-
-	using namespace DirectX;
-
-	auto ProjectionMatrix = XMMatrixPerspectiveFovLH(
-		3.14f * 0.25f,
-		(float)GApplication::WndWidth / GApplication::WndHeight,
-		0.01f, 1000.f);
-
-	auto ViewMatrix = XMMatrixLookToLH(
-		ToSIMD(Camera.Position),
-		ToSIMD(Camera.Direction),
-		ToSIMD(Camera.Up));
-
-	auto WorldTMatrix = XMMatrixTranspose(
-		XMMatrixScaling(0.05f, 0.05f, 0.05f));
-
-	XMVECTOR Determinant;
-	auto InvViewTMatrix = XMMatrixTranspose(XMMatrixInverse(&Determinant, ViewMatrix));
-	auto ViewProjTMatrix = XMMatrixTranspose(ViewMatrix * ProjectionMatrix);
-
-	Context.SetRoot(ModelShaderState.Root);
-	Context.SetPSO(PipelineState);
-
-	FModelShaderState::FFrameConstantBufferData FrameConstants;
-	XMStoreFloat4x4((XMFLOAT4X4*)&FrameConstants.ViewProj, ViewProjTMatrix);
-	XMStoreFloat4x4((XMFLOAT4X4*)&FrameConstants.InvView, InvViewTMatrix);
-	Context.SetConstantBuffer(&ModelShaderState.FrameConstantBuffer, CreateCBVFromData(&ModelShaderState.FrameConstantBuffer, FrameConstants));
-
-	FModelShaderState::FObjectConstantBufferData ObjectConstants;
-	XMStoreFloat4x4((XMFLOAT4X4*)&ObjectConstants.World, WorldTMatrix);
-	Context.SetConstantBuffer(&ModelShaderState.ObjectConstantBuffer, CreateCBVFromData(&ModelShaderState.ObjectConstantBuffer, ObjectConstants));
-	
-	Context.SetRenderTarget(0, GetBackbuffer()->GetRTV());
-	Context.SetDepthStencil(DepthBuffer->GetDSV());
-	Context.SetViewport(GetBackbuffer()->GetSizeAsViewport());
-
-	u64 MeshesNum = model->Meshes.size();
-	for (u64 MeshIndex = 0; MeshIndex < MeshesNum; MeshIndex++) {
-		auto const & mesh = model->Meshes[MeshIndex];
-		if (model->FatData->FatMeshes[MeshIndex].Material) {
-			Context.SetTexture(&ModelShaderState.BaseColorTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->BaseColorTexture->GetSRV());
-			if (model->FatData->FatMeshes[MeshIndex].Material->FatData->MetallicTexture.IsValid()) {
-				Context.SetTexture(&ModelShaderState.MetallicTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->MetallicTexture->GetSRV());
-			}
-			else {
-				Context.SetTexture(&ModelShaderState.MetallicTextureParam, ColorTexture->GetSRV());
-			}
-			if (model->FatData->FatMeshes[MeshIndex].Material->FatData->NormalMapTexture.IsValid()) {
-				Context.SetTexture(&ModelShaderState.NormalmapTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->NormalMapTexture->GetSRV());
-			}
-			else {
-				Context.SetTexture(&ModelShaderState.NormalmapTextureParam, ColorTexture->GetSRV());
-			}
-			if (model->FatData->FatMeshes[MeshIndex].Material->FatData->RoughnessTexture.IsValid()) {
-				Context.SetTexture(&ModelShaderState.RoughnessTextureParam, model->FatData->FatMeshes[MeshIndex].Material->FatData->RoughnessTexture->GetSRV());
-			}
-			else {
-				Context.SetTexture(&ModelShaderState.RoughnessTextureParam, ColorTexture->GetSRV());
-			}
-		}
-		else {
-			Context.SetTexture(&ModelShaderState.BaseColorTextureParam, ColorTexture->GetSRV());
-			Context.SetTexture(&ModelShaderState.MetallicTextureParam, ColorTexture->GetSRV());
-			Context.SetTexture(&ModelShaderState.NormalmapTextureParam, ColorTexture->GetSRV());
-			Context.SetTexture(&ModelShaderState.RoughnessTextureParam, ColorTexture->GetSRV());
-		}
-
-		Context.DrawIndexed(mesh.IndexCount, mesh.StartIndex, mesh.BaseVertex);
-	}
-}
-
-#include "Viewer.h"
-#include "ModelHelpers.h"
-#include "EditorModelFormat.h"
-
-void RenderModelViewer(FGPUContext & Context) {
-	static FEditorModel * Model;
-	if (Model == nullptr) {
-		Model = new FEditorModel();
-		/*LoadOBJ(Model, L"models/tree.obj", L"models/tree.cachedobj");
-
-		SaveEditorModel(Model, L"models/tree.edm");*/
-		LoadEditorModel(Model, L"models/tree.edm");
-
-		Model->CopyDataToBuffers(Context);
-	}
-
-	FTransformation Transformation;
-	Transformation.Position = float3(0, 0, 0);
-	Transformation.Scale = 1.f;
-
-	static FViewParams ViewParams;
-	static int CurrentMode = 0;
-	ViewParams.Mode = (EViewMode)CurrentMode;
-	if (ImGui::CollapsingHeader("Params")) {
-		ImGui::Combo("Mode", &CurrentMode, "Default\0Normals\0Texcoord0\0Texcoord1\0BakedAO\0");
-		ImGui::Checkbox("Wireframe", &ViewParams.Wireframe);
-		ImGui::Checkbox("Normal vectors", &ViewParams.DrawNormals);
-
-		ImGui::Checkbox("Draw atlas", &ViewParams.DrawAtlas);
-		if (ImGui::Button("BakeAO")) {
-			BakeAO(Context, Model);
-		}
-	}
-
-	using namespace DirectX;
-
-	FRenderViewport Viewport;
-	Viewport.OutputSRGB = 1;
-	Viewport.RenderTarget = GetBackbuffer();
-	Viewport.DepthBuffer = DepthBuffer;
-	Viewport.Camera = &Camera;
-	Viewport.Resolution = Vec2i(GApplication::WndWidth, GApplication::WndHeight);
-	
-	auto ProjectionMatrix = XMMatrixPerspectiveFovLH(
-		3.14f * 0.25f,
-		(float)Viewport.Resolution.x / (float)Viewport.Resolution.y,
-		0.01f, 1000.f);
-	auto ViewMatrix = XMMatrixLookToLH(
-		ToSIMD(Viewport.Camera->Position),
-		ToSIMD(Viewport.Camera->Direction),
-		ToSIMD(Viewport.Camera->Up));
-
-	XMVECTOR Determinant;
-	auto ViewProjMatrix = ViewMatrix * ProjectionMatrix;
-	auto InvViewProjMatrix = XMMatrixInverse(&Determinant, ViewProjMatrix);
-	XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.ViewProjectionMatrix, ViewProjMatrix);
-	XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.InvViewProjectionMatrix, InvViewProjMatrix);
-	XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TViewProjectionMatrix, XMMatrixTranspose(ViewProjMatrix));
-	XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TInvViewProjectionMatrix, XMMatrixTranspose(InvViewProjMatrix));
-
-	RenderModel(Context, Model, Transformation, Viewport, ViewParams);
-}
-
-#include "ModelHelpers.h"
-
-void FApplication::Init() {
+void FApplication::CoreInit()
+{
 	ListAdapters();
 	InitDevices(0, true);
 
@@ -472,7 +216,7 @@ void FApplication::Init() {
 	QueryPerformanceFrequency((LARGE_INTEGER *)&GApplication::CpuFrequency);
 
 	ImGuiIO& io = ImGui::GetIO();
-	io.KeyMap[ImGuiKey_Tab] = VK_TAB;                     
+	io.KeyMap[ImGuiKey_Tab] = VK_TAB;
 	io.KeyMap[ImGuiKey_LeftArrow] = VK_LEFT;
 	io.KeyMap[ImGuiKey_RightArrow] = VK_RIGHT;
 	io.KeyMap[ImGuiKey_UpArrow] = VK_UP;
@@ -495,41 +239,28 @@ void FApplication::Init() {
 	io.RenderDrawListsFn = RenderImDrawLists;
 	io.ImeWindowHandle = Win32::GetWndHandle();
 
-	Camera.Position = float3(0, 5.f, -50.f);
-	Camera.Up = float3(0, 1.f, 0);
-	Camera.Direction = normalize(float3(0) - Camera.Position);
-
-	AllocateScreenResources();
-
-	UATarget = GetTexturesAllocator()->CreateTexture(512, 512, 1, DXGI_FORMAT_R8G8B8A8_UNORM, ALLOW_UNORDERED_ACCESS, L"B");
-	
 	io.Fonts->AddFontDefault();
 	unsigned char* pixels;
 	int width, height;
 	io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 	io.Fonts->TexID = UITexture = GetTexturesAllocator()->CreateTexture(width, height, 1, DXGI_FORMAT_R8G8B8A8_UNORM, TEXTURE_NO_FLAGS, L"ImGui default font");
 
-	//DrawModel = LoadModelFromOBJ(L"Models/cube.obj");
-	//ConvertObjToBinary(L"Models/sponza.obj", L"Models/sponza.bin");
-	/*DrawModel = LoadModelFromBinary(L"Models/sponza.bin");
-	LoadOBJ(L"Models/sponza.obj", L"Models/sponza.cachedobj");*/
-
 	FGPUContext Context;
 	Context.Open(EContextType::DIRECT);
 	Context.CopyDataToSubresource(UITexture, 0, pixels, sizeof(u32) * width, sizeof(u32) * width * height);
 	Context.Barrier(UITexture, ALL_SUBRESOURCES, EAccessType::COPY_DEST, EAccessType::READ_PIXEL);
-
-	//LoadModelTextures(Context, DrawModel);
-	//UpdateGeometryBuffers(Context);
-
-	ColorTexture = LoadDDSImage(L"Textures/uvchecker.DDS", true, Context);
-
 	Context.ExecuteImmediately();
+
+	AllocateScreenResources();
+
+	Init();
 }
 
 extern u32		GIgnoreRelease;
 
-void FApplication::Shutdown() {
+void FApplication::CoreShutdown() {
+	Shutdown();
+
 	auto finalSyncPoint = GetDirectQueue()->GenerateSyncPoint();
 	GetDirectQueue()->WaitForCompletion();
 	EndFrame();
@@ -537,24 +268,7 @@ void FApplication::Shutdown() {
 	GIgnoreRelease = true;
 }
 
-void ShowSceneWindow() {
-	ImGui::Begin("Scene");
-	if (ImGui::CollapsingHeader("Directional Light")) {
-		static float AzimuthAngle;
-		static float HorizontalAngle;
-		static float3 Color = 1.f;
-		static float Intensity;
-		ImGui::SliderFloat("Azimuth angle", &AzimuthAngle, 0, DirectX::XM_2PI);
-		ImGui::SliderFloat("Horizontal angle", &HorizontalAngle, 0, DirectX::XM_PI);
-		float3 Direction = float3(cosf(AzimuthAngle) * sinf(HorizontalAngle), cosf(HorizontalAngle), sinf(AzimuthAngle) * sinf(HorizontalAngle));
-		ImGui::ColorEdit3("Color", &Color.x);
-		ImGui::SliderFloat("Intensity", &Intensity, 0.f, 1000000.f, "%.3f", 10.f);
-	}
-
-	ImGui::End();
-}
-
-bool FApplication::Update() {
+bool FApplication::CoreUpdate() {
 	if (GApplication::WindowSizeChanged) {
 		GetDirectQueue()->WaitForCompletion();
 		GetSwapChain()->Resize(GApplication::WndWidth, GApplication::WndHeight);
@@ -581,39 +295,16 @@ bool FApplication::Update() {
 	io.KeyAlt = (GetKeyState(VK_MENU) & 0x8000) != 0;
 
 	SetCursor(io.MouseDrawCursor ? NULL : LoadCursor(NULL, IDC_ARROW));
-	UpdateCamera();
-
-	if (io.KeyCtrl && io.KeysDown['R'] && io.KeysDownDuration['R'] == 0.f) {
-		GetDirectQueue()->WaitForCompletion();
-
-		RecompileChangedShaders();
-		RecompileChangedPipelines();
-	}
 
 	ImGui::NewFrame();
 
-	ShowAppStats();
-	ShowSceneWindow();
-	
-	//ImGui::ShowTestWindow();
-
-	static FCommandsStream Stream;
-	Stream.Reset();
-	Stream.SetAccess(GetBackbuffer(), EAccessType::WRITE_RT);
-	Stream.SetAccess(DepthBuffer, EAccessType::WRITE_DEPTH);
-	Stream.ClearRTV(GetBackbuffer()->GetRTV(), 0.f);
-	Stream.ClearDSV(DepthBuffer->GetDSV());
-	Stream.Close();
-
-	FGPUContext Context;
-	Context.Open(EContextType::DIRECT);
-	Playback(Context, &Stream);
-	//RenderScene(Context, DrawModel);
-	RenderModelViewer(Context);
-	Context.Execute();
+	bool UpdateResult = Update();
 
 	ImGui::Render();
-	
+
+	FGPUContext Context;
+	static FCommandsStream Stream;
+
 	Context.Open(EContextType::DIRECT);
 	Stream.Reset();
 	Stream.SetAccess(GetBackbuffer(), EAccessType::COMMON);
@@ -625,5 +316,5 @@ bool FApplication::Update() {
 
 	EndFrame();
 
-	return true;
+	return UpdateResult;
 }

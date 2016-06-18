@@ -909,7 +909,7 @@ eastl::hash_map<u64, FOwnedResource> TextureRegistry;
 
 #include "Hash.h"
 
-FOwnedResource	LoadDDSImage(const wchar_t * filename, bool forceSrgb, FGPUContext & CopyContext) {
+FOwnedResource	LoadDDSImageInternal(const wchar_t * filename, bool forceSrgb, FGPUContext & CopyContext) {
 	
 	u64 textureNameHash = MurmurHash2_64(filename, wcslen(filename) * sizeof(wchar_t), 0);
 	auto findIter = TextureRegistry.find(textureNameHash);
@@ -945,7 +945,7 @@ FOwnedResource	LoadDDSImage(const wchar_t * filename, bool forceSrgb, FGPUContex
 		ResDesc.Format = MakeSRGB(ResDesc.Format);
 	}
 
-	auto result = GetTexturesAllocator()->CreateTexture((u32)ResDesc.Width, ResDesc.Height, ResDesc.DepthOrArraySize, ResDesc.Format, flags, filename);
+	FOwnedResource result = GetTexturesAllocator()->CreateTexture((u32)ResDesc.Width, ResDesc.Height, ResDesc.DepthOrArraySize, ResDesc.Format, flags, filename);
 
 	D3D12_SUBRESOURCE_DATA	SubresourceData[128];
 	size_t skipMip = 0;
@@ -965,4 +965,16 @@ FOwnedResource	LoadDDSImage(const wchar_t * filename, bool forceSrgb, FGPUContex
 	TextureRegistry[textureNameHash] = FOwnedResource(result);
 
 	return result;
+}
+
+#include "Print.h"
+
+FOwnedResource  LoadDDSImage(const wchar_t * filename, bool forceSrgb, FGPUContext & CopyContext) {
+	FOwnedResource Loaded = LoadDDSImageInternal(filename, forceSrgb, CopyContext);
+
+	if (!Loaded.IsValid()) {
+		PrintFormated(L"Failed to load %s\n", filename);
+	}
+
+	return std::move(Loaded);
 }

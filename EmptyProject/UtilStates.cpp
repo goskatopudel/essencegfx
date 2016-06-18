@@ -7,5 +7,5 @@ FCopyPSShaderState::FCopyPSShaderState() :
 		GetShader("Shaders/Utility.hlsl", "CopyPS", "ps_5_0", {}, 0)) {}
 
 void FCopyPSShaderState::InitParams() {
-	SourceTexture = Root->CreateTextureParam("Image");
+	SourceTexture = Root->CreateTextureParam(this, "Image");
 }

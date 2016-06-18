@@ -77,6 +77,12 @@ void FShader::Compile() {
 	}
 }
 
+eastl::wstring	FShader::GetDebugName() const {
+	eastl::wstring w;
+	w.sprintf(L"%s_%s_%s", ConvertToWString(File).c_str(), ConvertToWString(Func).c_str(), ConvertToWString(Target).c_str());
+	return std::move(w);
+}
+
 u64 GetBytecodeHash(FShader const* shader) {
 	return shader->Bytecode->Hash;
 }

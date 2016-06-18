@@ -22,7 +22,12 @@ public:
 
 	FApplication(FApplication const&) = delete;
 
-	void Init();
-	void Shutdown();
-	bool Update();
+	void CoreInit();
+	void CoreShutdown();
+	bool CoreUpdate();
+
+	virtual void AllocateScreenResources() = 0;
+	virtual void Init() = 0;
+	virtual void Shutdown() = 0;
+	virtual bool Update() = 0;
 };

@@ -34,6 +34,8 @@ commands_stats_t& operator += (commands_stats_t& lhs, commands_stats_t const& rh
 
 class CommandListPool;
 
+uint32_t	CommandAllocatorsNum;
+
 class CommandAllocator {
 public:
 	enum StateEnum {
@@ -47,6 +49,7 @@ public:
 	CommandListPool*							Owner;
 	EContextLifetime							Lifetime;
 	u32											ApproximateWorkload = 0;
+	u32											Index;
 
 	CommandAllocator(CommandListPool* owner, EContextLifetime lifetime);
 	void Recycle(SyncPoint fence);
@@ -211,16 +214,27 @@ public:
 	void ResetAllocators() {
 		for (auto& allocatorsRange : ReadyAllocators) {
 			while (!allocatorsRange.empty()) {
-				PendingAllocators[(u32)allocatorsRange.front()->Lifetime].emplace_back(std::move(allocatorsRange.front()));
+				u32 Index = (u32)allocatorsRange.front()->Lifetime;
+				PendingAllocators[Index].emplace_back(std::move(allocatorsRange.front()));
 				allocatorsRange.pop();
 			}
 		}
 
 		for (auto& allocatorsRange : PendingAllocators) {
-			while (!allocatorsRange.empty() && allocatorsRange.front()->CanReset()) {
-				allocatorsRange.front()->Reset();
-				ReadyAllocators[(u32)allocatorsRange.front()->Lifetime].emplace_back(std::move(allocatorsRange.front()));
-				allocatorsRange.pop();
+			u64 Len = allocatorsRange.size();
+			while (Len > 0 && !allocatorsRange.empty()) {
+				if (allocatorsRange.front()->CanReset()) {
+					allocatorsRange.front()->Reset();
+					u32 Index = (u32)allocatorsRange.front()->Lifetime;
+					ReadyAllocators[Index].emplace_back(std::move(allocatorsRange.front()));
+					allocatorsRange.pop();
+				}
+				else {
+					auto tmp = std::move(allocatorsRange.front());
+					allocatorsRange.pop();
+					allocatorsRange.emplace_back(std::move(tmp));
+				}
+				Len--;
 			}
 		}
 	}
@@ -229,6 +243,7 @@ public:
 CommandAllocator::CommandAllocator(CommandListPool* owner, EContextLifetime lifetime) : Owner(owner), Lifetime(lifetime), State(ReadyState) {
 	VERIFYDX12(GetPrimaryDevice()->D12Device->CreateCommandAllocator(Owner->Type, IID_PPV_ARGS(D12CommandAllocator.get_init())));
 	VERIFYDX12(D12CommandAllocator->Reset());
+	Index = CommandAllocatorsNum++;
 }
 
 void CommandAllocator::Recycle(SyncPoint fence) {
@@ -739,6 +754,7 @@ void FGPUContext::SetVB(FBufferLocation BufferView, u32 Stream) {
 void FGPUContext::SetIB(FBufferLocation BufferView) {
 	D3D12_INDEX_BUFFER_VIEW NewIBV;
 	NewIBV.BufferLocation = BufferView.Address;
+	check(BufferView.Stride == 4 || BufferView.Stride == 2);
 	NewIBV.Format = BufferView.Stride == 4 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
 	NewIBV.SizeInBytes = BufferView.Size;
 	if (IBV != NewIBV) {
@@ -1124,11 +1140,13 @@ void*   FCommandsStream::Reserve(u64 Size) {
 
 void FCommandsStream::Reset() {
 	Offset = 0;
+	IsClosed = 0;
 }
 
 void FCommandsStream::Close() {
 	BatchBarriers();
 	ProcessBarriersPreExecution(*GetResourceStateRegistry());
+	IsClosed = 1;
 }
 
 void FCommandsStream::ProcessBarriersPreExecution(FResourceStateRegistry & Registry) {
@@ -1198,6 +1216,7 @@ void FCommandsStream::ExecuteBatchedBarriers(FGPUContext * Context, u32 BatchInd
 }
 
 void Playback(FGPUContext & Context, FCommandsStream * Stream) {
+	check(Stream->IsClosed);
 	u64 Offset = 0;
 	while (Offset < Stream->Offset) {
 		FRenderCmdHeader * Header = (FRenderCmdHeader*)pointer_add(Stream->Data.get(), Offset);

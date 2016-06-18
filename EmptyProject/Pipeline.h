@@ -65,6 +65,9 @@ public:
 	union {
 		struct {
 			FShader *		VertexShader;
+			FShader *		HullShader;
+			FShader *		DomainShader;
+			FShader *		GeometryShader;
 			FShader *		PixelShader;
 		};
 		FShader *			ComputeShader;
@@ -78,11 +81,16 @@ public:
 	FShaderState() = default;
 	FShaderState(FShader * inComputeShader, FRootSignature * inRootSignature = nullptr);
 	FShaderState(FShader * inVertexShader, FShader * inPixelShader, FRootSignature * inRootSignature = nullptr);
+	FShaderState(FShader * inVertexShader, FShader * inGeometryShader, FShader * inPixelShader, FRootSignature * inRootSignature = nullptr);
+	FShaderState(FShader * inVertexShader, FShader * inHullShader, FShader * inDomainShader, FShader * inPixelShader, FRootSignature * inRootSignature = nullptr);
+	FShaderState(FShader * inVertexShader, FShader * inHullShader, FShader * inDomainShader, FShader * inGeometryShader, FShader * inPixelShader, FRootSignature * inRootSignature = nullptr);
 
 	virtual void InitParams() = 0;
 
 	void Compile();
 	bool IsOutdated() const;
+
+	eastl::wstring	GetDebugName() const;
 };
 
 class FPipelineState {
@@ -112,7 +120,7 @@ D3D12_GRAPHICS_PIPELINE_STATE_DESC	GetDefaultPipelineStateDesc();
 FInputLayout*			GetInputLayout(std::initializer_list<D3D12_INPUT_ELEMENT_DESC> elements);
 FPipelineState*			GetGraphicsPipelineState(FShaderState * ShaderState, D3D12_GRAPHICS_PIPELINE_STATE_DESC const *Desc, FInputLayout const * InputLayout);
 FPipelineState*			GetComputePipelineState(FShaderState * ShaderState, D3D12_COMPUTE_PIPELINE_STATE_DESC const *Desc);
-FRootLayout*			GetRootLayout(FShader const* VS, FShader const* PS, FRootSignature * RootSignature = nullptr);
+FRootLayout*			GetRootLayout(FShader const* VS, FShader const* HS, FShader const* DS, FShader const* GS, FShader const* PS, FRootSignature * RootSignature = nullptr);
 FRootLayout*			GetRootLayout(FShader const* CS, FRootSignature * RootSignature = nullptr);
 FRootSignature*			GetRootSignature(FRootLayout const*);
 u32						GetPSOsNum();
@@ -225,6 +233,18 @@ struct SlotsRange {
 	D3D12_SHADER_VISIBILITY visibility;
 };
 
+
+enum EShaderStageFlag {
+	STAGE_VERTEX = 1,
+	STAGE_HULL = 2,
+	STAGE_DOMAIN = 4,
+	STAGE_GEOMETRY = 8,
+	STAGE_PIXEL = 16,
+	STAGE_ALL = 31,
+	STAGE_COMPUTE = STAGE_ALL
+};
+DEFINE_ENUM_FLAG_OPERATORS(EShaderStageFlag);
+
 class FRootSignature {
 public:
 	unique_com_ptr<ID3D12RootSignature>			D12RootSignature;
@@ -242,7 +262,7 @@ public:
 
 	eastl::map<SlotsRange, BindDesc_t>			Slots;
 
-	bool		ContainsSlot(RootSlotType type, u32 baseRegister, u32 space, D3D12_SHADER_VISIBILITY visibility);
+	bool		ContainsSlot(RootSlotType type, u32 baseRegister, u32 space, D3D12_SHADER_VISIBILITY visibility, EShaderStageFlag usedStages);
 	BindDesc_t	GetSlotBinding(RootSlotType type, u32 baseRegister, u32 space, D3D12_SHADER_VISIBILITY visibility);
 	void		AddRootViewParam(u32 rootParam, D3D12_ROOT_PARAMETER_TYPE type, u32 baseRegister, u32 space, D3D12_SHADER_VISIBILITY visibility);
 	void		AddCBVParam(u32 rootParam, u32 baseRegister, u32 space, D3D12_SHADER_VISIBILITY visibility);
@@ -270,9 +290,9 @@ public:
 
 	void				FillBindings(FShaderBindings* bindings);
 
-	FConstantBuffer		CreateConstantBuffer(char const * name);
-	FTextureParam		CreateTextureParam(char const * name);
-	FRWTextureParam		CreateRWTextureParam(char const * name);
+	FConstantBuffer		CreateConstantBuffer(FShaderState *, char const * name);
+	FTextureParam		CreateTextureParam(FShaderState *, char const * name);
+	FRWTextureParam		CreateRWTextureParam(FShaderState *, char const * name);
 };
 
 inline bool operator == (GlobalBindId a, GlobalBindId b) { return a.hash == b.hash; };

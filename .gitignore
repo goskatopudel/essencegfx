@@ -289,3 +289,12 @@ ModelManifest.xml
 /EmptyProject/Textures/sponza/Background_Normal.DDS
 /EmptyProject/Textures/sponza/Background_Albedo.DDS
 /EmptyProject/Textures/sponza
+
+!/EmptyProject/UVAtlas/Debug/UVAtlas.lib
+!/EmptyProject/UVAtlas/Debug/UVAtlas.pdb
+!/EmptyProject/UVAtlas/Release/UVAtlas.lib
+!/EmptyProject/UVAtlas/Release/UVAtlas.pdb
+!/EmptyProject/DirectXMesh/Debug/DirectXMesh.lib
+!/EmptyProject/DirectXMesh/Debug/DirectXMesh.pdb
+!/EmptyProject/DirectXMesh/Release/DirectXMesh.lib
+!/EmptyProject/DirectXMesh/Release/DirectXMesh.pdb

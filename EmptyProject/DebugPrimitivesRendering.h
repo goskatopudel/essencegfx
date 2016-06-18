@@ -5,6 +5,9 @@
 #include <EASTL\vector.h>
 #include "Viewport.h"
 
+float4 LinearToSRGB(float4 Color);
+Color4b ToColor4b(float4 Color, bool ConvertToSRGB);
+
 struct FDebugVertex {
 	float3	Position;
 	Color4b Color;

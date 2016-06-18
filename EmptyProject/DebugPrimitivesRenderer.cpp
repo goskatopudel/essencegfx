@@ -197,7 +197,7 @@ public:
 			GetShader("Shaders/Primitive.hlsl", "PShader", "ps_5_0", {}, 0)) {}
 
 	void InitParams() override final {
-		ConstantBuffer = Root->CreateConstantBuffer("Constants");
+		ConstantBuffer = Root->CreateConstantBuffer(this, "Constants");
 	}
 };
 
@@ -239,7 +239,13 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRender
 
 	D3D12_DEPTH_STENCIL_DESC DepthStencilState;
 	SetD3D12StateDefaults(&DepthStencilState);
-	DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+
+	if(Viewport.DepthBuffer) {
+		DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	}
+	else {
+		DepthStencilState.DepthEnable = false;
+	}
 	LocalPipelineFactory.SetDepthStencilState(DepthStencilState);
 
 	D3D12_BLEND_DESC BlendState;
@@ -254,7 +260,9 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRender
 	BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 	LocalPipelineFactory.SetBlendState(BlendState);
 
-	Context.SetDepthStencil(Viewport.DepthBuffer->GetDSV());
+	if(Viewport.DepthBuffer) {
+		Context.SetDepthStencil(Viewport.DepthBuffer->GetDSV());
+	}
 	Context.SetRenderTarget(0, Viewport.RenderTarget->GetRTV(Viewport.RenderTarget->GetWriteFormat(Viewport.OutputSRGB)));
 
 	for (auto & Batch : Batches) {

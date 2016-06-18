@@ -310,6 +310,7 @@ public:
 	eastl::unique_ptr<u8[]> Data;
 	u64						Offset = 0;
 	u64						MaxSize = 0;
+	bool					IsClosed = 0;
 
 	struct FResourceAccessList {
 		eastl::vector<FResourceAccess>	Accesses;

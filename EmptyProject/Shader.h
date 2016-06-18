@@ -23,6 +23,7 @@ public:
 	u32										Flags;
 
 	void Compile();
+	eastl::wstring	GetDebugName() const;
 };
 
 FShader* GetShader(eastl::string file, eastl::string func, const char* target, eastl::vector<ShaderMacroPair> macros, u32 flags);

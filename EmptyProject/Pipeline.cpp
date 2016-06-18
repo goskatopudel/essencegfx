@@ -62,7 +62,7 @@ bool Contains(SlotsRange const& lhs, SlotsRange const& rhs) {
 	return lhs.type == rhs.type
 	&& (lhs.visibility == rhs.visibility || lhs.visibility == D3D12_SHADER_VISIBILITY_ALL)
 	&& (lhs.space == rhs.space)
-	&& ( (lhs.baseRegister <= rhs.baseRegister) && ((lhs.baseRegister + lhs.len) >= (rhs.baseRegister + rhs.len)) );
+	&& ( (lhs.baseRegister <= rhs.baseRegister) && ((rhs.baseRegister + rhs.len) <= (lhs.baseRegister + lhs.len)) );
 }
 
 bool Intersects(SlotsRange const& lhs, SlotsRange const& rhs) {
@@ -85,29 +85,67 @@ bool operator< (SlotsRange const& lhs, SlotsRange const& rhs) {
 	if (lhs.baseRegister != rhs.baseRegister) {
 		return lhs.baseRegister < rhs.baseRegister;
 	}
-	return lhs.len < rhs.len;
+	return false;
 }
 
-bool FRootSignature::ContainsSlot(RootSlotType type, u32 baseRegister, u32 space, D3D12_SHADER_VISIBILITY visibility) {
+bool FRootSignature::ContainsSlot(RootSlotType type, u32 baseRegister, u32 space, D3D12_SHADER_VISIBILITY visibility, EShaderStageFlag usedStages) {
+	if (visibility != D3D12_SHADER_VISIBILITY_ALL) {
+		SlotsRange LookupRange = {};
+		LookupRange.type = type;
+		LookupRange.baseRegister = baseRegister;
+		LookupRange.space = space;
+		LookupRange.visibility = visibility;
+		LookupRange.len = 1;
 
-	SlotsRange range = {};
-	range.type = type;
-	range.baseRegister = baseRegister;
-	range.space = space;
-	range.visibility = visibility;
-	range.len = 1;
+		for (auto iter = Slots.begin(); iter != Slots.end(); ++iter) {
+			if (Contains((*iter).first, LookupRange)) {
+				return true;
+			}
+		}
+		return false;
+	}
 
-	SlotsRange lookupRange = {};
-	lookupRange.type = type;
-	lookupRange.baseRegister = baseRegister;
-	lookupRange.space = space;
-	lookupRange.visibility = D3D12_SHADER_VISIBILITY_ALL;
-	lookupRange.len = 1;
+	SlotsRange LookupRange = {};
+	LookupRange.type = type;
+	LookupRange.baseRegister = baseRegister;
+	LookupRange.space = space;
+	LookupRange.visibility = D3D12_SHADER_VISIBILITY_ALL;
+	LookupRange.len = 1;
 
 	for (auto iter = Slots.begin(); iter != Slots.end(); ++iter) {
-		if (Contains((*iter).first, range)) {
+		if (Contains((*iter).first, LookupRange)) {
 			return true;
 		}
+	}
+
+	// fallback to checking all used stages
+	if (usedStages != STAGE_ALL) {
+		if (usedStages & STAGE_VERTEX) {
+			if (!ContainsSlot(type, baseRegister, space, D3D12_SHADER_VISIBILITY_VERTEX, usedStages)) {
+				return false;
+			}
+		}
+		if (usedStages & STAGE_HULL) {
+			if (!ContainsSlot(type, baseRegister, space, D3D12_SHADER_VISIBILITY_HULL, usedStages)) {
+				return false;
+			}
+		}
+		if (usedStages & STAGE_DOMAIN) {
+			if (!ContainsSlot(type, baseRegister, space, D3D12_SHADER_VISIBILITY_DOMAIN, usedStages)) {
+				return false;
+			}
+		}
+		if (usedStages & STAGE_GEOMETRY) {
+			if (!ContainsSlot(type, baseRegister, space, D3D12_SHADER_VISIBILITY_GEOMETRY, usedStages)) {
+				return false;
+			}
+		}
+		if (usedStages & STAGE_PIXEL) {
+			if (!ContainsSlot(type, baseRegister, space, D3D12_SHADER_VISIBILITY_PIXEL, usedStages)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	return false;
@@ -164,7 +202,7 @@ void FRootSignature::AddRootViewParam(u32 rootParam, D3D12_ROOT_PARAMETER_TYPE t
 }
 
 void FRootSignature::AddCBVParam(u32 rootParam, u32 baseRegister, u32 space, D3D12_SHADER_VISIBILITY visibility) {
-	check(!ContainsSlot(RootSlotType::CBV, baseRegister, space, visibility));
+	check(!ContainsSlot(RootSlotType::CBV, baseRegister, space, visibility, STAGE_ALL));
 	AddRootViewParam(rootParam, D3D12_ROOT_PARAMETER_TYPE_CBV, baseRegister, space, visibility);
 
 	SlotsRange range = {};
@@ -177,7 +215,7 @@ void FRootSignature::AddCBVParam(u32 rootParam, u32 baseRegister, u32 space, D3D
 }
 
 void FRootSignature::AddSRVParam(u32 rootParam, u32 baseRegister, u32 space, D3D12_SHADER_VISIBILITY visibility) {
-	check(!ContainsSlot(RootSlotType::SRV, baseRegister, space, visibility));
+	check(!ContainsSlot(RootSlotType::SRV, baseRegister, space, visibility, STAGE_ALL));
 	AddRootViewParam(rootParam, D3D12_ROOT_PARAMETER_TYPE_SRV, baseRegister, space, visibility);
 
 	SlotsRange range = {};
@@ -190,7 +228,7 @@ void FRootSignature::AddSRVParam(u32 rootParam, u32 baseRegister, u32 space, D3D
 }
 
 void FRootSignature::AddUAVParam(u32 rootParam, u32 baseRegister, u32 space, D3D12_SHADER_VISIBILITY visibility) {
-	check(!ContainsSlot(RootSlotType::UAV, baseRegister, space, visibility));
+	check(!ContainsSlot(RootSlotType::UAV, baseRegister, space, visibility, STAGE_ALL));
 	AddRootViewParam(rootParam, D3D12_ROOT_PARAMETER_TYPE_UAV, baseRegister, space, visibility);
 
 	SlotsRange range = {};
@@ -248,7 +286,7 @@ u16 FRootSignature::AddTableRange(D3D12_DESCRIPTOR_RANGE_TYPE type, u32 baseRegi
 
 void FRootSignature::AddTableCBVRange(u32 baseRegister, u32 len, u32 space) {
 	for (u32 i = 0; i < len; ++i) {
-		check(!ContainsSlot(RootSlotType::CBV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility));
+		check(!ContainsSlot(RootSlotType::CBV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility, STAGE_ALL));
 	}
 	u16 descTableOffset = AddTableRange(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, baseRegister, len, space);
 
@@ -261,13 +299,13 @@ void FRootSignature::AddTableCBVRange(u32 baseRegister, u32 len, u32 space) {
 	Slots[range] = BindDesc_t(CurrentParamIndex, descTableOffset);
 
 	for (u32 i = 0; i < len; ++i) {
-		check(ContainsSlot(RootSlotType::CBV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility));
+		check(ContainsSlot(RootSlotType::CBV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility, STAGE_ALL));
 	}
 }
 
 void FRootSignature::AddTableSRVRange(u32 baseRegister, u32 len, u32 space) {
 	for (u32 i = 0; i < len; ++i) {
-		check(!ContainsSlot(RootSlotType::SRV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility));
+		check(!ContainsSlot(RootSlotType::SRV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility, STAGE_ALL));
 	}
 	u16 descTableOffset = AddTableRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, baseRegister, len, space);
 
@@ -294,13 +332,13 @@ void FRootSignature::AddTableSRVRange(u32 baseRegister, u32 len, u32 space) {
 	check(B > A);*/
 
 	for (u32 i = 0; i < len; ++i) {
-		check(ContainsSlot(RootSlotType::SRV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility));
+		check(ContainsSlot(RootSlotType::SRV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility, STAGE_ALL));
 	}
 }
 
 void FRootSignature::AddTableUAVRange(u32 baseRegister, u32 len, u32 space) {
 	for (u32 i = 0; i < len; ++i) {
-		check(!ContainsSlot(RootSlotType::UAV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility));
+		check(!ContainsSlot(RootSlotType::UAV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility, STAGE_ALL));
 	}
 	u16 descTableOffset = AddTableRange(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, baseRegister, len, space);
 	
@@ -313,13 +351,13 @@ void FRootSignature::AddTableUAVRange(u32 baseRegister, u32 len, u32 space) {
 	Slots[range] = BindDesc_t(CurrentParamIndex, descTableOffset);
 
 	for (u32 i = 0; i < len; ++i) {
-		check(ContainsSlot(RootSlotType::UAV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility));
+		check(ContainsSlot(RootSlotType::UAV, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility, STAGE_ALL));
 	}
 }
 
 void FRootSignature::AddTableSamplerRange(u32 baseRegister, u32 len, u32 space) {
 	for (u32 i = 0; i < len; ++i) {
-		check(!ContainsSlot(RootSlotType::SAMPLER, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility));
+		check(!ContainsSlot(RootSlotType::SAMPLER, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility, STAGE_ALL));
 	}
 	u16 descTableOffset = AddTableRange(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, baseRegister, len, space);
 
@@ -332,7 +370,7 @@ void FRootSignature::AddTableSamplerRange(u32 baseRegister, u32 len, u32 space) 
 	Slots[range] = BindDesc_t(CurrentParamIndex, descTableOffset);
 
 	for (u32 i = 0; i < len; ++i) {
-		check(ContainsSlot(RootSlotType::SAMPLER, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility));
+		check(ContainsSlot(RootSlotType::SAMPLER, baseRegister + i, space, Params[CurrentParamIndex].ShaderVisibility, STAGE_ALL));
 	}
 }
 
@@ -355,7 +393,7 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 
 	StaticSamplers.resize(STATIC_SAMPLERS_COUNT);
 
-	check(!ContainsSlot(RootSlotType::SAMPLER, 0, ANISO_STATIC_SAMPLER, visibility));
+	check(!ContainsSlot(RootSlotType::SAMPLER, 0, ANISO_STATIC_SAMPLER, visibility, STAGE_ALL));
 
 	const u32 ANISO_STATIC_SAMPLER_SPACE = 0;
 	StaticSamplers[ANISO_STATIC_SAMPLER].ShaderRegister = 0;
@@ -380,8 +418,8 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 	range.len = 1;
 	Slots[range] = BindDesc_t(ROOT_STATIC_SAMPLER);
 
-	check(ContainsSlot(RootSlotType::SAMPLER, 0, ANISO_STATIC_SAMPLER, visibility));
-	check(!ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_WRAP_STATIC_SAMPLER, visibility));
+	check(ContainsSlot(RootSlotType::SAMPLER, 0, ANISO_STATIC_SAMPLER, visibility, STAGE_ALL));
+	check(!ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_WRAP_STATIC_SAMPLER, visibility, STAGE_ALL));
 
 	StaticSamplers[BILINEAR_WRAP_STATIC_SAMPLER].ShaderRegister = 0;
 	StaticSamplers[BILINEAR_WRAP_STATIC_SAMPLER].RegisterSpace = BILINEAR_WRAP_STATIC_SAMPLER;
@@ -404,8 +442,8 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 	range.len = 1;
 	Slots[range] = BindDesc_t(ROOT_STATIC_SAMPLER);
 
-	check(ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_WRAP_STATIC_SAMPLER, visibility));
-	check(!ContainsSlot(RootSlotType::SAMPLER, 0, POINT_WRAP_STATIC_SAMPLER, visibility));
+	check(ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_WRAP_STATIC_SAMPLER, visibility, STAGE_ALL));
+	check(!ContainsSlot(RootSlotType::SAMPLER, 0, POINT_WRAP_STATIC_SAMPLER, visibility, STAGE_ALL));
 
 	StaticSamplers[POINT_WRAP_STATIC_SAMPLER].ShaderRegister = 0;
 	StaticSamplers[POINT_WRAP_STATIC_SAMPLER].RegisterSpace = POINT_WRAP_STATIC_SAMPLER;
@@ -428,8 +466,8 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 	range.len = 1;
 	Slots[range] = BindDesc_t(ROOT_STATIC_SAMPLER);
 
-	check(ContainsSlot(RootSlotType::SAMPLER, 0, POINT_WRAP_STATIC_SAMPLER, visibility));
-	check(!ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_CLAMP_STATIC_SAMPLER, visibility));
+	check(ContainsSlot(RootSlotType::SAMPLER, 0, POINT_WRAP_STATIC_SAMPLER, visibility, STAGE_ALL));
+	check(!ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_CLAMP_STATIC_SAMPLER, visibility, STAGE_ALL));
 
 	StaticSamplers[BILINEAR_CLAMP_STATIC_SAMPLER].ShaderRegister = 0;
 	StaticSamplers[BILINEAR_CLAMP_STATIC_SAMPLER].RegisterSpace = BILINEAR_CLAMP_STATIC_SAMPLER;
@@ -452,8 +490,8 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 	range.len = 1;
 	Slots[range] = BindDesc_t(ROOT_STATIC_SAMPLER);
 
-	check(ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_CLAMP_STATIC_SAMPLER, visibility));
-	check(!ContainsSlot(RootSlotType::SAMPLER, 0, POINT_CLAMP_STATIC_SAMPLER, visibility));
+	check(ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_CLAMP_STATIC_SAMPLER, visibility, STAGE_ALL));
+	check(!ContainsSlot(RootSlotType::SAMPLER, 0, POINT_CLAMP_STATIC_SAMPLER, visibility, STAGE_ALL));
 
 	StaticSamplers[POINT_CLAMP_STATIC_SAMPLER].ShaderRegister = 0;
 	StaticSamplers[POINT_CLAMP_STATIC_SAMPLER].RegisterSpace = POINT_CLAMP_STATIC_SAMPLER;
@@ -476,7 +514,7 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 	range.len = 1;
 	Slots[range] = BindDesc_t(ROOT_STATIC_SAMPLER);
 
-	check(ContainsSlot(RootSlotType::SAMPLER, 0, POINT_CLAMP_STATIC_SAMPLER, visibility));
+	check(ContainsSlot(RootSlotType::SAMPLER, 0, POINT_CLAMP_STATIC_SAMPLER, visibility, STAGE_ALL));
 }
 
 void FRootSignature::SerializeAndCreate() {
@@ -535,15 +573,35 @@ FShaderState::FShaderState(FShader * inComputeShader, FRootSignature * inRootSig
 }
 
 FShaderState::FShaderState(FShader * inVertexShader, FShader * inPixelShader, FRootSignature * inRootSignature) :
+	FShaderState(inVertexShader, nullptr, nullptr, nullptr, inPixelShader, inRootSignature) {}
+
+FShaderState::FShaderState(FShader * inVertexShader, FShader * inGeometryShader, FShader * inPixelShader, FRootSignature * inRootSignature) :
+	FShaderState(inVertexShader, nullptr, nullptr, inGeometryShader, inPixelShader, inRootSignature) {}
+
+FShaderState::FShaderState(FShader * inVertexShader, FShader * inHullShader, FShader * inDomainShader, FShader * inPixelShader, FRootSignature * inRootSignature) :
+	FShaderState(inVertexShader, inHullShader, inDomainShader, nullptr, inPixelShader, inRootSignature) {}
+
+FShaderState::FShaderState(FShader * inVertexShader, FShader * inHullShader, FShader * inDomainShader, FShader * inGeometryShader, FShader * inPixelShader, FRootSignature * inRootSignature) :
 	Type(EPipelineType::Graphics),
 	VertexShader(inVertexShader),
+	HullShader(inHullShader),
+	DomainShader(inDomainShader),
+	GeometryShader(inGeometryShader),
 	PixelShader(inPixelShader),
 	RootSignature(inRootSignature),
-	Root(nullptr)
-{
+	Root(nullptr) {
 	FixedRootSignature = inRootSignature != nullptr;
 
 	ContentHash = VertexShader->LocationHash;
+	if (HullShader) {
+		ContentHash = HashCombine64(ContentHash, HullShader->LocationHash);
+	}
+	if (DomainShader) {
+		ContentHash = HashCombine64(ContentHash, DomainShader->LocationHash);
+	}
+	if (GeometryShader) {
+		ContentHash = HashCombine64(ContentHash, GeometryShader->LocationHash);
+	}
 	if (PixelShader) {
 		ContentHash = HashCombine64(ContentHash, PixelShader->LocationHash);
 	}
@@ -554,7 +612,7 @@ FShaderState::FShaderState(FShader * inVertexShader, FShader * inPixelShader, FR
 
 void FShaderState::Compile() {
 	if (Type == EPipelineType::Graphics) {
-		Root = GetRootLayout(VertexShader, PixelShader, RootSignature);
+		Root = GetRootLayout(VertexShader, HullShader, DomainShader, GeometryShader, PixelShader, RootSignature);
 		if (!FixedRootSignature) {
 			RootSignature = Root->RootSignature;
 		}
@@ -571,7 +629,20 @@ void FShaderState::Compile() {
 
 bool FShaderState::IsOutdated() const {
 	if (Type == EPipelineType::Graphics) {
-		return VertexShader->LastChangedVersion > ShadersCompilationVersion || PixelShader->LastChangedVersion > ShadersCompilationVersion || (Root == nullptr);
+		bool Result = (VertexShader->LastChangedVersion > ShadersCompilationVersion) || Root == nullptr;
+		if (HullShader && HullShader->LastChangedVersion > ShadersCompilationVersion) {
+			Result = true;
+		}
+		if (DomainShader && DomainShader->LastChangedVersion > ShadersCompilationVersion) {
+			Result = true;
+		}
+		if (GeometryShader && GeometryShader->LastChangedVersion > ShadersCompilationVersion) {
+			Result = true;
+		}
+		if (PixelShader && PixelShader->LastChangedVersion > ShadersCompilationVersion) {
+			Result = true;
+		}
+		return Result;
 	}
 	else {
 		return ComputeShader->LastChangedVersion > ShadersCompilationVersion || (Root == nullptr);
@@ -579,12 +650,19 @@ bool FShaderState::IsOutdated() const {
 }
 
 bool FPipelineState::IsOutdated() const {
+	return ShaderState->IsOutdated();
+}
+
+eastl::wstring	FShaderState::GetDebugName() const {
+	eastl::wstring w;
 	if (Type == EPipelineType::Graphics) {
-		return ShaderState->VertexShader->LastChangedVersion > ShadersCompilationVersion || ShaderState->PixelShader->LastChangedVersion > ShadersCompilationVersion;
+		w.sprintf(L"%s__%s", VertexShader->GetDebugName().c_str(), PixelShader ? PixelShader->GetDebugName().c_str() : L"no_pixel_shader");
 	}
 	else {
-		return ShaderState->ComputeShader->LastChangedVersion > ShadersCompilationVersion;
+
+		w.sprintf(L"%s", ComputeShader->GetDebugName().c_str());
 	}
+	return std::move(w);
 }
 
 void FPipelineState::Compile() {
@@ -596,7 +674,10 @@ void FPipelineState::Compile() {
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC CreateDesc = Graphics.Desc;
 
 		CreateDesc.VS = GetBytecode(ShaderState->VertexShader);
-		CreateDesc.PS = GetBytecode(ShaderState->PixelShader);
+		CreateDesc.HS = ShaderState->HullShader ? GetBytecode(ShaderState->HullShader) : D3D12_SHADER_BYTECODE();
+		CreateDesc.DS = ShaderState->DomainShader ? GetBytecode(ShaderState->DomainShader) : D3D12_SHADER_BYTECODE();
+		CreateDesc.GS = ShaderState->GeometryShader ? GetBytecode(ShaderState->GeometryShader) : D3D12_SHADER_BYTECODE();
+		CreateDesc.PS = ShaderState->PixelShader ? GetBytecode(ShaderState->PixelShader) : D3D12_SHADER_BYTECODE();
 		CreateDesc.pRootSignature = ShaderState->RootSignature->D12RootSignature.get();
 		CreateDesc.InputLayout.pInputElementDescs = Graphics.InputLayout->ElementsNum > 0 ? Graphics.InputLayout->Elements.get() : nullptr;
 		CreateDesc.InputLayout.NumElements = Graphics.InputLayout->ElementsNum;
@@ -652,6 +733,9 @@ FPipelineState*			GetGraphicsPipelineState(FShaderState * ShaderState, D3D12_GRA
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC lookupDesc = *Desc;
 	lookupDesc.VS = {};
+	lookupDesc.DS = {};
+	lookupDesc.HS = {};
+	lookupDesc.GS = {};
 	lookupDesc.PS = {};
 	lookupDesc.pRootSignature = {};
 	lookupDesc.InputLayout = {};
@@ -698,6 +782,8 @@ void InitBasicRootSignatures() {
 	if (BasicRootSignatures[0].get()) {
 		return;
 	}
+
+	check(STAGE_ALL == (STAGE_PIXEL | STAGE_GEOMETRY | STAGE_GEOMETRY | STAGE_DOMAIN | STAGE_HULL | STAGE_VERTEX));
 
 	FRootSignature* root;
 
@@ -1088,30 +1174,30 @@ void FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_V
 	}
 }
 
-bool CanRunWithRootSignature(FShaderBindings* bindings, FRootSignature* signature) {
-	// todo: we might want ALL and have separate in PIXEL, VERTEX
+bool CanRunWithRootSignature(FShaderBindings* bindings, FRootSignature* signature, EShaderStageFlag usedStages) {
 
 	for (auto& cbv : bindings->CBVs) {
 		if (!signature->ContainsSlot(
 			cbv.second.Binding.Slot.type, 
 			cbv.second.Binding.Slot.baseRegister, 
 			cbv.second.Binding.Slot.space, 
-			cbv.second.Binding.Slot.visibility)) {
+			cbv.second.Binding.Slot.visibility,
+			usedStages)) {
 			return false;
 		}
 	}
 	for (auto& srv : bindings->SRVs) {
-		if (!signature->ContainsSlot(srv.second.Slot.type, srv.second.Slot.baseRegister, srv.second.Slot.space, srv.second.Slot.visibility)) {
+		if (!signature->ContainsSlot(srv.second.Slot.type, srv.second.Slot.baseRegister, srv.second.Slot.space, srv.second.Slot.visibility, usedStages)) {
 			return false;
 		}
 	}
 	for (auto& uav : bindings->UAVs) {
-		if (!signature->ContainsSlot(uav.second.Slot.type, uav.second.Slot.baseRegister, uav.second.Slot.space, uav.second.Slot.visibility)) {
+		if (!signature->ContainsSlot(uav.second.Slot.type, uav.second.Slot.baseRegister, uav.second.Slot.space, uav.second.Slot.visibility, usedStages)) {
 			return false;
 		}
 	}
 	for (auto& sampler : bindings->Samplers) {
-		if (!signature->ContainsSlot(sampler.second.Slot.type, sampler.second.Slot.baseRegister, sampler.second.Slot.space, sampler.second.Slot.visibility)) {
+		if (!signature->ContainsSlot(sampler.second.Slot.type, sampler.second.Slot.baseRegister, sampler.second.Slot.space, sampler.second.Slot.visibility, usedStages)) {
 			return false;
 		}
 	}
@@ -1136,7 +1222,7 @@ FRootLayout* GetRootLayout(FShader const* CS, FRootSignature * RootSignature) {
 
 	if (RootSignature == nullptr) {
 		for (auto& root : BasicRootSignatures) {
-			if (CanRunWithRootSignature(&bindings, root.get())) {
+			if (CanRunWithRootSignature(&bindings, root.get(), STAGE_COMPUTE)) {
 				RootSignature = root.get();
 				break;
 			}
@@ -1144,7 +1230,7 @@ FRootLayout* GetRootLayout(FShader const* CS, FRootSignature * RootSignature) {
 		check(RootSignature);
 	}
 	else {
-		check(CanRunWithRootSignature(&bindings, RootSignature));
+		check(CanRunWithRootSignature(&bindings, RootSignature, STAGE_COMPUTE));
 	}
 
 	FRootLayout* layout = new FRootLayout();
@@ -1156,7 +1242,7 @@ FRootLayout* GetRootLayout(FShader const* CS, FRootSignature * RootSignature) {
 	return layout;
 }
 
-FRootLayout* GetRootLayout(FShader const* VS, FShader const* PS, FRootSignature * RootSignature) {
+FRootLayout* GetRootLayout(FShader const* VS, FShader const* HS, FShader const* DS, FShader const* GS, FShader const* PS, FRootSignature * RootSignature) {
 	u64 lookupKey = HashCombine64(GetShaderHash(VS), GetShaderHash(PS));
 	auto iter = RootLayoutLookup.find(lookupKey);
 	if (iter != RootLayoutLookup.end()) {
@@ -1165,15 +1251,30 @@ FRootLayout* GetRootLayout(FShader const* VS, FShader const* PS, FRootSignature 
 
 	InitBasicRootSignatures();
 
+	EShaderStageFlag Stages = STAGE_VERTEX;
+
 	FShaderBindings bindings;
 	bindings.GatherShaderBindings(VS, D3D12_SHADER_VISIBILITY_VERTEX);
+	if (HS) {
+		bindings.GatherShaderBindings(PS, D3D12_SHADER_VISIBILITY_PIXEL);
+		Stages |= STAGE_HULL;
+	}
+	if (DS) {
+		bindings.GatherShaderBindings(PS, D3D12_SHADER_VISIBILITY_PIXEL);
+		Stages |= STAGE_DOMAIN;
+	}
+	if (GS) {
+		bindings.GatherShaderBindings(PS, D3D12_SHADER_VISIBILITY_PIXEL);
+		Stages |= STAGE_GEOMETRY;
+	}
 	if (PS) {
 		bindings.GatherShaderBindings(PS, D3D12_SHADER_VISIBILITY_PIXEL);
+		Stages |= STAGE_PIXEL;
 	}
 
 	if (RootSignature == nullptr) {
 		for (auto& root : BasicRootSignatures) {
-			if (CanRunWithRootSignature(&bindings, root.get())) {
+			if (CanRunWithRootSignature(&bindings, root.get(), Stages)) {
 				RootSignature = root.get();
 				break;
 			}
@@ -1181,7 +1282,7 @@ FRootLayout* GetRootLayout(FShader const* VS, FShader const* PS, FRootSignature 
 		check(RootSignature);
 	}
 	else {
-		check(CanRunWithRootSignature(&bindings, RootSignature));
+		check(CanRunWithRootSignature(&bindings, RootSignature, Stages));
 	}
 
 	FRootLayout* layout = new FRootLayout();
@@ -1203,22 +1304,25 @@ ID3D12PipelineState*	GetRawPSO(FPipelineState const* pso) {
 
 #include "Descriptors.h"
 
-FTextureParam FRootLayout::CreateTextureParam(char const * name) {
+FTextureParam FRootLayout::CreateTextureParam(FShaderState *, char const * name) {
 	FTextureParam Param = {};
 	Param.BindId = CreateTextureGBID(name);
 	return Param;
 }
 
-FRWTextureParam FRootLayout::CreateRWTextureParam(char const * name) {
+FRWTextureParam FRootLayout::CreateRWTextureParam(FShaderState *, char const * name) {
 	FRWTextureParam Param = {};
 	Param.BindId = CreateRWTextureGBID(name);
 	return Param;
 }
 
-FConstantBuffer FRootLayout::CreateConstantBuffer(char const * name) {
+FConstantBuffer FRootLayout::CreateConstantBuffer(FShaderState *ShaderState, char const * name) {
 	FConstantBuffer Param = {};
 	Param.BindId = CreateConstantBufferGBID(name);
 	Param.Layout = this;
+	if (ConstantBuffers.find(Param.BindId) == ConstantBuffers.end()) {
+		PrintFormated(L"Constant buffer '%s' not found in data layout for %s\n", ConvertToWString(name).c_str(), ShaderState->GetDebugName().c_str());
+	}
 	Param.Size = ConstantBuffers[Param.BindId].Size;
 	return Param;
 }

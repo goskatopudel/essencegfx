@@ -68,6 +68,12 @@ struct FRenderCmdSetIB {
 
 u64 FRenderCmdSetIBFunc(FGPUContext * Context, void * DataVoidPtr);
 
+struct FRenderCmdSetTopology {
+	D3D_PRIMITIVE_TOPOLOGY Topology;
+};
+
+u64 FRenderCmdSetTopologyFunc(FGPUContext * Context, void * DataVoidPtr);
+
 struct FRenderCmdSetViewport {
 	D3D12_VIEWPORT	Viewport;
 };

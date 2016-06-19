@@ -103,8 +103,10 @@ public:
 
 	FPatchShaderState() :
 		FShaderState(
-			GetShader("Shaders/Tesselate.hlsl", "VShader", "vs_5_0", {}, 0),
-			GetShader("Shaders/Tesselate.hlsl", "PShader", "ps_5_0", {}, 0)) {}
+			GetShader("Shaders/Tesselate.hlsl", "VertexMain", "vs_5_0", {}, 0),
+			GetShader("Shaders/Tesselate.hlsl", "HullMain", "hs_5_0", {}, 0),
+			GetShader("Shaders/Tesselate.hlsl", "DomainMain", "ds_5_0", {}, 0),
+			GetShader("Shaders/Tesselate.hlsl", "PixelMain", "ps_5_0", {}, 0)) {}
 
 	void InitParams() override final {
 		ConstantBuffer = Root->CreateConstantBuffer(this, "FrameConstants");
@@ -138,7 +140,8 @@ bool FApplicationImpl::Update() {
 			{ float3(-0.5f, 0.5f, 0) },
 		};
 
-		const u16 IData[] = { 0, 1, 2, 0, 2, 3 };
+		//const u16 IData[] = { 0, 1, 2, 0, 2, 3 };
+		const u16 IData[] = { 0, 1, 2, 3 };
 
 		Patch.VBSize = sizeof(VData);
 		Patch.IBSize = sizeof(IData);
@@ -172,6 +175,7 @@ bool FApplicationImpl::Update() {
 		PipelineDesc.DepthStencilState.DepthEnable = false;
 		PipelineDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 		PipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+		PipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
 
 		PipelineState = GetGraphicsPipelineState(&ShaderState,
 			&PipelineDesc,
@@ -213,6 +217,7 @@ bool FApplicationImpl::Update() {
 	
 	Stream.SetVB(VB, 0);
 	Stream.SetIB(IB);
+	Stream.SetTopology(D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST);
 	Stream.SetPipelineState(PipelineState);
 	Stream.SetConstantBuffer(&ShaderState.ConstantBuffer, CreateCBVFromData(&ShaderState.ConstantBuffer, ViewProjMatrixT));
 	Stream.SetRenderTarget(0, GetBackbuffer()->GetRTV(OutFormat));

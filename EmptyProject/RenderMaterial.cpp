@@ -5,7 +5,7 @@ eastl::unique_ptr<FRootSignature>	MaterialsRoot;
 
 void CreateMaterialRoot() {
 	MaterialsRoot = eastl::make_unique<FRootSignature>();
-	MaterialsRoot->InitDefault(D3D12_SHADER_VISIBILITY_ALL);
+	MaterialsRoot->InitDefault(D3D12_SHADER_VISIBILITY_ALL, STAGE_ALL);
 	// b1
 	MaterialsRoot->AddTableParam(PARAM_0, D3D12_SHADER_VISIBILITY_ALL);
 	MaterialsRoot->AddTableCBVRange(2, 1, 0);

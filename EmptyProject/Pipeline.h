@@ -172,36 +172,6 @@ struct FConstantBuffer {
 
 #include "PointerMath.h"
 
-//struct FConstantBufferParam {
-//	struct alignas(16) DATA_PACK_t {
-//		u8 _DATA[256];
-//	};
-//
-//	GlobalBindId				BindId;
-//	eastl::vector<DATA_PACK_t>	Data;
-//	u32							Size;
-//
-//	D3D12_CPU_DESCRIPTOR_HANDLE	CPUHandle;
-//
-//	inline void Reserve(u64 size) {
-//		Data.resize((size + 255) / 256);
-//	}
-//
-//	void Set(FConstantParam const * Param, void const * src, u64 size);
-//
-//	template<typename T> void	Set(FConstantParam const * Param, T const&srcRef) {
-//		Set(Param, &srcRef, sizeof(T));
-//	}
-//
-//	void Serialize();
-//};
-//struct FConstantParam {
-//	GlobalBindId	BindId;
-//	u32				CbIndex;
-//	u32				Offset;
-//	u32				Size;
-//};
-
 struct FRootParam {
 	u32											TableLen;
 	eastl::vector<D3D12_CPU_DESCRIPTOR_HANDLE>	NullHandles;
@@ -235,6 +205,7 @@ struct SlotsRange {
 
 
 enum EShaderStageFlag {
+	STAGE_NONE = 0,
 	STAGE_VERTEX = 1,
 	STAGE_HULL = 2,
 	STAGE_DOMAIN = 4,
@@ -258,7 +229,7 @@ public:
 	u32											RootSize = 0;
 	u32											CurrentParamIndex = 0;
 
-	void InitDefault(D3D12_SHADER_VISIBILITY visibility);
+	void InitDefault(D3D12_SHADER_VISIBILITY samplersVisibility, EShaderStageFlag stagesUsed);
 
 	eastl::map<SlotsRange, BindDesc_t>			Slots;
 

@@ -39,6 +39,12 @@ u64 FRenderCmdSetIBFunc(FGPUContext * Context, void * DataVoidPtr) {
 	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdSetIB);
 };
 
+u64 FRenderCmdSetTopologyFunc(FGPUContext * Context, void * DataVoidPtr) {
+	auto Data = (FRenderCmdSetTopology*)DataVoidPtr;
+	Context->SetTopology(Data->Topology);
+	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdSetTopology);
+};
+
 u64 FRenderCmdSetViewportFunc(FGPUContext * Context, void * DataVoidPtr) {
 	auto Data = (FRenderCmdSetViewport*)DataVoidPtr;
 	Context->SetViewport(Data->Viewport);

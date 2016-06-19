@@ -412,6 +412,10 @@ public:
 		auto Data = ReservePacket<FRenderCmdSetIB, FRenderCmdSetIBFunc>();
 		Data->Location = Location;
 	}
+	inline void SetTopology(D3D_PRIMITIVE_TOPOLOGY Topology) {
+		auto Data = ReservePacket<FRenderCmdSetTopology, FRenderCmdSetTopologyFunc>();
+		Data->Topology = Topology;
+	}
 	inline void SetRenderTarget(u8 Index, D3D12_CPU_DESCRIPTOR_HANDLE RTV) {
 		auto Data = ReservePacket<FRenderCmdSetRenderTarget, FRenderCmdSetRenderTargetFunc>();
 		Data->Index = Index;

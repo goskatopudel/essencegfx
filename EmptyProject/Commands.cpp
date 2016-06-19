@@ -221,6 +221,7 @@ public:
 		}
 
 		for (auto& allocatorsRange : PendingAllocators) {
+			// todo: optimize
 			u64 Len = allocatorsRange.size();
 			while (Len > 0 && !allocatorsRange.empty()) {
 				if (allocatorsRange.front()->CanReset()) {

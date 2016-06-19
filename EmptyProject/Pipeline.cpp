@@ -90,6 +90,22 @@ bool operator< (SlotsRange const& lhs, SlotsRange const& rhs) {
 
 bool FRootSignature::ContainsSlot(RootSlotType type, u32 baseRegister, u32 space, D3D12_SHADER_VISIBILITY visibility, EShaderStageFlag usedStages) {
 	if (visibility != D3D12_SHADER_VISIBILITY_ALL) {
+		if (visibility == D3D12_SHADER_VISIBILITY_VERTEX && (Flags & D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS)) {
+			return false;
+		}
+		if (visibility == D3D12_SHADER_VISIBILITY_HULL && (Flags & D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS)) {
+			return false;
+		}
+		if (visibility == D3D12_SHADER_VISIBILITY_DOMAIN && (Flags & D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS)) {
+			return false;
+		}
+		if (visibility == D3D12_SHADER_VISIBILITY_GEOMETRY && (Flags & D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS)) {
+			return false;
+		}
+		if (visibility == D3D12_SHADER_VISIBILITY_PIXEL && (Flags & D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS)) {
+			return false;
+		}
+
 		SlotsRange LookupRange = {};
 		LookupRange.type = type;
 		LookupRange.baseRegister = baseRegister;
@@ -97,6 +113,7 @@ bool FRootSignature::ContainsSlot(RootSlotType type, u32 baseRegister, u32 space
 		LookupRange.visibility = visibility;
 		LookupRange.len = 1;
 
+		// todo: optimize
 		for (auto iter = Slots.begin(); iter != Slots.end(); ++iter) {
 			if (Contains((*iter).first, LookupRange)) {
 				return true;
@@ -374,12 +391,24 @@ void FRootSignature::AddTableSamplerRange(u32 baseRegister, u32 len, u32 space) 
 	}
 }
 
-void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
-	Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS;
+void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY samplersVisibility, EShaderStageFlag stagesUsed) {
+	Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
+	if (!(stagesUsed & STAGE_VERTEX)) {
+		Flags |= D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
+	}
+	if (!(stagesUsed & STAGE_HULL)) {
+		Flags |= D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS;
+	}
+	if (!(stagesUsed & STAGE_DOMAIN)) {
+		Flags |= D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS;
+	}
+	if (!(stagesUsed & STAGE_GEOMETRY)) {
+		Flags |= D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
+	}
+	if (!(stagesUsed & STAGE_PIXEL)) {
+		Flags |= D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS;
+	}
 
 	enum StaticSamplersEnum {
 		ANISO_STATIC_SAMPLER,
@@ -393,7 +422,7 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 
 	StaticSamplers.resize(STATIC_SAMPLERS_COUNT);
 
-	check(!ContainsSlot(RootSlotType::SAMPLER, 0, ANISO_STATIC_SAMPLER, visibility, STAGE_ALL));
+	check(!ContainsSlot(RootSlotType::SAMPLER, 0, ANISO_STATIC_SAMPLER, samplersVisibility, STAGE_ALL));
 
 	const u32 ANISO_STATIC_SAMPLER_SPACE = 0;
 	StaticSamplers[ANISO_STATIC_SAMPLER].ShaderRegister = 0;
@@ -408,18 +437,18 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 	StaticSamplers[ANISO_STATIC_SAMPLER].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
 	StaticSamplers[ANISO_STATIC_SAMPLER].MinLOD = 0.f;
 	StaticSamplers[ANISO_STATIC_SAMPLER].MaxLOD = D3D12_FLOAT32_MAX;
-	StaticSamplers[ANISO_STATIC_SAMPLER].ShaderVisibility = visibility;
+	StaticSamplers[ANISO_STATIC_SAMPLER].ShaderVisibility = samplersVisibility;
 
 	SlotsRange range = {};
 	range.type = RootSlotType::SAMPLER;
 	range.baseRegister = 0;
 	range.space = ANISO_STATIC_SAMPLER;
-	range.visibility = visibility;
+	range.visibility = samplersVisibility;
 	range.len = 1;
 	Slots[range] = BindDesc_t(ROOT_STATIC_SAMPLER);
 
-	check(ContainsSlot(RootSlotType::SAMPLER, 0, ANISO_STATIC_SAMPLER, visibility, STAGE_ALL));
-	check(!ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_WRAP_STATIC_SAMPLER, visibility, STAGE_ALL));
+	check(ContainsSlot(RootSlotType::SAMPLER, 0, ANISO_STATIC_SAMPLER, samplersVisibility, STAGE_ALL));
+	check(!ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_WRAP_STATIC_SAMPLER, samplersVisibility, STAGE_ALL));
 
 	StaticSamplers[BILINEAR_WRAP_STATIC_SAMPLER].ShaderRegister = 0;
 	StaticSamplers[BILINEAR_WRAP_STATIC_SAMPLER].RegisterSpace = BILINEAR_WRAP_STATIC_SAMPLER;
@@ -433,17 +462,17 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 	StaticSamplers[BILINEAR_WRAP_STATIC_SAMPLER].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
 	StaticSamplers[BILINEAR_WRAP_STATIC_SAMPLER].MinLOD = 0.f;
 	StaticSamplers[BILINEAR_WRAP_STATIC_SAMPLER].MaxLOD = D3D12_FLOAT32_MAX;
-	StaticSamplers[BILINEAR_WRAP_STATIC_SAMPLER].ShaderVisibility = visibility;
+	StaticSamplers[BILINEAR_WRAP_STATIC_SAMPLER].ShaderVisibility = samplersVisibility;
 
 	range.type = RootSlotType::SAMPLER;
 	range.baseRegister = 0;
 	range.space = BILINEAR_WRAP_STATIC_SAMPLER;
-	range.visibility = visibility;
+	range.visibility = samplersVisibility;
 	range.len = 1;
 	Slots[range] = BindDesc_t(ROOT_STATIC_SAMPLER);
 
-	check(ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_WRAP_STATIC_SAMPLER, visibility, STAGE_ALL));
-	check(!ContainsSlot(RootSlotType::SAMPLER, 0, POINT_WRAP_STATIC_SAMPLER, visibility, STAGE_ALL));
+	check(ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_WRAP_STATIC_SAMPLER, samplersVisibility, STAGE_ALL));
+	check(!ContainsSlot(RootSlotType::SAMPLER, 0, POINT_WRAP_STATIC_SAMPLER, samplersVisibility, STAGE_ALL));
 
 	StaticSamplers[POINT_WRAP_STATIC_SAMPLER].ShaderRegister = 0;
 	StaticSamplers[POINT_WRAP_STATIC_SAMPLER].RegisterSpace = POINT_WRAP_STATIC_SAMPLER;
@@ -457,17 +486,17 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 	StaticSamplers[POINT_WRAP_STATIC_SAMPLER].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
 	StaticSamplers[POINT_WRAP_STATIC_SAMPLER].MinLOD = 0.f;
 	StaticSamplers[POINT_WRAP_STATIC_SAMPLER].MaxLOD = D3D12_FLOAT32_MAX;
-	StaticSamplers[POINT_WRAP_STATIC_SAMPLER].ShaderVisibility = visibility;
+	StaticSamplers[POINT_WRAP_STATIC_SAMPLER].ShaderVisibility = samplersVisibility;
 
 	range.type = RootSlotType::SAMPLER;
 	range.baseRegister = 0;
 	range.space = POINT_WRAP_STATIC_SAMPLER;
-	range.visibility = visibility;
+	range.visibility = samplersVisibility;
 	range.len = 1;
 	Slots[range] = BindDesc_t(ROOT_STATIC_SAMPLER);
 
-	check(ContainsSlot(RootSlotType::SAMPLER, 0, POINT_WRAP_STATIC_SAMPLER, visibility, STAGE_ALL));
-	check(!ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_CLAMP_STATIC_SAMPLER, visibility, STAGE_ALL));
+	check(ContainsSlot(RootSlotType::SAMPLER, 0, POINT_WRAP_STATIC_SAMPLER, samplersVisibility, STAGE_ALL));
+	check(!ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_CLAMP_STATIC_SAMPLER, samplersVisibility, STAGE_ALL));
 
 	StaticSamplers[BILINEAR_CLAMP_STATIC_SAMPLER].ShaderRegister = 0;
 	StaticSamplers[BILINEAR_CLAMP_STATIC_SAMPLER].RegisterSpace = BILINEAR_CLAMP_STATIC_SAMPLER;
@@ -481,17 +510,17 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 	StaticSamplers[BILINEAR_CLAMP_STATIC_SAMPLER].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
 	StaticSamplers[BILINEAR_CLAMP_STATIC_SAMPLER].MinLOD = 0.f;
 	StaticSamplers[BILINEAR_CLAMP_STATIC_SAMPLER].MaxLOD = D3D12_FLOAT32_MAX;
-	StaticSamplers[BILINEAR_CLAMP_STATIC_SAMPLER].ShaderVisibility = visibility;
+	StaticSamplers[BILINEAR_CLAMP_STATIC_SAMPLER].ShaderVisibility = samplersVisibility;
 
 	range.type = RootSlotType::SAMPLER;
 	range.baseRegister = 0;
 	range.space = BILINEAR_CLAMP_STATIC_SAMPLER;
-	range.visibility = visibility;
+	range.visibility = samplersVisibility;
 	range.len = 1;
 	Slots[range] = BindDesc_t(ROOT_STATIC_SAMPLER);
 
-	check(ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_CLAMP_STATIC_SAMPLER, visibility, STAGE_ALL));
-	check(!ContainsSlot(RootSlotType::SAMPLER, 0, POINT_CLAMP_STATIC_SAMPLER, visibility, STAGE_ALL));
+	check(ContainsSlot(RootSlotType::SAMPLER, 0, BILINEAR_CLAMP_STATIC_SAMPLER, samplersVisibility, STAGE_ALL));
+	check(!ContainsSlot(RootSlotType::SAMPLER, 0, POINT_CLAMP_STATIC_SAMPLER, samplersVisibility, STAGE_ALL));
 
 	StaticSamplers[POINT_CLAMP_STATIC_SAMPLER].ShaderRegister = 0;
 	StaticSamplers[POINT_CLAMP_STATIC_SAMPLER].RegisterSpace = POINT_CLAMP_STATIC_SAMPLER;
@@ -505,16 +534,16 @@ void FRootSignature::InitDefault(D3D12_SHADER_VISIBILITY visibility) {
 	StaticSamplers[POINT_CLAMP_STATIC_SAMPLER].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
 	StaticSamplers[POINT_CLAMP_STATIC_SAMPLER].MinLOD = 0.f;
 	StaticSamplers[POINT_CLAMP_STATIC_SAMPLER].MaxLOD = D3D12_FLOAT32_MAX;
-	StaticSamplers[POINT_CLAMP_STATIC_SAMPLER].ShaderVisibility = visibility;
+	StaticSamplers[POINT_CLAMP_STATIC_SAMPLER].ShaderVisibility = samplersVisibility;
 
 	range.type = RootSlotType::SAMPLER;
 	range.baseRegister = 0;
 	range.space = POINT_CLAMP_STATIC_SAMPLER;
-	range.visibility = visibility;
+	range.visibility = samplersVisibility;
 	range.len = 1;
 	Slots[range] = BindDesc_t(ROOT_STATIC_SAMPLER);
 
-	check(ContainsSlot(RootSlotType::SAMPLER, 0, POINT_CLAMP_STATIC_SAMPLER, visibility, STAGE_ALL));
+	check(ContainsSlot(RootSlotType::SAMPLER, 0, POINT_CLAMP_STATIC_SAMPLER, samplersVisibility, STAGE_ALL));
 }
 
 void FRootSignature::SerializeAndCreate() {
@@ -790,7 +819,7 @@ void InitBasicRootSignatures() {
 	// 0 is thin for postprocesses
 	BasicRootSignatures[0] = eastl::make_unique<FRootSignature>();
 	root = BasicRootSignatures[0].get();
-	root->InitDefault(D3D12_SHADER_VISIBILITY_PIXEL);
+	root->InitDefault(D3D12_SHADER_VISIBILITY_PIXEL, STAGE_PIXEL);
 	root->AddTableParam(PARAM_0, D3D12_SHADER_VISIBILITY_PIXEL);
 	// t0-5 b0
 	root->AddTableSRVRange(0, 6, 0);
@@ -800,7 +829,7 @@ void InitBasicRootSignatures() {
 	// 1 is this for postprocess with uavs
 	BasicRootSignatures[1] = eastl::make_unique<FRootSignature>();
 	root = BasicRootSignatures[1].get();
-	root->InitDefault(D3D12_SHADER_VISIBILITY_PIXEL);
+	root->InitDefault(D3D12_SHADER_VISIBILITY_PIXEL, STAGE_VERTEX | STAGE_PIXEL);
 	// t0-3 u0-1 b0
 	root->AddTableParam(PARAM_0, D3D12_SHADER_VISIBILITY_PIXEL);
 	root->AddTableSRVRange(0, 4, 0);
@@ -811,7 +840,7 @@ void InitBasicRootSignatures() {
 	// 2 is for vertex-pixel shader work
 	BasicRootSignatures[2] = eastl::make_unique<FRootSignature>();
 	root = BasicRootSignatures[2].get();
-	root->InitDefault(D3D12_SHADER_VISIBILITY_PIXEL);
+	root->InitDefault(D3D12_SHADER_VISIBILITY_PIXEL, STAGE_VERTEX | STAGE_PIXEL);
 	// b1
 	root->AddTableParam(PARAM_0, D3D12_SHADER_VISIBILITY_VERTEX);
 	root->AddTableCBVRange(1, 1, 0);
@@ -827,7 +856,7 @@ void InitBasicRootSignatures() {
 	// 3 is for fatter vertex-pixel shader work
 	BasicRootSignatures[3] = eastl::make_unique<FRootSignature>();
 	root = BasicRootSignatures[3].get();
-	root->InitDefault(D3D12_SHADER_VISIBILITY_ALL);
+	root->InitDefault(D3D12_SHADER_VISIBILITY_ALL, STAGE_VERTEX | STAGE_PIXEL);
 	// t0-6 u0-1 b2-3
 	root->AddTableParam(PARAM_0, D3D12_SHADER_VISIBILITY_PIXEL);
 	root->AddTableSRVRange(0, 7, 0);
@@ -842,10 +871,21 @@ void InitBasicRootSignatures() {
 	root->AddTableCBVRange(0, 1, 0);
 	root->SerializeAndCreate();
 
-	// 4 is super fat fallback
+	// 4 is for compute shader
 	BasicRootSignatures[4] = eastl::make_unique<FRootSignature>();
 	root = BasicRootSignatures[4].get();
-	root->InitDefault(D3D12_SHADER_VISIBILITY_ALL);
+	root->InitDefault(D3D12_SHADER_VISIBILITY_ALL, STAGE_ALL);
+	// t0-7 u0-7 b0-3
+	root->AddTableParam(PARAM_0, D3D12_SHADER_VISIBILITY_ALL);
+	root->AddTableSRVRange(0, 8, 0);
+	root->AddTableUAVRange(0, 8, 0);
+	root->AddTableCBVRange(0, 4, 0);
+	root->SerializeAndCreate();
+
+	// 5 is super fat fallback
+	BasicRootSignatures[5] = eastl::make_unique<FRootSignature>();
+	root = BasicRootSignatures[5].get();
+	root->InitDefault(D3D12_SHADER_VISIBILITY_ALL, STAGE_ALL);
 	// t4-24 u0-7 b2-4
 	root->AddTableParam(PARAM_0, D3D12_SHADER_VISIBILITY_PIXEL);
 	root->AddTableSRVRange(4, 21, 0);
@@ -860,16 +900,6 @@ void InitBasicRootSignatures() {
 	root->AddTableCBVRange(0, 1, 0);
 	root->SerializeAndCreate();
 
-	// 5 is for comptue shader
-	BasicRootSignatures[5] = eastl::make_unique<FRootSignature>();
-	root = BasicRootSignatures[5].get();
-	root->InitDefault(D3D12_SHADER_VISIBILITY_ALL);
-	// t0-7 u0-7 b0-3
-	root->AddTableParam(PARAM_0, D3D12_SHADER_VISIBILITY_ALL);
-	root->AddTableSRVRange(0, 8, 0);
-	root->AddTableUAVRange(0, 8, 0);
-	root->AddTableCBVRange(0, 4, 0);
-	root->SerializeAndCreate();
 }
 
 struct BindingMetadata {
@@ -1175,7 +1205,6 @@ void FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_V
 }
 
 bool CanRunWithRootSignature(FShaderBindings* bindings, FRootSignature* signature, EShaderStageFlag usedStages) {
-
 	for (auto& cbv : bindings->CBVs) {
 		if (!signature->ContainsSlot(
 			cbv.second.Binding.Slot.type, 
@@ -1243,7 +1272,19 @@ FRootLayout* GetRootLayout(FShader const* CS, FRootSignature * RootSignature) {
 }
 
 FRootLayout* GetRootLayout(FShader const* VS, FShader const* HS, FShader const* DS, FShader const* GS, FShader const* PS, FRootSignature * RootSignature) {
-	u64 lookupKey = HashCombine64(GetShaderHash(VS), GetShaderHash(PS));
+	u64 lookupKey = GetShaderHash(VS);
+	if (HS) {
+		lookupKey = HashCombine64(lookupKey, GetShaderHash(HS));
+	}
+	if (DS) {
+		lookupKey = HashCombine64(lookupKey, GetShaderHash(DS));
+	}
+	if (GS) {
+		lookupKey = HashCombine64(lookupKey, GetShaderHash(GS));
+	}
+	if (PS) {
+		lookupKey = HashCombine64(lookupKey, GetShaderHash(PS));
+	}
 	auto iter = RootLayoutLookup.find(lookupKey);
 	if (iter != RootLayoutLookup.end()) {
 		return iter->second.get();
@@ -1256,15 +1297,15 @@ FRootLayout* GetRootLayout(FShader const* VS, FShader const* HS, FShader const* 
 	FShaderBindings bindings;
 	bindings.GatherShaderBindings(VS, D3D12_SHADER_VISIBILITY_VERTEX);
 	if (HS) {
-		bindings.GatherShaderBindings(PS, D3D12_SHADER_VISIBILITY_PIXEL);
+		bindings.GatherShaderBindings(HS, D3D12_SHADER_VISIBILITY_HULL);
 		Stages |= STAGE_HULL;
 	}
 	if (DS) {
-		bindings.GatherShaderBindings(PS, D3D12_SHADER_VISIBILITY_PIXEL);
+		bindings.GatherShaderBindings(DS, D3D12_SHADER_VISIBILITY_DOMAIN);
 		Stages |= STAGE_DOMAIN;
 	}
 	if (GS) {
-		bindings.GatherShaderBindings(PS, D3D12_SHADER_VISIBILITY_PIXEL);
+		bindings.GatherShaderBindings(GS, D3D12_SHADER_VISIBILITY_GEOMETRY);
 		Stages |= STAGE_GEOMETRY;
 	}
 	if (PS) {

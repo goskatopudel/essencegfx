@@ -905,11 +905,11 @@ void ExtractDDSDesc(DDS_HEADER const * header, D3D12_RESOURCE_DESC * outDesc, D3
 #include "Resource.h"
 #include "VideoMemory.h"
 
-eastl::hash_map<u64, FOwnedResource> TextureRegistry;
+eastl::hash_map<u64, FGPUResourceRef> TextureRegistry;
 
 #include "Hash.h"
 
-FOwnedResource	LoadDDSImageInternal(const wchar_t * filename, bool forceSrgb, FGPUContext & CopyContext) {
+FGPUResourceRef	LoadDDSImageInternal(const wchar_t * filename, bool forceSrgb, FGPUContext & CopyContext) {
 	
 	u64 textureNameHash = MurmurHash2_64(filename, wcslen(filename) * sizeof(wchar_t), 0);
 	auto findIter = TextureRegistry.find(textureNameHash);
@@ -945,7 +945,7 @@ FOwnedResource	LoadDDSImageInternal(const wchar_t * filename, bool forceSrgb, FG
 		ResDesc.Format = MakeSRGB(ResDesc.Format);
 	}
 
-	FOwnedResource result = GetTexturesAllocator()->CreateTexture((u32)ResDesc.Width, ResDesc.Height, ResDesc.DepthOrArraySize, ResDesc.Format, flags, filename);
+	FGPUResourceRef result = GetTexturesAllocator()->CreateTexture((u32)ResDesc.Width, ResDesc.Height, ResDesc.DepthOrArraySize, ResDesc.Format, flags, filename);
 
 	D3D12_SUBRESOURCE_DATA	SubresourceData[128];
 	size_t skipMip = 0;
@@ -958,21 +958,21 @@ FOwnedResource	LoadDDSImageInternal(const wchar_t * filename, bool forceSrgb, FG
 	FillInitData(ResDesc.Width, ResDesc.Height, 1, ResDesc.MipLevels, ResDesc.DepthOrArraySize, ResDesc.Format, 0, ddsData.BitSize, ddsData.Data, twidth, theight, tdepth, skipMip, SubresourceData);
 
 	for (u32 mip = 0; mip < ResDesc.MipLevels; ++mip) {
-		CopyContext.CopyDataToSubresource(result, mip, SubresourceData[mip].pData, SubresourceData[mip].RowPitch, SubresourceData[mip].SlicePitch);
+		CopyContext.CopyDataToSubresource(result.get(), mip, SubresourceData[mip].pData, SubresourceData[mip].RowPitch, SubresourceData[mip].SlicePitch);
 	}
-	CopyContext.Barrier(result, ALL_SUBRESOURCES, EAccessType::COPY_DEST, EAccessType::READ_PIXEL);
+	CopyContext.Barrier(result.get(), ALL_SUBRESOURCES, EAccessType::COPY_DEST, EAccessType::READ_PIXEL);
 
-	TextureRegistry[textureNameHash] = FOwnedResource(result);
+	TextureRegistry[textureNameHash] = FGPUResourceRef(result);
 
 	return result;
 }
 
 #include "Print.h"
 
-FOwnedResource  LoadDDSImage(const wchar_t * filename, bool forceSrgb, FGPUContext & CopyContext) {
-	FOwnedResource Loaded = LoadDDSImageInternal(filename, forceSrgb, CopyContext);
+FGPUResourceRef  LoadDDS(const wchar_t * filename, bool forceSrgb, FGPUContext & CopyContext) {
+	FGPUResourceRef Loaded = LoadDDSImageInternal(filename, forceSrgb, CopyContext);
 
-	if (!Loaded.IsValid()) {
+	if (!Loaded.get()) {
 		PrintFormated(L"Failed to load %s\n", filename);
 	}
 

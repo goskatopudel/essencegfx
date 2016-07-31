@@ -1,6 +1,7 @@
 #pragma once
 #include "Essence.h"
 #include <initializer_list>
+#define _USE_MATH_DEFINES
 #include <math.h>
 
 template <typename T, i32 n>

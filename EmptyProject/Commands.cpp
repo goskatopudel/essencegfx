@@ -118,7 +118,7 @@ SyncPoint CreateSyncPoint() {
 }
 
 bool SyncPoint::IsSet() {
-	return Index == DUMMY_SYNC_POINT || FencesPool[Index].Queue != nullptr;
+	return Index == DUMMY_SYNC_POINT || (FencesPool[Index].Queue != nullptr && FenceGenerations[Index] == Generation);
 }
 
 SyncPoint GetDummySyncPoint() {
@@ -528,7 +528,6 @@ void FGPUContext::CopyDataToSubresource(FGPUResource* Dst, u32 Subresource, void
 	u64 bytesTotal;
 	GetPrimaryDevice()->D12Device->GetCopyableFootprints(&Dst->FatData->Desc, Subresource, 1, 0, &Footprint, &numRows, &rowPitch, &bytesTotal);
 	auto uploadBuffer = GetUploadAllocator()->CreateBuffer(bytesTotal, 0);
-	u32 reeef = uploadBuffer->GetRefCount();
 	D3D12_MEMCPY_DEST dest = { (u8*)uploadBuffer->FatData->CpuPtr + Footprint.Offset, Footprint.Footprint.RowPitch, Footprint.Footprint.RowPitch * numRows };
 	MemcpySubresource(&dest, &SubresourceData, rowPitch, numRows, Footprint.Footprint.Depth);
 
@@ -543,7 +542,7 @@ void FGPUContext::CopyDataToSubresource(FGPUResource* Dst, u32 Subresource, void
 	DstLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 
 	RawCommandList()->CopyTextureRegion(&DstLocation, 0, 0, 0, &SrcLocation, nullptr);
-	uploadBuffer.Release(GetCompletionSyncPoint());
+	uploadBuffer->FenceDeletion(GetCompletionSyncPoint());
 }
 
 void FGPUContext::CopyToBuffer(FGPUResource * Dst, void const* Src, u64 Size) {
@@ -559,7 +558,7 @@ void FGPUContext::CopyToBuffer(FGPUResource * Dst, void const* Src, u64 Size) {
 
 	RawCommandList()->CopyBufferRegion(Dst->D12Resource.get(), 0, uploadBuffer->D12Resource.get(), 0, Size);
 
-	uploadBuffer.Release(GetCompletionSyncPoint());
+	uploadBuffer->FenceDeletion(GetCompletionSyncPoint());
 }
 
 ID3D12GraphicsCommandList* FGPUContext::RawCommandList() const {
@@ -1035,7 +1034,9 @@ void ProcessResourceBarriers(
 
 				LastSubresourceNode.clear();
 				LastComplementaryNode = -1;
-				PropagateRead(LastAllSubresNode, Request.Access);
+				if(IsReadAccess(Request.Access)) {
+					PropagateRead(LastAllSubresNode, Request.Access);
+				}
 			}
 		}
 		// Request.Subresource != ALL_SUBRESOURCES
@@ -1106,6 +1107,9 @@ void FResourceStateRegistry::SetCurrentState(FGPUResource* Resource, u32 Subreso
 }
 
 void	FCommandsStream::SetAccess(FGPUResource * Resource, u32 Subresource, EAccessType Access) {
+	if (!Resource->FatData->AutomaticBarriers) {
+		return;
+	}
 	check(Resource->FatData->AutomaticBarriers);
 
 	FResourceAccess ResourceAccess;

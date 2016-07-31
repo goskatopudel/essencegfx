@@ -165,7 +165,7 @@ void InitDevices(u32 adapterIndex, bool debugMode) {
 		D12DebugLayer->EnableDebugLayer();
 	}
 
-	DevicesList.emplace_back(new D3D12Device);
+	DevicesList.emplace_back(eastl::make_shared<D3D12Device>());
 	DevicesList.back()->InitFromAdapterIndex(adapterIndex, D3D_FEATURE_LEVEL_11_0);
 
 	/*DevicesList.emplace_back(new D3D12Device);
@@ -277,7 +277,7 @@ eastl::unique_ptr<WinSwapChain> GWinSwapChain;
 
 WinSwapChain* GetSwapChain() {
 	if (!GWinSwapChain.get()) {
-		GWinSwapChain.reset(new WinSwapChain());
+		GWinSwapChain = eastl::make_unique<WinSwapChain>();
 	}
 	return GWinSwapChain.get();
 }

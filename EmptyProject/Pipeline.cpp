@@ -931,7 +931,7 @@ public:
 	eastl::hash_map<u64, BindingMetadata>			Samplers;
 	eastl::hash_map<u64, ConstantMetadata>			Constants;
 
-	void GatherShaderBindings(FShader const* shader, D3D12_SHADER_VISIBILITY visibility);
+	bool GatherShaderBindings(FShader const* shader, D3D12_SHADER_VISIBILITY visibility);
 };
 
 enum class BindingResourceType {
@@ -1064,7 +1064,8 @@ FRootSignature*		GetRootSignature(FRootLayout const* layout) {
 	return layout->RootSignature;
 }
 
-void FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_VISIBILITY visibility) {
+bool FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_VISIBILITY visibility) {
+	bool TouchesRoot = false;
 
 	ID3D12ShaderReflection* shaderReflection;
 	VERIFYDX12(D3DReflect(GetBytecode(shader).pShaderBytecode, GetBytecode(shader).BytecodeLength, IID_PPV_ARGS(&shaderReflection)));
@@ -1091,7 +1092,8 @@ void FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_V
 		range.visibility = visibility;
 		range.len = 1;
 
-		auto UpdateEntry = [](decltype(SRVs) & Map, const char* name, u64 nameHash, SlotsRange& range) {
+		auto UpdateEntry = [&TouchesRoot](decltype(SRVs) & Map, const char* name, u64 nameHash, SlotsRange& range) {
+			TouchesRoot = true;
 			auto iter = Map.find(nameHash);
 			if (iter == Map.end()) {
 				iter = Map.insert(nameHash).first;
@@ -1112,6 +1114,7 @@ void FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_V
 		switch (bindDesc.Type) {
 		case D3D_SIT_CBUFFER:
 			{
+				TouchesRoot = true;
 				range.type = RootSlotType::CBV;
 				auto iter = CBVs.find(nameHash);
 				if (iter == CBVs.end()) {
@@ -1156,6 +1159,7 @@ void FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_V
 	}
 
 	for (u32 i = 0u; i < constantBuffersNum;++i) {
+		check(TouchesRoot);
 		auto cbReflection = shaderReflection->GetConstantBufferByIndex(i);
 		D3D12_SHADER_BUFFER_DESC bufferDesc;
 		VERIFYDX12(cbReflection->GetDesc(&bufferDesc));
@@ -1202,6 +1206,8 @@ void FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_V
 			}
 		}
 	}
+
+	return TouchesRoot;
 }
 
 bool CanRunWithRootSignature(FShaderBindings* bindings, FRootSignature* signature, EShaderStageFlag usedStages) {
@@ -1292,24 +1298,22 @@ FRootLayout* GetRootLayout(FShader const* VS, FShader const* HS, FShader const* 
 
 	InitBasicRootSignatures();
 
-	EShaderStageFlag Stages = STAGE_VERTEX;
+	EShaderStageFlag Stages = STAGE_NONE;STAGE_VERTEX;
 
 	FShaderBindings bindings;
-	bindings.GatherShaderBindings(VS, D3D12_SHADER_VISIBILITY_VERTEX);
-	if (HS) {
-		bindings.GatherShaderBindings(HS, D3D12_SHADER_VISIBILITY_HULL);
+	if (VS && bindings.GatherShaderBindings(VS, D3D12_SHADER_VISIBILITY_VERTEX)) {
+		Stages |= STAGE_VERTEX;
+	}
+	if (HS && bindings.GatherShaderBindings(HS, D3D12_SHADER_VISIBILITY_HULL)) {
 		Stages |= STAGE_HULL;
 	}
-	if (DS) {
-		bindings.GatherShaderBindings(DS, D3D12_SHADER_VISIBILITY_DOMAIN);
+	if (DS && bindings.GatherShaderBindings(DS, D3D12_SHADER_VISIBILITY_DOMAIN)) {
 		Stages |= STAGE_DOMAIN;
 	}
-	if (GS) {
-		bindings.GatherShaderBindings(GS, D3D12_SHADER_VISIBILITY_GEOMETRY);
+	if (GS && bindings.GatherShaderBindings(GS, D3D12_SHADER_VISIBILITY_GEOMETRY)) {
 		Stages |= STAGE_GEOMETRY;
 	}
-	if (PS) {
-		bindings.GatherShaderBindings(PS, D3D12_SHADER_VISIBILITY_PIXEL);
+	if (PS && bindings.GatherShaderBindings(PS, D3D12_SHADER_VISIBILITY_PIXEL)) {
 		Stages |= STAGE_PIXEL;
 	}
 

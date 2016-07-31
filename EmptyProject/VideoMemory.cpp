@@ -26,7 +26,6 @@ FResourceAllocator::FResourceAllocator(u32 MaxResources) :
 	NextFreeSlot(0)
 {
 	ResourcesPool.resize(MaxResources);
-	AllocationInfo.resize(MaxResources);
 	NextFreeSlotList.reserve(MaxResources);
 	for (u32 index = 0; index < MaxResources; ++index) {
 		NextFreeSlotList.push_back(index + 1);
@@ -39,38 +38,34 @@ u32		FResourceAllocator::AllocateSlot() {
 	u32 Slot = NextFreeSlot;
 	NextFreeSlot = NextFreeSlotList[NextFreeSlot];
 	NextFreeSlotList[Slot] = FREELIST_GUARD;
-	check(AllocationInfo[Slot].RefNum == 0);
 	return Slot;
 }
 void	FResourceAllocator::FreeSlot(u32 Slot) {
-	check(AllocationInfo[Slot].RefNum == 0);
 	check(NextFreeSlotList[Slot] == FREELIST_GUARD);
-	// in-place recreate
+	// in-place recreate (it's owned by a vector)
 	ResourcesPool[Slot].~FGPUResource();
 	new (&ResourcesPool[Slot]) FGPUResource();
 	NextFreeSlotList[Slot] = NextFreeSlot;
 	NextFreeSlot = Slot;
 }
 
-FOwnedResource	FResourceAllocator::Allocate() {
-	FGPUResource* slim = ResourcesPool.data() + AllocateSlot();
-	FGPUResourceFat* fat = new FGPUResourceFat();
+FGPUResourceRef	FResourceAllocator::Allocate() {
+	FGPUResource* Slim = ResourcesPool.data() + AllocateSlot();
 
-	slim->FatData.reset(fat);
-	fat->Allocator = this;
+	Slim->FatData = eastl::make_unique<FGPUResourceFat>();
+	*Slim->FatData.get() = {};
+	Slim->FatData->Allocator = this;
 
-	AddRef(slim);
-
-	return FOwnedResource(slim);
+	return FGPUResourceRef(Slim);
 }
 
-u32		FResourceAllocator::GetSlotIndex(FGPUResource* Resource) const {
+u32	 FResourceAllocator::GetSlotIndex(FGPUResource* Resource) const {
 	check(0 <= Resource - ResourcesPool.data());
 	check(Resource - ResourcesPool.data() < MAX_RESOURCES);
 	return (u32)(Resource - ResourcesPool.data());
 }
 
-void FResourceAllocator::Destruct(FGPUResource* Resource) {
+void FResourceAllocator::Free(FGPUResource* Resource) {
 	FreeSlot(GetSlotIndex(Resource));
 }
 
@@ -78,61 +73,45 @@ void	FResourceAllocator::Tick() {
 	while (!DeferredDeletionSyncBlocks.empty() && DeferredDeletionSyncBlocks.front().first.IsCompleted()) {
 		u32 num = DeferredDeletionSyncBlocks.front().second;
 		for (u32 index = 0; index < num; ++index) {
-			Destruct(DeferredDeletionQueue.front());
+			Free(DeferredDeletionQueue.front());
 			DeferredDeletionQueue.pop();
 		}
 		DeferredDeletionSyncBlocks.pop();
 	}
 }
 
-void	FResourceAllocator::AddRef(FGPUResource* Resource) {
-	AllocationInfo[GetSlotIndex(Resource)].RefNum++;
-}
-
-void	FResourceAllocator::Release(FGPUResource* Resource, SyncPoint sync) {
-	check(AllocationInfo[GetSlotIndex(Resource)].RefNum);
-	AllocationInfo[GetSlotIndex(Resource)].RefNum--;
-	if (GetRefCount(Resource) == 0) {
-		if (sync.IsCompleted()) {
-			Destruct(Resource);
-		}
-		else if (DeferredDeletionSyncBlocks.size() && DeferredDeletionSyncBlocks.back().first == sync) {
-			DeferredDeletionSyncBlocks.back().second++;
-			DeferredDeletionQueue.push(Resource);
-		}
-		else {
-			DeferredDeletionSyncBlocks.push(SyncPair(sync, 1));
-			DeferredDeletionQueue.push(Resource);
-		}
+void	FResourceAllocator::Free(FGPUResource* Resource, SyncPoint sync) {
+	if (sync.IsCompleted()) {
+		Free(Resource);
 	}
-}
-
-u32		FResourceAllocator::GetRefCount(FGPUResource* Resource) const {
-	return AllocationInfo[GetSlotIndex(Resource)].RefNum;
+	else if (DeferredDeletionSyncBlocks.size() && DeferredDeletionSyncBlocks.back().first == sync) {
+		DeferredDeletionSyncBlocks.back().second++;
+		DeferredDeletionQueue.push(Resource);
+	}
+	else {
+		DeferredDeletionSyncBlocks.push(SyncPair(sync, 1));
+		DeferredDeletionQueue.push(Resource);
+	}
 }
 
 FResourceAllocator::~FResourceAllocator() {
 	Tick();
+	check(DeferredDeletionSyncBlocks.size() == 0);
 }
 
-void FGPUResource::Release() {
-	Release(GetCurrentFrameSyncPoint());
-}
+u32 GIgnoreRelease = 0;
 
-u32		GIgnoreRelease = false;
+void eastl::default_delete<FGPUResource>::operator()(FGPUResource* GPUResource) const EA_NOEXCEPT {
+	if (!GIgnoreRelease && GPUResource->FatData->Allocator) {
+		if (!GPUResource->FatData->DeletionSyncPoint.IsSet()) {
+			GPUResource->FenceDeletion(GetCurrentFrameSyncPoint());
+		}
 
-void FGPUResource::Release(SyncPoint sync) {
-	if (!GIgnoreRelease) {
-		FatData->Allocator->Release(this, sync);
+		GPUResource->FatData->Allocator->Free(GPUResource, GPUResource->FatData->DeletionSyncPoint);
 	}
-}
-
-void FGPUResource::AddRef() {
-	FatData->Allocator->AddRef(this);
-}
-
-u32	 FGPUResource::GetRefCount() {
-	return FatData->Allocator->GetRefCount(this);
+	else if(!GIgnoreRelease && !GPUResource->FatData->Allocator) {
+		GPUResource->~FGPUResource();
+	}
 }
 
 FLinearAllocator::~FLinearAllocator() {
@@ -154,6 +133,7 @@ void	FLinearAllocator::AllocateNewBlock() {
 	}
 
 	CurrentBlock = std::move(HelperAllocator->CreateBuffer(BlockSize, 0));
+	CurrentBlock->SetDebugName(L"FLinearAllocator Block");
 }
 
 FFastUploadAllocation		FLinearAllocator::Allocate(u64 size, u64 alignment) {
@@ -222,8 +202,8 @@ FUploadBufferAllocator *	GetUploadAllocator() {
 	return UploadAllocator.get();
 }
 
-FOwnedResource FUploadBufferAllocator::CreateBuffer(u64 size, u64 alignment) {
-	FOwnedResource resource = Allocate();
+FGPUResourceRef FUploadBufferAllocator::CreateBuffer(u64 size, u64 alignment) {
+	FGPUResourceRef resource = Allocate();
 	resource->FatData->Type = ResourceType::BUFFER;
 	resource->FatData->IsCpuWriteable = 1;
 
@@ -240,7 +220,6 @@ FOwnedResource FUploadBufferAllocator::CreateBuffer(u64 size, u64 alignment) {
 		IID_PPV_ARGS(resource->D12Resource.get_init())));
 
 	VERIFYDX12(resource->D12Resource->Map(0, nullptr, &resource->FatData->CpuPtr));
-	u32 reeef = resource->GetRefCount();
 	return resource;
 }
 
@@ -252,6 +231,7 @@ DXGI_FORMAT GetDepthStencilFormat(DXGI_FORMAT format) {
 	case DXGI_FORMAT_X24_TYPELESS_G8_UINT:
 		return DXGI_FORMAT_D24_UNORM_S8_UINT;
 	case DXGI_FORMAT_R32_TYPELESS:
+	case DXGI_FORMAT_R32_FLOAT:
 	case DXGI_FORMAT_D32_FLOAT:
 		return DXGI_FORMAT_D32_FLOAT;
 	default:
@@ -268,6 +248,7 @@ DXGI_FORMAT GetDepthReadFormat(DXGI_FORMAT format) {
 		return DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
 	case DXGI_FORMAT_R32_TYPELESS:
 	case DXGI_FORMAT_R32_FLOAT:
+	case DXGI_FORMAT_D32_FLOAT:
 		return DXGI_FORMAT_R32_FLOAT;
 	default:
 		return DXGI_FORMAT_UNKNOWN;
@@ -360,7 +341,7 @@ void InitNullDescriptors() {
 
 FTextureAllocator* GetTexturesAllocator() {
 	if (!TexturesAllocator.get()) {
-		TexturesAllocator.reset(new FTextureAllocator(128 * 1024));
+		TexturesAllocator = eastl::make_unique<FTextureAllocator>(128 * 1024);
 	}
 	return TexturesAllocator.get();
 }
@@ -478,7 +459,7 @@ void AllocateResourceViews(FGPUResource* resource, DXGI_FORMAT format, FResource
 			const u32 planesNum = resource->FatData->PlanesNum;
 
 			D3D12_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
-			DSVDesc.Format = format;
+			DSVDesc.Format = GetDepthStencilFormat(format);
 			DSVDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 			
 			for (u32 v = 0; v < viewsNum / 2 / planesNum; ++v) {
@@ -488,10 +469,12 @@ void AllocateResourceViews(FGPUResource* resource, DXGI_FORMAT format, FResource
 				GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v * 4 + 0));
 				DSVDesc.Flags = D3D12_DSV_FLAG_READ_ONLY_DEPTH;
 				GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v * 4 + 1));
-				DSVDesc.Flags = D3D12_DSV_FLAG_READ_ONLY_STENCIL;
-				GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v * 4 + 2));
-				DSVDesc.Flags = D3D12_DSV_FLAG_READ_ONLY_DEPTH | D3D12_DSV_FLAG_READ_ONLY_STENCIL;
-				GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v * 4 + 3));
+				if(planesNum == 2) {
+					DSVDesc.Flags = D3D12_DSV_FLAG_READ_ONLY_STENCIL;
+					GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v * 4 + 2));
+					DSVDesc.Flags = D3D12_DSV_FLAG_READ_ONLY_DEPTH | D3D12_DSV_FLAG_READ_ONLY_STENCIL;
+					GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v * 4 + 3));
+				}
 			}
 		}
 
@@ -537,8 +520,8 @@ void AllocateResourceViews(FGPUResource* resource) {
 	AllocateResourceViews(resource, resource->FatData->ViewFormat, resource->FatData->Views.MainSet);
 }
 
-FOwnedResource FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depthOrArraySize, DXGI_FORMAT format, TextureFlags flags, wchar_t const* debugName, DXGI_FORMAT clearFormat, float4 clearColor, float clearDepth, u8 clearStencil) {
-	FOwnedResource result = Allocate();
+FGPUResourceRef FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depthOrArraySize, DXGI_FORMAT format, TextureFlags flags, wchar_t const* debugName, DXGI_FORMAT clearFormat, float4 clearColor, float clearDepth, u8 clearStencil) {
+	FGPUResourceRef result = Allocate();
 
 	check(!((flags & (ALLOW_RENDER_TARGET | ALLOW_UNORDERED_ACCESS)) && (flags & ALLOW_DEPTH_STENCIL)));
 	check(!((flags & TEXTURE_3D) && (flags & TEXTURE_CUBEMAP)));
@@ -569,6 +552,10 @@ FOwnedResource FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depth
 		clearFormat = format;
 	}
 
+	if ((flags & ALLOW_DEPTH_STENCIL) && clearFormat == DXGI_FORMAT_UNKNOWN) {
+		clearFormat = GetDepthStencilFormat(format);
+	}
+
 	D3D12_CLEAR_VALUE clearValue;
 	if (clearFormat != DXGI_FORMAT_UNKNOWN) {
 		clearValue.Format = clearFormat;
@@ -579,6 +566,7 @@ FOwnedResource FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depth
 			clearValue.Format = clearFormat;
 			clearValue.DepthStencil.Depth = clearDepth;
 			clearValue.DepthStencil.Stencil = clearStencil;
+			result->FatData->ViewFormat = GetDepthReadFormat(clearFormat);
 		}
 		else if (flags & ALLOW_RENDER_TARGET) {
 			result->FatData->IsRenderTarget = 1;
@@ -587,8 +575,8 @@ FOwnedResource FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depth
 			clearValue.Color[1] = clearColor.y;
 			clearValue.Color[2] = clearColor.z;
 			clearValue.Color[3] = clearColor.w;
+			result->FatData->ViewFormat = clearFormat;
 		}
-		result->FatData->ViewFormat = clearFormat;
 	}
 	else {
 		result->FatData->ViewFormat = format;
@@ -633,17 +621,17 @@ FOwnedResource FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depth
 		if (result->FatData->IsRenderTarget) {
 			initialState = D3D12_RESOURCE_STATE_RENDER_TARGET;
 			result->FatData->AutomaticBarriers = 1;
-			GetResourceStateRegistry()->SetCurrentState(result, ALL_SUBRESOURCES, EAccessType::WRITE_RT);
+			GetResourceStateRegistry()->SetCurrentState(result.get(), ALL_SUBRESOURCES, EAccessType::WRITE_RT);
 		}
 		else if (result->FatData->IsDepthStencil) {
 			initialState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 			result->FatData->AutomaticBarriers = 1;
-			GetResourceStateRegistry()->SetCurrentState(result, ALL_SUBRESOURCES, EAccessType::WRITE_DEPTH);
+			GetResourceStateRegistry()->SetCurrentState(result.get(), ALL_SUBRESOURCES, EAccessType::WRITE_DEPTH);
 		}
 		else if (result->FatData->IsUnorderedAccess) {
 			initialState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 			result->FatData->AutomaticBarriers = 1;
-			GetResourceStateRegistry()->SetCurrentState(result, ALL_SUBRESOURCES, EAccessType::WRITE_UAV);
+			GetResourceStateRegistry()->SetCurrentState(result.get(), ALL_SUBRESOURCES, EAccessType::WRITE_UAV);
 		}
 		else {
 			initialState = D3D12_RESOURCE_STATE_COPY_DEST;
@@ -669,7 +657,7 @@ FOwnedResource FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depth
 		SetDebugName(result->D12Resource.get(), debugName);
 	}
 
-	AllocateResourceViews(result, result->FatData->ViewFormat, result->FatData->Views.MainSet);
+	AllocateResourceViews(result.get(), result->FatData->ViewFormat, result->FatData->Views.MainSet);
 	if (result->IsReadOnly()) {
 		result->ReadOnlySRV = result->FatData->Views.MainSet.MainSRV.GetCPUHandle(0);
 	}
@@ -677,8 +665,8 @@ FOwnedResource FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depth
 	return result;
 }
 
-FOwnedResource FBuffersAllocator::CreateSimpleBuffer(u64 size, u64 alignment, wchar_t const * debugName) {
-	FOwnedResource result = Allocate();
+FGPUResourceRef FBuffersAllocator::CreateSimpleBuffer(u64 size, u64 alignment, wchar_t const * debugName) {
+	FGPUResourceRef result = Allocate();
 
 	D3D12_RESOURCE_DESC desc = {};
 	desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -721,8 +709,8 @@ bool Any(EBufferFlags E) {
 	return (u32)E != 0;
 }
 
-FOwnedResource	FBuffersAllocator::CreateBuffer(u64 size, u64 alignment, u32 stride, EBufferFlags flags, wchar_t const * debugName) {
-	FOwnedResource result = Allocate();
+FGPUResourceRef	FBuffersAllocator::CreateBuffer(u64 size, u64 alignment, u32 stride, EBufferFlags flags, wchar_t const * debugName) {
+	FGPUResourceRef result = Allocate();
 
 	D3D12_RESOURCE_DESC desc = {};
 	desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -773,7 +761,7 @@ eastl::unique_ptr<FBuffersAllocator>	BuffersAllocator;
 
 FBuffersAllocator *			GetBuffersAllocator() {
 	if (!BuffersAllocator.get()) {
-		BuffersAllocator.reset(new FBuffersAllocator(64 * 1024));
+		BuffersAllocator = eastl::make_unique<FBuffersAllocator>(64 * 1024);
 	}
 	return BuffersAllocator.get();
 }

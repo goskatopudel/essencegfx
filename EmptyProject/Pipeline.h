@@ -280,16 +280,16 @@ D3D12_PRIMITIVE_TOPOLOGY_TYPE GetPrimitiveTopologyType(D3D_PRIMITIVE_TOPOLOGY to
 
 class FPipelineFactory {
 public:
-	eastl::hash_map<u64, FPipelineState*>		Cached;
+	eastl::hash_map<u64, FPipelineState*> Cached;
 
-	EPipelineType							PipelineType;
-	FShaderState *								ShaderState;
-	FInputLayout *								InputLayout;
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC			PipelineDesc;
-	D3D12_COMPUTE_PIPELINE_STATE_DESC			ComputePipelineDesc;
+	EPipelineType PipelineType;
+	FShaderState * ShaderState;
+	FInputLayout * InputLayout;
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineDesc;
+	D3D12_COMPUTE_PIPELINE_STATE_DESC ComputePipelineDesc;
 
-	u32											Dirty : 1;
-	FPipelineState *							CurrentPipelineState;
+	u32 Dirty : 1;
+	FPipelineState * CurrentPipelineState;
 
 	FPipelineFactory();
 

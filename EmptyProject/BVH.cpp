@@ -438,14 +438,14 @@ public:
 
 /////////////////////////////////////////
 
-#include "ModelHelpers.h"
+//#include "ModelHelpers.h"
 
 void BuildBVH(FEditorMesh * Mesh, FLinearBVH * BVH) {
-	FBVHBuilder Builder;
+	/*FBVHBuilder Builder;
 	Builder.Build(
 		Mesh->Positions.data(), (u32)Mesh->Positions.size(), 
 		Mesh->Indices.data(), (u32)Mesh->Indices.size(),
-		Mesh->GetIndicesNum() / 3, *BVH);
+		Mesh->GetIndicesNum() / 3, *BVH);*/
 }
 
 

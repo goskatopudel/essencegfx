@@ -3,12 +3,15 @@ cbuffer Constants : register(b0)
     matrix 	ViewProj;
     matrix 	World;
     matrix 	InvView;
-    uint 	CustomUint0;
+    matrix 	WorldToShadow;
+    float3  L;
 }
 
 
-Texture2D 		UVTexture	: register(t0);
-SamplerState 	TextureSampler : register(s0);
+Texture2D UVTexture	: register(t0);
+Texture2D<float> ShadowmapTexture	: register(t1);
+SamplerState TextureSampler : register(s0);
+SamplerState PointSampler : register(s0, space4);
 
 
 struct VIn 
@@ -56,23 +59,15 @@ void PSDebug(VOut interpolated, out float4 OutColor : SV_TARGET0)
 	float3 V = normalize(InvView[3].xyz - interpolated.wposition);
 	float NoV = saturate(dot(N, V));
 
-	if(CustomUint0 == 0) {
-		OutColor = NoV;
-	}
-	else if(CustomUint0 == 1) {
-		float3 N = normalize(interpolated.normal);
-		OutColor = float4(N * 0.5f + 0.5f, 0);
-	}
-	else if(CustomUint0 == 2 || CustomUint0 == 3 ) {
-		float4 sample = UVTexture.Sample(TextureSampler, CustomUint0 == 2 ? interpolated.texcoord0 : interpolated.texcoord1 );
-		OutColor = sample;
-	}
-	else if(CustomUint0 == 4) {
-		float4 sample = UVTexture.Sample(TextureSampler, interpolated.texcoord1 );
-		OutColor = sample;
-	}
-	else {
-		OutColor = float4(1, 0.5f, 0.5f, 1.f);
-	}
+	float4 sample = UVTexture.Sample(TextureSampler, interpolated.texcoord0 );
+
+	float4 shadowmapUV = mul(float4(interpolated.wposition, 1), WorldToShadow);
+	shadowmapUV /= shadowmapUV.w;
+	shadowmapUV.xy = shadowmapUV.xy * float2(0.5f, -0.5f) + 0.5f;
+	float shadowmapSample = ShadowmapTexture.Sample(PointSampler, shadowmapUV.xy);
+
+	float lit = shadowmapSample > shadowmapUV.z - 0.001f;
+
+	OutColor = saturate(dot(N, L)) * lit;
 }
 

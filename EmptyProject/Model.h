@@ -1,96 +1,61 @@
 #pragma once
+
 #include "Essence.h"
-
-#include <EASTL/string.h>
-#include <EASTL/vector.h>
-#include <EASTL/array.h>
+#include <EASTL\shared_ptr.h>
+#include <EASTL\vector.h>
 #include "MathVector.h"
-
-#include "Commands.h"
-#include <EASTL/unique_ptr.h>
 #include "Resource.h"
 
-class FGPUResource;
+template<typename T>
+struct FAssetRef : public eastl::shared_ptr<T> {
+	using shared_ptr<T>::shared_ptr;
+	using shared_ptr<T>::operator=;
 
-class FModel;
-class FGPUContext;
-class FMaterial;
-class FModelFat;
-class FMaterialFat;
-
-struct FVertexPositionUV {
-	float3 Position;
-	float2 Texcoord0;
+	operator T *() const { return get(); };
 };
 
-struct FVertexNormal {
+struct FMeshRichVertex {
+	float3 Position;
 	float3 Normal;
+	float3 Tangent;
+	float3 Bitangent;
+	float2 Texcoord0;
+	float2 Texcoord1;
+	Color4b Color;
 };
 
 struct FMesh {
-	u32		IndexCount;
-	u32		StartIndex;
-	i32		BaseVertex;
-};
-
-class FMeshFat {
-public:
-	eastl::wstring	Name;
-	FMaterial*		Material;
-};
-
-struct FAABB {
-	float3	VecMin;
-	float3	VecMax;
-};
-
-class FModel {
-public:
-	eastl::vector<FMesh>					Meshes;
-	u32										IndexStride : 4;
-	eastl::unique_ptr<FModelFat>			FatData;
-
-	FModel(const wchar_t * filename);
-	void AddMesh(eastl::wstring name, FMaterial* material, u32 indexCount, u32 startIndex, i32 baseVertex);
+	u32 StartIndex;
+	u32 IndicesNum;
+	i32 BaseVertex;
 };
 
 class FModelFat {
 public:
-	eastl::wstring							Name;
-	u32										IndicesNum = 0;
-	u32										VerticesNum = 0;
-	FAABB									BoundingBox;
-	eastl::vector<FMeshFat>					FatMeshes;
+	eastl::wstring Name;
+
+	eastl::vector<FMeshRichVertex> Vertices;
+	eastl::vector<u32> Indices;
+
+	FGPUResourceRef VertexBuffer;
+	FGPUResourceRef IndexBuffer;
 };
 
-class FMaterial {
+class FModel {
 public:
-	eastl::unique_ptr<FMaterialFat>			FatData;
+	eastl::vector<FMesh> Meshes;
+
+	FBufferLocation VertexBuffer;
+	FBufferLocation IndexBuffer;
+
+	eastl::unique_ptr<FModelFat> Fat;
+
+	u32 GetVerticesNum() const;
+	u32 GetIndicesNum() const;
+	bool ReadyForDrawing() const;
+	void CopyDataToGPUBuffers(FGPUContext & Context);
 };
 
-class FMaterialFat {
-public:
-	eastl::wstring	Name;
-	eastl::wstring	BaseColorTextureFilename;
-	eastl::wstring	MetallicTextureFilename;
-	eastl::wstring	RoughnessTextureFilename;
-	eastl::wstring	NormalMapTextureFilename;
-	eastl::wstring	AlphaMaskTextureFilename;
-	FOwnedResource	BaseColorTexture;
-	FOwnedResource	MetallicTexture;
-	FOwnedResource	RoughnessTexture;
-	FOwnedResource	NormalMapTexture;
-	FOwnedResource	AlphaMaskTexture;
-	float3			BaseColor;
-	float			Roughness;
-	float			Metallic;
-};
+typedef FAssetRef<FModel> FModelRef;
 
-FModel* LoadModelFromOBJ(const wchar_t* filename);
-void	ConvertObjToBinary(const wchar_t* inFilename, const wchar_t* outFilename);
-FModel*	LoadModelFromBinary(const wchar_t* filename);
-void	LoadModelTextures(FGPUContext & Context, FModel* Model);
-void	UpdateGeometryBuffers(FGPUContext & Context);
-
-FBufferLocation GetIB();
-FBufferLocation GetVB(u32 stream);
+FModelRef GetModel(const wchar_t * Filename);

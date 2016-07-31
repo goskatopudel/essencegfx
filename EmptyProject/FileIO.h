@@ -10,6 +10,8 @@ struct FileReadResult {
 	eastl::unique_ptr<u8[]>	OwnedData;
 
 	FileReadResult() = default;
+
+	inline operator bool () const { return Bytesize > 0; };
 };
 
 FileReadResult ReadEntireFile(const char * filename);

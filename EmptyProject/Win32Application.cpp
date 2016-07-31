@@ -20,12 +20,12 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
 	{
 	case WM_SIZE:
 		{
-			u32 WndWidth = (UINT)(UINT64)lParam & 0xFFFF;
-			u32 WndHeight = (UINT)(UINT64)lParam >> 16;
+			u32 WindowWidth = (UINT)(UINT64)lParam & 0xFFFF;
+			u32 WindowHeight = (UINT)(UINT64)lParam >> 16;
 
-			if (WndWidth != GApplication::WndWidth || WndHeight != GApplication::WndHeight) {
-				GApplication::WndWidth = WndWidth;
-				GApplication::WndHeight = WndHeight;
+			if (WindowWidth != GApplication::WindowWidth || WindowHeight != GApplication::WindowHeight) {
+				GApplication::WindowWidth = WindowWidth;
+				GApplication::WindowHeight = WindowHeight;
 				GApplication::WindowSizeChanged = 1;
 			}
 			return 0;
@@ -51,7 +51,7 @@ int		Run(FApplication* app, HINSTANCE hInstance, int nCmdShow) {
 	windowClass.lpszClassName = L"EssenceClass";
 	RegisterClassEx(&windowClass);
 
-	RECT windowRect = { 0, 0, static_cast<LONG>(GApplication::WndWidth), static_cast<LONG>(GApplication::WndHeight) };
+	RECT windowRect = { 0, 0, static_cast<LONG>(GApplication::WindowWidth), static_cast<LONG>(GApplication::WindowHeight) };
 	AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
 
 	// Create the window and store a handle to it.

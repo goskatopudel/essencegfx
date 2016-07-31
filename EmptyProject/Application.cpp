@@ -15,14 +15,14 @@
 
 namespace GApplication {
 bool			WindowSizeChanged;
-u32				WndWidth;
-u32				WndHeight;
+u32				WindowWidth;
+u32				WindowHeight;
 const wchar_t*	WndTitle;
 i64				Time;
 i64				CpuFrequency;
 }
 
-FOwnedResource UITexture;
+FGPUResourceRef UITexture;
 
 bool ProcessWinMessage(Win32::Message const& Message) {
 	ImGuiIO& io = ImGui::GetIO();
@@ -131,8 +131,8 @@ void RenderImDrawLists(ImDrawData *draw_data) {
 		idxBytesize += cmd_list->IdxBuffer.size() * sizeof(ImDrawIdx);
 	}
 
-	FOwnedResource VertexBuffer = GetUploadAllocator()->CreateBuffer(vtxBytesize, 8);
-	FOwnedResource IndexBuffer = GetUploadAllocator()->CreateBuffer(idxBytesize, 8);
+	FGPUResourceRef VertexBuffer = GetUploadAllocator()->CreateBuffer(vtxBytesize, 8);
+	FGPUResourceRef IndexBuffer = GetUploadAllocator()->CreateBuffer(idxBytesize, 8);
 	auto vtxDst = (ImDrawVert*)VertexBuffer->GetMappedPtr();
 	auto idxDst = (ImDrawIdx*)IndexBuffer->GetMappedPtr();
 
@@ -160,7 +160,7 @@ void RenderImDrawLists(ImDrawData *draw_data) {
 
 	auto matrix = XMMatrixTranspose(
 		XMMatrixOrthographicOffCenterLH(
-			0, (float)GApplication::WndWidth, (float)GApplication::WndHeight, 0, 0, 1));
+			0, (float)GApplication::WindowWidth, (float)GApplication::WindowHeight, 0, 0, 1));
 
 	Stream.SetAccess(GetBackbuffer(), 0, EAccessType::WRITE_RT);
 
@@ -271,7 +271,7 @@ void FApplication::CoreShutdown() {
 bool FApplication::CoreUpdate() {
 	if (GApplication::WindowSizeChanged) {
 		GetDirectQueue()->WaitForCompletion();
-		GetSwapChain()->Resize(GApplication::WndWidth, GApplication::WndHeight);
+		GetSwapChain()->Resize(GApplication::WindowWidth, GApplication::WindowHeight);
 		GApplication::WindowSizeChanged = 0;
 
 		AllocateScreenResources();

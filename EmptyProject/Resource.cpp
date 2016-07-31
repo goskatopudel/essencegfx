@@ -35,6 +35,17 @@ FGPUResource::~FGPUResource() {
 	}
 }
 
+void FGPUResource::SetDebugName(const wchar_t* Name) {
+	::SetDebugName(D12Resource.get(), Name);
+	FatData->Name = Name;
+}
+
+void FGPUResource::FenceDeletion(SyncPoint Sync) {
+	// support only one for now
+	check(!FatData->DeletionSyncPoint.IsSet());
+	FatData->DeletionSyncPoint = Sync;
+}
+
 D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetRTV() const {
 	return FatData->Views.MainSet.SubresourcesRTVs.GetCPUHandle(0);
 }
@@ -65,6 +76,10 @@ D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetSRV() const {
 
 D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetUAV() const {
 	return FatData->Views.MainSet.SubresourcesUAVs.GetCPUHandle(0);
+}
+
+Vec3u FGPUResource::GetDimensions() const {
+	return Vec3u((u32)FatData->Desc.Width, FatData->Desc.Height, FatData->Desc.DepthOrArraySize);
 }
 
 D3D12_VIEWPORT FGPUResource::GetSizeAsViewport() const {

@@ -4,7 +4,7 @@ struct VOut
 	float2 texcoord : TEXCOORD;
 };
 
-VOut VShader(uint vertexId : SV_VertexID)
+VOut VertexMain(uint vertexId : SV_VertexID)
 {
 	VOut output;
 	output.position.x = (float)(vertexId / 2) * 4 - 1;
@@ -18,15 +18,15 @@ VOut VShader(uint vertexId : SV_VertexID)
 	return output;
 }
 
-Texture2D<float4> 	Image : register(t0);
-SamplerState    	Sampler : register(s0);
+Texture2D<float4> 	SourceTexture : register(t0);
+SamplerState    	Sampler : register(s0, space4);
 
 float4 				WriteColor;
 float 				WriteDepth;
 
-float4 CopyPS(float4 position : SV_POSITION, float2 texcoord : TEXCOORD) : SV_TARGET
+float4 CopyPixelMain(float4 position : SV_POSITION, float2 texcoord : TEXCOORD) : SV_TARGET
 {
-	return Image.Sample(Sampler, texcoord);
+	return SourceTexture.Sample(Sampler, texcoord);
 }
 
 float4 ColorPS(float4 position : SV_POSITION, float2 texcoord : TEXCOORD) : SV_TARGET

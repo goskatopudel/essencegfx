@@ -142,43 +142,41 @@ void FDebugPrimitivesAccumulator::AddBBox(FBBox const& BBox, Color4b Color) {
 	AddLine(D, H, Color);
 }
 
-#include "ModelHelpers.h"
-
-void FDebugPrimitivesAccumulator::AddMeshWireframe(FEditorMesh * Mesh, Color4b Color) {
-	u32 P = Mesh->GetIndicesNum() / 3;
-	for (u32 Index = 0; Index < P; ++Index) {
-		AddLine(
-			Mesh->Positions[Mesh->Indices[Index * 3]], 
-			Mesh->Positions[Mesh->Indices[Index * 3 + 1]],
-			Color);
-		AddLine(
-			Mesh->Positions[Mesh->Indices[Index * 3 + 1]],
-			Mesh->Positions[Mesh->Indices[Index * 3 + 2]],
-			Color);
-		AddLine(
-			Mesh->Positions[Mesh->Indices[Index * 3]],
-			Mesh->Positions[Mesh->Indices[Index * 3 + 2]],
-			Color);
-	}
-}
-
-void FDebugPrimitivesAccumulator::AddMeshPolygons(FEditorMesh * Mesh, Color4b Color) {
-	u32 P = Mesh->GetIndicesNum() / 3;
-	for (u32 Index = 0; Index < P; ++Index) {
-		AddPolygon(
-			Mesh->Positions[Mesh->Indices[Index * 3]],
-			Mesh->Positions[Mesh->Indices[Index * 3 + 1]],
-			Mesh->Positions[Mesh->Indices[Index * 3 + 2]],
-			Color);
-	}
-}
-
-void FDebugPrimitivesAccumulator::AddMeshNormals(FEditorMesh * Mesh, float Scale, Color4b Color) {
-	u32 V = Mesh->GetVerticesNum();
-	for (u32 Index = 0; Index < V; ++Index) {
-		AddLine(Mesh->Positions[Index], Mesh->Positions[Index] + Mesh->Normals[Index] * Scale, Color);
-	}
-}
+//void FDebugPrimitivesAccumulator::AddMeshWireframe(FEditorMesh * Mesh, Color4b Color) {
+//	u32 P = Mesh->GetIndicesNum() / 3;
+//	for (u32 Index = 0; Index < P; ++Index) {
+//		AddLine(
+//			Mesh->Positions[Mesh->Indices[Index * 3]], 
+//			Mesh->Positions[Mesh->Indices[Index * 3 + 1]],
+//			Color);
+//		AddLine(
+//			Mesh->Positions[Mesh->Indices[Index * 3 + 1]],
+//			Mesh->Positions[Mesh->Indices[Index * 3 + 2]],
+//			Color);
+//		AddLine(
+//			Mesh->Positions[Mesh->Indices[Index * 3]],
+//			Mesh->Positions[Mesh->Indices[Index * 3 + 2]],
+//			Color);
+//	}
+//}
+//
+//void FDebugPrimitivesAccumulator::AddMeshPolygons(FEditorMesh * Mesh, Color4b Color) {
+//	u32 P = Mesh->GetIndicesNum() / 3;
+//	for (u32 Index = 0; Index < P; ++Index) {
+//		AddPolygon(
+//			Mesh->Positions[Mesh->Indices[Index * 3]],
+//			Mesh->Positions[Mesh->Indices[Index * 3 + 1]],
+//			Mesh->Positions[Mesh->Indices[Index * 3 + 2]],
+//			Color);
+//	}
+//}
+//
+//void FDebugPrimitivesAccumulator::AddMeshNormals(FEditorMesh * Mesh, float Scale, Color4b Color) {
+//	u32 V = Mesh->GetVerticesNum();
+//	for (u32 Index = 0; Index < V; ++Index) {
+//		AddLine(Mesh->Positions[Index], Mesh->Positions[Index] + Mesh->Normals[Index] * Scale, Color);
+//	}
+//}
 
 #include "Pipeline.h"
 #include "Shader.h"
@@ -202,7 +200,7 @@ public:
 };
 
 
-void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRenderViewport const& Viewport) {
+void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRT1Context const& Target) {
 	if (Batches.size() == 0) {
 		return;
 	}
@@ -212,7 +210,7 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRender
 		CreateInputElement("COLOR", DXGI_FORMAT_R8G8B8A8_UNORM, 0, 0),
 	});
 
-	FOwnedResource VertexBuffer = GetUploadAllocator()->CreateBuffer(Vertices.size() * sizeof(FDebugVertex), 8);
+	FGPUResourceRef VertexBuffer = GetUploadAllocator()->CreateBuffer(Vertices.size() * sizeof(FDebugVertex), 8);
 	memcpy(VertexBuffer->GetMappedPtr(), Vertices.data(), Vertices.size() * sizeof(FDebugVertex));
 	FBufferLocation BufferLocation = {};
 	BufferLocation.Address = VertexBuffer->GetGPUAddress();
@@ -223,7 +221,7 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRender
 	static FDrawPrimitiveShaderState ShaderState;
 
 	FDrawPrimitiveShaderState::FConstantBufferData Constants = {};
-	Constants.ViewProjMatrix = Viewport.TViewProjectionMatrix;
+	Constants.ViewProjMatrix = Target.Viewport.TViewProjectionMatrix;
 
 	auto CBV = CreateCBVFromData(&ShaderState.ConstantBuffer, Constants);
 
@@ -234,13 +232,13 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRender
 
 	LocalPipelineFactory.SetInputLayout(InputLayout);
 	LocalPipelineFactory.SetShaderState(&ShaderState);
-	LocalPipelineFactory.SetDepthStencil(Viewport.DepthBuffer ? Viewport.DepthBuffer->GetWriteFormat() : NULL_FORMAT);
-	LocalPipelineFactory.SetRenderTarget(Viewport.RenderTarget->GetWriteFormat(Viewport.OutputSRGB), 0);
+	LocalPipelineFactory.SetDepthStencil(Target.DepthBuffer ? Target.DepthBuffer->GetWriteFormat() : NULL_FORMAT);
+	LocalPipelineFactory.SetRenderTarget(Target.RenderTargets[0].GetFormat(), 0);
 
 	D3D12_DEPTH_STENCIL_DESC DepthStencilState;
 	SetD3D12StateDefaults(&DepthStencilState);
 
-	if(Viewport.DepthBuffer) {
+	if(Target.DepthBuffer) {
 		DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 	}
 	else {
@@ -260,10 +258,11 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRender
 	BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 	LocalPipelineFactory.SetBlendState(BlendState);
 
-	if(Viewport.DepthBuffer) {
-		Context.SetDepthStencil(Viewport.DepthBuffer->GetDSV());
+	if(Target.DepthBuffer) {
+		Context.SetDepthStencil(Target.DepthBuffer->GetDSV());
 	}
-	Context.SetRenderTarget(0, Viewport.RenderTarget->GetRTV(Viewport.RenderTarget->GetWriteFormat(Viewport.OutputSRGB)));
+	Context.SetRenderTarget(0, Target.RenderTargets[0].Resource->GetRTV(Target.RenderTargets[0].GetFormat()));
+	Context.SetViewport(Target.RenderTargets[0].Resource->GetSizeAsViewport());
 
 	for (auto & Batch : Batches) {
 		if (Batch.Type == EPrimitive::Line) {			

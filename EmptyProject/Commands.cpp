@@ -507,7 +507,7 @@ void FGPUContext::FlushBarriers() {
 			barrier.Transition.StateBefore = GetAPIResourceState(BarriersList[Index].From);
 			barrier.Transition.StateAfter = GetAPIResourceState(BarriersList[Index].To);
 			barrier.Transition.Subresource = BarriersList[Index].Subresource;
-
+			ScratchMem.push_back(barrier);
 		}
 		FlushCounter = (u32)BarriersList.size();
 		RawCommandList()->ResourceBarrier((u32)ScratchMem.size(), ScratchMem.data());
@@ -937,7 +937,7 @@ eastl::unique_ptr<FResourceStateRegistry>	GResourceStateRegistry;
 
 FResourceStateRegistry * GetResourceStateRegistry() {
 	if (!GResourceStateRegistry.get()) {
-		GResourceStateRegistry.reset(new FResourceStateRegistry());
+		GResourceStateRegistry = eastl::make_unique<FResourceStateRegistry>();
 	}
 	return GResourceStateRegistry.get();
 }
@@ -972,6 +972,7 @@ void ProcessResourceBarriers(
 		NewNode.Subresource = Subres;
 		NewNode.PrevIndices.push_back(Prev);
 		NewNode.BatchIndex = BatchIndex;
+		Nodes.push_back(NewNode);
 		return (u32)Nodes.size() - 1;
 	};
 
@@ -1009,8 +1010,8 @@ void ProcessResourceBarriers(
 
 	for (auto & Request : Requests) {
 		if (Request.Subresource == ALL_SUBRESOURCES) {
-			bool ResourceInSameState = LastSubresourceNode.size() == 0 && LastComplementaryNode == -1;
-			if (ResourceInSameState) {
+			bool SubresourcesShareState = LastSubresourceNode.size() == 0 && LastComplementaryNode == -1;
+			if (SubresourcesShareState) {
 				u32 Prev = LastAllSubresNode;
 
 				if (NeedNewNode(Prev, Request.Access)) {
@@ -1080,7 +1081,7 @@ void ProcessResourceBarriers(
 				Barrier.From = Nodes[Prev].Access;
 				Barrier.To = Nodes[Index].Access;
 
-				OutBarriers[Nodes[Prev].BatchIndex].push_back(Barrier);
+				OutBarriers[Nodes[Index].BatchIndex].push_back(Barrier);
 			}
 		}
 	}
@@ -1106,7 +1107,8 @@ void FResourceStateRegistry::SetCurrentState(FGPUResource* Resource, u32 Subreso
 	}
 }
 
-void	FCommandsStream::SetAccess(FGPUResource * Resource, u32 Subresource, EAccessType Access) {
+void	FCommandsStream::SetAccess(FGPUResource * Resource, EAccessType Access, u32 Subresource) {
+	PreCommandAdd();
 	if (!Resource->FatData->AutomaticBarriers) {
 		return;
 	}
@@ -1146,11 +1148,12 @@ void*   FCommandsStream::Reserve(u64 Size) {
 void FCommandsStream::Reset() {
 	Offset = 0;
 	IsClosed = 0;
+	ResourceAccessList.clear();
+	BatchCounter = 0;
 }
 
 void FCommandsStream::Close() {
 	BatchBarriers();
-	ProcessBarriersPreExecution(*GetResourceStateRegistry());
 	IsClosed = 1;
 }
 
@@ -1193,6 +1196,7 @@ void FCommandsStream::ProcessBarriersPreExecution(FResourceStateRegistry & Regis
 	}
 }
 
+// assigns kickoff index to barriers
 void FCommandsStream::BatchBarriers() {
 	if (ProcessList.size()) {
 		for (FGPUResource* Resource : ProcessList) {
@@ -1222,6 +1226,7 @@ void FCommandsStream::ExecuteBatchedBarriers(FGPUContext * Context, u32 BatchInd
 
 void Playback(FGPUContext & Context, FCommandsStream * Stream) {
 	check(Stream->IsClosed);
+	Stream->ProcessBarriersPreExecution(*GetResourceStateRegistry());
 	u64 Offset = 0;
 	while (Offset < Stream->Offset) {
 		FRenderCmdHeader * Header = (FRenderCmdHeader*)pointer_add(Stream->Data.get(), Offset);

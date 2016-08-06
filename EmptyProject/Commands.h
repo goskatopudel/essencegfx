@@ -326,7 +326,12 @@ public:
 	void BatchBarriers();
 	void ExecuteBatchedBarriers(FGPUContext * Context, u32 BatchIndex);
 
+	void PreCommandAdd() {
+		check(!IsClosed);
+	}
+
 	inline void ClearRTV(D3D12_CPU_DESCRIPTOR_HANDLE rtv, float4 color) {
+		PreCommandAdd();
 		BatchBarriers();
 		auto Data = ReservePacket<FRenderCmdClearRTV, FRenderCmdClearRTVFunc>();
 		Data->RTV = rtv;
@@ -334,6 +339,7 @@ public:
 	}
 
 	inline void ClearDSV(D3D12_CPU_DESCRIPTOR_HANDLE dsv, float depth = 1.f, u8 stencil = 0) {
+		PreCommandAdd();
 		BatchBarriers();
 		auto Data = ReservePacket<FRenderCmdClearDSV, FRenderCmdClearDSVFunc>();
 		Data->DSV = dsv;
@@ -341,13 +347,10 @@ public:
 		Data->Stencil = stencil;
 	}
 
-	inline void SetAccess(FGPUResource * Resource, EAccessType Access) {
-		SetAccess(Resource, ALL_SUBRESOURCES, Access);
-	}
-
-	void SetAccess(FGPUResource * Resource, u32 Subresource, EAccessType Access);
+	void SetAccess(FGPUResource * Resource, EAccessType Access, u32 Subresource = ALL_SUBRESOURCES);
 
 	inline void Draw(u32 vertexCount, u32 startVertex = 0, u32 instances = 1, u32 startInstance = 0) {
+		PreCommandAdd();
 		BatchBarriers();
 		auto Data = ReservePacket<FRenderCmdDraw, FRenderCmdDrawFunc>();
 		Data->VertexCount = vertexCount;
@@ -357,6 +360,7 @@ public:
 	}
 
 	inline void DrawIndexed(u32 indexCount, u32 startIndex = 0, i32 baseVertex = 0, u32 instances = 1, u32 startInstance = 0) {
+		PreCommandAdd();
 		BatchBarriers();
 		auto Data = ReservePacket<FRenderCmdDrawIndexed, FRenderCmdDrawIndexedFunc>();
 		Data->IndexCount = indexCount;
@@ -367,6 +371,7 @@ public:
 	}
 
 	inline void Dispatch(u32 X, u32 Y = 1, u32 Z = 1) {
+		PreCommandAdd();
 		BatchBarriers();
 		auto Data = ReservePacket<FRenderCmdDispatch, FRenderCmdDispatchFunc>();
 		Data->X = X;
@@ -375,53 +380,64 @@ public:
 	}
 
 	inline void SetScissorRect(D3D12_RECT const& Rect) {
+		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetScissorRect, FRenderCmdSetScissorRectFunc>();
 		Data->Rect = Rect;
 	}
 
 	inline void SetConstantBuffer(FConstantBuffer * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV) {
+		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetConstantBuffer, FRenderCmdSetConstantBufferFunc>();
 		Data->Param = ConstantBuffer;
 		Data->CBV = CBV;
 	}
 
 	inline void SetTexture(FTextureParam * Texture, D3D12_CPU_DESCRIPTOR_HANDLE SRV) {
+		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetTexture, FRenderCmdSetTextureFunc>();
 		Data->Param = Texture;
 		Data->SRV = SRV;
 	}
 	inline void SetRWTexture(FRWTextureParam * Texture, D3D12_CPU_DESCRIPTOR_HANDLE UAV) {
+		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetRWTexture, FRenderCmdSetRWTextureFunc>();
 		Data->Param = Texture;
 		Data->UAV = UAV;
 	}
 	inline void SetPipelineState(FPipelineState * PipelineState) {
+		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetPipelineState, FRenderCmdSetPipelineStateFunc>();
 		Data->State = PipelineState;
 	}
 	inline void SetViewport(D3D12_VIEWPORT const& Viewport) {
+		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetViewport, FRenderCmdSetViewportFunc>();
 		Data->Viewport = Viewport;
 	}
 	inline void SetVB(FBufferLocation& Location, u8 Index) {
+		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetVB, FRenderCmdSetVBFunc>();
 		Data->Location = Location;
 		Data->Stream = Index;
 	}
 	inline void SetIB(FBufferLocation& Location) {
+		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetIB, FRenderCmdSetIBFunc>();
 		Data->Location = Location;
 	}
 	inline void SetTopology(D3D_PRIMITIVE_TOPOLOGY Topology) {
+		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetTopology, FRenderCmdSetTopologyFunc>();
 		Data->Topology = Topology;
 	}
 	inline void SetRenderTarget(u8 Index, D3D12_CPU_DESCRIPTOR_HANDLE RTV) {
+		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetRenderTarget, FRenderCmdSetRenderTargetFunc>();
 		Data->Index = Index;
 		Data->RTV = RTV;
 	}
 	inline void SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE DSV) {
+		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetDepthStencil, FRenderCmdSetDepthStencilFunc>();
 		Data->DSV = DSV;
 	}

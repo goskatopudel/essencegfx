@@ -162,7 +162,7 @@ void RenderImDrawLists(ImDrawData *draw_data) {
 		XMMatrixOrthographicOffCenterLH(
 			0, (float)GApplication::WindowWidth, (float)GApplication::WindowHeight, 0, 0, 1));
 
-	Stream.SetAccess(GetBackbuffer(), 0, EAccessType::WRITE_RT);
+	Stream.SetAccess(GetBackbuffer(), EAccessType::WRITE_RT);
 
 	Stream.SetPipelineState(UIPipelineState);
 	Stream.SetConstantBuffer(&UIShaderState.ConstantBuffer, CreateCBVFromData(&UIShaderState.ConstantBuffer, matrix));

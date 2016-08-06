@@ -232,6 +232,9 @@
     <ClInclude Include="Viewport.h" />
     <ClInclude Include="Win32Application.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="EASTL.natvis" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

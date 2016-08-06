@@ -273,4 +273,7 @@
       <Filter>Rendering</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="EASTL.natvis" />
+  </ItemGroup>
 </Project>

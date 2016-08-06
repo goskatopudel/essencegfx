@@ -19,7 +19,7 @@ VOut VertexMain(uint vertexId : SV_VertexID)
 }
 
 Texture2D<float4> 	SourceTexture : register(t0);
-SamplerState    	Sampler : register(s0, space4);
+SamplerState    	Sampler : register(s0, space4); // static bilinear
 
 float4 				WriteColor;
 float 				WriteDepth;

@@ -80,6 +80,8 @@ public:
 		float4x4 ViewProj;
 		float4x4 World;
 		float4x4 InvView;
+		float2 Resolution;
+		float2 Padding;
 		float4x4 WorldToShadow;
 		float3 L;
 	};
@@ -269,6 +271,7 @@ void RenderModel_Forward(FCommandsStream & Commands, FSceneRenderContext_Forward
 	FStaticModelShaderState_Debug::FConstantBufferData Constants;
 	Constants.ViewProj = SceneContext.Viewport.TViewProjectionMatrix;
 	Constants.InvView = SceneContext.Viewport.TInvViewMatrix;
+	Constants.Resolution = float2(SceneContext.Viewport.Resolution);
 	Constants.WorldToShadow = SceneContext.WorldToShadowMatrix;
 	Constants.L = SceneContext.L;
 	CreateWorldMatrixT(StaticMesh->Position, 1, Constants.World);
@@ -296,7 +299,7 @@ void FApplicationImpl::Init() {
 	Camera.Up = float3(0, 1.f, 0);
 	Camera.Direction = normalize(float3(0) - Camera.Position);
 
-	Scene.AddStaticMesh(L"Tree", GetModel(L"Models/mitsuba.obj"));
+	Scene.AddStaticMesh(L"Tree", GetModel(L"Models/tree.obj"));
 
 	FGPUContext Context;
 	Context.Open(EContextType::DIRECT);
@@ -378,10 +381,9 @@ bool FApplicationImpl::Update() {
 
 	static FCommandsStream Stream;
 	Stream.Reset();
-	Stream.SetAccess(GetBackbuffer(), 0, EAccessType::WRITE_RT);
+	Stream.SetAccess(GetBackbuffer(), EAccessType::WRITE_RT);
 	Stream.ClearRTV(GetBackbuffer()->GetRTV(), 0.f);
 	Stream.SetViewport(GetBackbuffer()->GetSizeAsViewport());
-	Stream.Close();
 
 	FGPUContext Context;
 	Context.Open(EContextType::DIRECT);
@@ -406,6 +408,7 @@ bool FApplicationImpl::Update() {
 
 	DrawTexture(Stream, Shadowmap, 0.f, float2(128, 128), SceneContext);
 
+	Stream.Close();
 	Playback(Context, &Stream);
 
 	static FDebugPrimitivesAccumulator DebugAcc;

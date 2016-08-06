@@ -1,38 +1,8 @@
 cbuffer Constants : register(b0)
 {      
-    matrix 	ViewProj;
-    matrix 	World;
-    matrix 	InvView;
-    float2  Resolution;
-    matrix 	WorldToShadow;
-    float3  L;
+    matrix 	WorldViewProj;
+    float2  DepthRange;
 }
-
-static const float BayerMatrix2[2][2] = { {2, 3}, {4, 1} };
-
-static const float BayerMatrix4[4][4] = { 
-	{ 2, 16, 3, 13 }, 
-	{ 10, 6, 11, 7 }, 
-	{ 4, 14, 1, 15 }, 
-	{ 12, 8, 9, 5 } 
-};
-
-static const float BayerMatrix8[8][8] = {
-	{ 0, 32, 8, 40, 2, 34, 10, 42 },
-	{ 48, 16, 56, 24, 50, 18, 58, 26 },
-	{ 12, 44, 4, 36, 14, 46, 6, 38 },
-	{ 60, 28, 52, 20, 62, 30, 54, 22 },
-	{ 3, 35, 11, 43, 1, 33, 9, 41 },
-	{ 51, 19, 59, 27, 49, 17, 57, 25 },
-	{ 15, 47, 7, 39, 13, 45, 5, 37 },
-	{ 63, 31, 55, 23, 61, 29, 53, 21 } 
-}; 
-
-Texture2D UVTexture	: register(t0);
-Texture2D<float> ShadowmapTexture	: register(t1);
-SamplerState TextureSampler : register(s0);
-SamplerState PointSampler : register(s0, space4);
-
 
 struct VIn 
 {
@@ -48,11 +18,7 @@ struct VIn
 struct VOut
 {
 	float4 	position : SV_POSITION;
-	float3 	wposition : POSITION;
-	float3 	normal : NORMAL;
-	float2 	texcoord0 : TEXCOORD0;
-	float2 	texcoord1 : TEXCOORD1;
-	float3 	color : COLOR;
+	float 	depth : LINEAR_DEPTH;
 };
 
 VOut VShader(VIn input, uint vertexId : SV_VertexID)

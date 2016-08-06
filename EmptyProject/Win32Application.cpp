@@ -23,7 +23,10 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
 			u32 WindowWidth = (UINT)(UINT64)lParam & 0xFFFF;
 			u32 WindowHeight = (UINT)(UINT64)lParam >> 16;
 
-			if (WindowWidth != GApplication::WindowWidth || WindowHeight != GApplication::WindowHeight) {
+			const bool SizeIsDifferent = WindowWidth != GApplication::WindowWidth || WindowHeight != GApplication::WindowHeight;
+			// minimizing gives 0 size
+			const bool SizeNonZero = WindowWidth != 0 && WindowHeight != 0;
+			if (SizeIsDifferent && SizeNonZero) {
 				GApplication::WindowWidth = WindowWidth;
 				GApplication::WindowHeight = WindowHeight;
 				GApplication::WindowSizeChanged = 1;

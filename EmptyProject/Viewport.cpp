@@ -4,7 +4,7 @@
 #include "Camera.h"
 using namespace DirectX;
 
-void GenerateViewport(FRenderViewport &Viewport, FCamera * Camera, Vec2i Resolution, float FovY, float NearPlane, float FarPlane) {
+void UpdateViewport(FRenderViewport &Viewport, FCamera * Camera, Vec2i Resolution, float FovY, float NearPlane, float FarPlane) {
 	Viewport.Resolution = Resolution;
 
 	auto ProjMatrix = XMMatrixPerspectiveFovLH(
@@ -31,16 +31,9 @@ void GenerateViewport(FRenderViewport &Viewport, FCamera * Camera, Vec2i Resolut
 	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.InvProjectionMatrix, InvProjMatrix);
 	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.ViewProjectionMatrix, ViewProjMatrix);
 	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.InvViewProjectionMatrix, InvViewProjMatrix);
-
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TViewMatrix, XMMatrixTranspose(ViewMatrix));
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TInvViewMatrix, XMMatrixTranspose(InvViewMatrix));
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TProjectionMatrix, XMMatrixTranspose(ProjMatrix));
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TInvProjectionMatrix, XMMatrixTranspose(InvProjMatrix));
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TViewProjectionMatrix, XMMatrixTranspose(ViewProjMatrix));
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TInvViewProjectionMatrix, XMMatrixTranspose(InvViewProjMatrix));
 }
 
-void GenerateShadowmapViewport(FRenderViewport &Viewport, Vec2i Resolution, float3 Direction) {
+void UpdateShadowmapViewport(FRenderViewport &Viewport, Vec2i Resolution, float3 Direction) {
 	Viewport.Resolution = Resolution;
 
 	auto ProjMatrix = XMMatrixOrthographicLH(50.f, 50.f, 0.1f, 100.f);
@@ -64,21 +57,14 @@ void GenerateShadowmapViewport(FRenderViewport &Viewport, Vec2i Resolution, floa
 	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.InvProjectionMatrix, InvProjMatrix);
 	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.ViewProjectionMatrix, ViewProjMatrix);
 	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.InvViewProjectionMatrix, InvViewProjMatrix);
-
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TViewMatrix, XMMatrixTranspose(ViewMatrix));
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TInvViewMatrix, XMMatrixTranspose(InvViewMatrix));
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TProjectionMatrix, XMMatrixTranspose(ProjMatrix));
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TInvProjectionMatrix, XMMatrixTranspose(InvProjMatrix));
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TViewProjectionMatrix, XMMatrixTranspose(ViewProjMatrix));
-	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.TInvViewProjectionMatrix, XMMatrixTranspose(InvViewProjMatrix));
 }
 
 #include "Resource.h"
 
 DXGI_FORMAT FRenderTargetDesc::GetFormat() const {
-	return Resource->GetWriteFormat(IsSRGB > 0);
+	return Resource ? Resource->GetWriteFormat(IsSRGB > 0) : DXGI_FORMAT_UNKNOWN;
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE FRenderTargetDesc::GetRTV() const {
-	return Resource->GetRTV(GetFormat());
+	return Resource ? Resource->GetRTV(GetFormat()) : D3D12_CPU_DESCRIPTOR_HANDLE();
 }

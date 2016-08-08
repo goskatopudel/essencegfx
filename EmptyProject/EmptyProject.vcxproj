@@ -159,12 +159,14 @@
     <ClCompile Include="..\EASTL\source\red_black_tree.cpp" />
     <ClCompile Include="..\EASTL\source\string.cpp" />
     <ClCompile Include="..\EASTL\source\thread_support.cpp" />
+    <ClCompile Include="BasePass.cpp" />
     <ClCompile Include="BVH.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Commands.cpp" />
     <ClCompile Include="CommandStream.cpp" />
     <ClCompile Include="DDSLoader.cpp" />
     <ClCompile Include="DebugPrimitivesRenderer.cpp" />
+    <ClCompile Include="DepthPass.cpp" />
     <ClCompile Include="Descriptors.cpp" />
     <ClCompile Include="FileIO.cpp" />
     <ClCompile Include="Hash.cpp" />
@@ -173,6 +175,7 @@
     <ClCompile Include="ImGui\imgui_draw.cpp" />
     <ClCompile Include="MathGeometry.cpp" />
     <ClCompile Include="Model.cpp" />
+    <ClCompile Include="RenderingUtils.cpp" />
     <ClCompile Include="RenderMaterial.cpp" />
     <ClCompile Include="Scene.cpp" />
     <ClCompile Include="tiny_obj_loader.cc" />
@@ -193,15 +196,18 @@
   <ItemGroup>
     <ClInclude Include="Application.h" />
     <ClInclude Include="AssertionMacros.h" />
+    <ClInclude Include="BasePass.h" />
     <ClInclude Include="BVH.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Commands.h" />
     <ClInclude Include="CommandStream.h" />
     <ClInclude Include="DebugPrimitivesRendering.h" />
+    <ClInclude Include="DepthPass.h" />
     <ClInclude Include="Descriptors.h" />
     <ClInclude Include="Device.h" />
     <ClInclude Include="Essence.h" />
     <ClInclude Include="FileIO.h" />
+    <ClInclude Include="Frame.h" />
     <ClInclude Include="Half.c" />
     <ClInclude Include="Half.h" />
     <ClInclude Include="Hash.h" />
@@ -214,6 +220,7 @@
     <ClInclude Include="ImGui\stb_truetype.h" />
     <ClInclude Include="MathGeometry.h" />
     <ClInclude Include="Model.h" />
+    <ClInclude Include="RenderingUtils.h" />
     <ClInclude Include="RenderMaterial.h" />
     <ClInclude Include="MathMatrix.h" />
     <ClInclude Include="Scene.h" />

@@ -1,49 +1,36 @@
 cbuffer Constants : register(b0)
 {      
-    matrix 	ProjectionMatrix;
-    matrix 	ViewMatrix;
-    matrix  WorldMatrix;
-    float2	DepthNormalization; // .x = 1/(MaxDepth - MinDepth); .y = MinDepth / (MaxDepth - MinDepth);
+    float4x4 WorldViewProjectionMatrix;
 }
 
 struct VIn 
 {
-	float3 	position : POSITION;
-	float3 	normal : NORMAL;
-	float3 	tangent : TANGENT;
-	float3 	bitangent : BITANGENT;
-	float2 	texcoord0 : TEXCOORD0;
-	float2 	texcoord1 : TEXCOORD1;
-	float3 	color : COLOR;
+	float3 	Position : POSITION;
+	float3 	Normal : NORMAL;
+	float3 	Tangent : TANGENT;
+	float3 	Bitangent : BITANGENT;
+	float2 	Texcoord0 : TEXCOORD0;
+	float2 	Texcoord1 : TEXCOORD1;
+	float3 	Color : COLOR;
 };
 
 struct VOut
 {
-	float4 	position : SV_POSITION;
-#if defined(VSM)
-	float 	linearDepth : LINEAR_DEPTH;
-#endif
+	float4 	SvPosition : SV_POSITION;
 };
 
-VOut VertexMain(VIn input, uint vertexId : SV_VertexID)
+VOut VertexMain(VIn Input, uint VertexId : SV_VertexID)
 {
-	VOut output;
-
-	float4 position = float4(input.position, 1);
-	position = mul(position, WorldMatrix);
-	float4 viewPosition = mul(position, ViewMatrix);
-	output.position = mul(viewPosition, ProjectionMatrix);
-#if defined(VSM)
-	output.linearDepth = viewPosition.z * DepthNormalization.x + DepthNormalization.y;
-#endif
-	return output;
+	VOut Output;
+	Output.SvPosition = mul(float4(Input.Position, 1), WorldViewProjectionMatrix);
+	return Output;
 }
 
-#if defined(VSM)
-void PixelMain(VOut interpolated, out float Out0 : SV_TARGET0, out float Out1 : SV_TARGET0)
+// assuming orthogonal matrix
+void PixelMain(VOut Interpolated, out float OutRT0 : SV_TARGET0)
 {
-	Out0 = interpolated.linearDepth;
-	Out1 = interpolated.linearDepth * interpolated.linearDepth;
+	float LinearDepth = Interpolated.SvPosition.z;
+	OutRT0 = LinearDepth * LinearDepth;
 }
-#endif
+
 

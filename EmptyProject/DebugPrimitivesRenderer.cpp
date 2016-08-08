@@ -3,6 +3,8 @@
 #include "MathFunctions.h"
 #include "VideoMemory.h"
 #include "Hash.h"
+// todo: remove this include
+#include "Scene.h"
 
 float4 LinearToSRGB(float4 Color) {
 	for (u32 I = 0; I < 3; ++I) {
@@ -200,7 +202,7 @@ public:
 };
 
 
-void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRT1Context const& Target) {
+void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRenderTargetContext const& Target, float4x4 const * ViewProjectionMatrix) {
 	if (Batches.size() == 0) {
 		return;
 	}
@@ -220,11 +222,6 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRT1Con
 	Context.SetVB(BufferLocation);
 	static FDrawPrimitiveShaderState ShaderState;
 
-	FDrawPrimitiveShaderState::FConstantBufferData Constants = {};
-	Constants.ViewProjMatrix = Target.Viewport.TViewProjectionMatrix;
-
-	auto CBV = CreateCBVFromData(&ShaderState.ConstantBuffer, Constants);
-
 	u32 StartVertex = 0;
 
 	static FPipelineFactory LocalPipelineFactory;
@@ -232,8 +229,8 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRT1Con
 
 	LocalPipelineFactory.SetInputLayout(InputLayout);
 	LocalPipelineFactory.SetShaderState(&ShaderState);
-	LocalPipelineFactory.SetDepthStencil(Target.DepthBuffer ? Target.DepthBuffer->GetWriteFormat() : NULL_FORMAT);
-	LocalPipelineFactory.SetRenderTarget(Target.RenderTargets[0].GetFormat(), 0);
+	LocalPipelineFactory.SetRenderTargets(&Target);
+	PipelineState = LocalPipelineFactory.GetPipelineState();
 
 	D3D12_DEPTH_STENCIL_DESC DepthStencilState;
 	SetD3D12StateDefaults(&DepthStencilState);
@@ -258,11 +255,15 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRT1Con
 	BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 	LocalPipelineFactory.SetBlendState(BlendState);
 
+	FDrawPrimitiveShaderState::FConstantBufferData Constants = {};
+	StoreTransposed(Load(*ViewProjectionMatrix), &Constants.ViewProjMatrix);
+	auto CBV = CreateCBVFromData(&ShaderState.ConstantBuffer, Constants);
+
 	if(Target.DepthBuffer) {
 		Context.SetDepthStencil(Target.DepthBuffer->GetDSV());
 	}
-	Context.SetRenderTarget(0, Target.RenderTargets[0].Resource->GetRTV(Target.RenderTargets[0].GetFormat()));
-	Context.SetViewport(Target.RenderTargets[0].Resource->GetSizeAsViewport());
+	Context.SetRenderTarget(0, Target.Outputs[0].Resource->GetRTV(Target.Outputs[0].GetFormat()));
+	Context.SetViewport(Target.Outputs[0].Resource->GetSizeAsViewport());
 
 	for (auto & Batch : Batches) {
 		if (Batch.Type == EPrimitive::Line) {			

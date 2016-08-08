@@ -70,70 +70,32 @@ void UpdateCamera() {
 
 #include "Scene.h"
 
-class FStaticModelShaderState_Debug : public FShaderState {
-public:
-	FConstantBuffer ConstantBuffer;
-	FTextureParam UVTexture;
-	FTextureParam ShadowmapTexture;
-
-	struct FConstantBufferData {
-		float4x4 ViewProj;
-		float4x4 World;
-		float4x4 InvView;
-		float2 Resolution;
-		float2 Padding;
-		float4x4 WorldToShadow;
-		float3 L;
-	};
-
-	FStaticModelShaderState_Debug() :
-		FShaderState(
-			GetShader("Shaders/DebugModel.hlsl", "VShader", "vs_5_1", {}, 0),
-			GetShader("Shaders/DebugModel.hlsl", "PSDebug", "ps_5_1", {}, 0)) {}
-
-	void InitParams() override final {
-		ConstantBuffer = Root->CreateConstantBuffer(this, "Constants");
-		UVTexture = Root->CreateTextureParam(this, "UVTexture");
-		ShadowmapTexture = Root->CreateTextureParam(this, "ShadowmapTexture");
-	}
-};
-
-constexpr FShader * SKIP_SHADER = nullptr;
-
-class FStaticModelShaderState_Depth : public FShaderState {
-public:
-	FConstantBuffer ConstantBuffer;
-	
-	struct FConstantBufferData {
-		float4x4 ViewProj;
-		float4x4 World;
-		float4x4 InvView;
-	};
-
-	FStaticModelShaderState_Depth() :
-		FShaderState(
-			GetShader("Shaders/DebugModel.hlsl", "VShader", "vs_5_1", {}, 0), 
-			SKIP_SHADER) {}
-
-	void InitParams() override final {
-		ConstantBuffer = Root->CreateConstantBuffer(this, "Constants");
-	}
-};
-
+#include "BasePass.h"
+#include "DepthPass.h"
 #include "Viewport.h"
 
 FScene Scene;
 FGPUResourceRef DepthBuffer;
 FGPUResourceRef Shadowmap;
+FGPUResourceRef ShadowmapM2;
+FGPUResourceRef PingPong;
 
 FGPUResourceRef Texture;
 
 struct FShadowRenderingParams {
 	u32	Resolution = 1024;
 	float2 LightAngles = float2(0, 0);
+	bool ShowTextures = false;
+	int ShowMipmap = 0;
 
 	float3 LightDirection;
 } ShadowRenderingParams;
+
+void AllocateShadowmap() {
+	Shadowmap = GetTexturesAllocator()->CreateTexture(ShadowRenderingParams.Resolution, ShadowRenderingParams.Resolution, 1, DXGI_FORMAT_R32_TYPELESS, TextureFlags::ALLOW_DEPTH_STENCIL | TextureFlags::TEXTURE_MIPMAPPED, L"Shadowmap");
+	ShadowmapM2 = GetTexturesAllocator()->CreateTexture(ShadowRenderingParams.Resolution, ShadowRenderingParams.Resolution, 1, DXGI_FORMAT_R32_FLOAT, TextureFlags::ALLOW_RENDER_TARGET | TextureFlags::TEXTURE_MIPMAPPED, L"ShadowmapM2");
+	PingPong = GetTexturesAllocator()->CreateTexture(ShadowRenderingParams.Resolution, ShadowRenderingParams.Resolution, 1, DXGI_FORMAT_R32_FLOAT, TextureFlags::ALLOW_RENDER_TARGET | TextureFlags::TEXTURE_MIPMAPPED, L"PingPong");
+}
 
 void ShowShadowmapOptions() {
 	ImGui::Begin("Shadowmap");
@@ -142,10 +104,14 @@ void ShowShadowmapOptions() {
 	const u32 values[] = { 512, 1024, 2048, 4096 };
 	static int item = 1;
 	ImGui::Combo("Resolution", &item, items, _ARRAYSIZE(items)); 
-	ImGui::End();
 
 	ImGui::SliderAngle("Azimuthal angle", &ShadowRenderingParams.LightAngles.x, 0.f, 360.f);
 	ImGui::SliderAngle("Polar angle", &ShadowRenderingParams.LightAngles.y, 0.f, 180.f);
+
+	ImGui::Checkbox("Visualize", &ShadowRenderingParams.ShowTextures);
+	ImGui::SliderInt("Mipmap", &ShadowRenderingParams.ShowMipmap, 0, 5);
+
+	ImGui::End();
 
 	ShadowRenderingParams.LightDirection = float3(
 		sinf(ShadowRenderingParams.LightAngles.y) * cosf(ShadowRenderingParams.LightAngles.x),
@@ -156,141 +122,7 @@ void ShowShadowmapOptions() {
 	ShadowRenderingParams.Resolution = values[item];
 
 	if (Shadowmap->GetDimensions().x != ShadowRenderingParams.Resolution) {
-		Shadowmap = GetTexturesAllocator()->CreateTexture(ShadowRenderingParams.Resolution, ShadowRenderingParams.Resolution, 1, DXGI_FORMAT_R32_TYPELESS, TextureFlags::ALLOW_DEPTH_STENCIL, L"Shadowmap");
-	}
-}
-
-struct FSceneRenderContext_Shadowmap : public FRT0Context {
-	FScene * Scene;
-	FCamera * Camera;
-};
-
-void PreRender_Shadowmap(FCommandsStream & Commands, FSceneRenderContext_Shadowmap & SceneContext) {
-	Commands.SetAccess(SceneContext.DepthBuffer, EAccessType::WRITE_DEPTH);
-	Commands.ClearDSV(SceneContext.DepthBuffer->GetDSV());
-	if (SceneContext.DepthBuffer) {
-		Commands.SetDepthStencil(SceneContext.DepthBuffer->GetDSV());
-	}
-	Commands.SetViewport(SceneContext.DepthBuffer->GetSizeAsViewport());
-}
-
-void RenderModel_Shadowmap(FCommandsStream & Commands, FSceneRenderContext_Shadowmap & SceneContext, FSceneStaticMesh * StaticMesh) {
-	// 
-	static FStaticModelShaderState_Depth ShaderState;
-	static FPipelineState * PipelineState;
-
-	static FInputLayout * StaticMeshInputLayout = GetInputLayout({
-		CreateInputElement("POSITION", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
-		CreateInputElement("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
-		CreateInputElement("TANGENT", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
-		CreateInputElement("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
-		CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 0, 0),
-		CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 1, 0),
-		CreateInputElement("COLOR", DXGI_FORMAT_R8G8B8A8_UNORM, 0, 0),
-	});
-
-	static FPipelineFactory Factory;
-	Factory.SetInputLayout(StaticMeshInputLayout);
-	Factory.SetDepthStencil(SceneContext.DepthBuffer->GetWriteFormat());
-	Factory.SetShaderState(&ShaderState);
-	Factory.SetTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	PipelineState = Factory.GetPipelineState();
-	Commands.SetPipelineState(PipelineState);
-
-	FStaticModelShaderState_Debug::FConstantBufferData Constants;
-	Constants.ViewProj = SceneContext.Viewport.TViewProjectionMatrix;
-	Constants.InvView = SceneContext.Viewport.TInvViewMatrix;
-	CreateWorldMatrixT(StaticMesh->Position, 1, Constants.World);
-	Commands.SetConstantBuffer(&ShaderState.ConstantBuffer, CreateCBVFromData(&ShaderState.ConstantBuffer, Constants));
-
-	Commands.SetVB(StaticMesh->Model->VertexBuffer, 0);
-	Commands.SetIB(StaticMesh->Model->IndexBuffer);
-	for (auto & Mesh : StaticMesh->Model->Meshes) {
-		Commands.DrawIndexed(Mesh.IndicesNum, Mesh.StartIndex, Mesh.BaseVertex);
-	}
-}
-
-void Render_Shadowmap(FCommandsStream & Stream, FSceneRenderContext_Shadowmap SceneContext) {
-
-	PreRender_Shadowmap(Stream, SceneContext);
-	for (auto StaticMeshPtr : SceneContext.Scene->StaticMeshes) {
-		RenderModel_Shadowmap(Stream, SceneContext, StaticMeshPtr);
-	}
-}
-
-struct FSceneRenderContext_Forward : public FRT1Context {
-	FScene * Scene;
-	FCamera * Camera;
-	float4x4 WorldToShadowMatrix;
-	float3 L;
-};
-
-void PreRender_Forward(FCommandsStream & Commands, FSceneRenderContext_Forward & SceneContext) {
-	Commands.SetAccess(SceneContext.RenderTargets[0].Resource, EAccessType::WRITE_RT);
-	if (SceneContext.DepthBuffer) {
-		Commands.SetAccess(SceneContext.DepthBuffer, EAccessType::WRITE_DEPTH);
-	}
-	Commands.SetAccess(Shadowmap, EAccessType::READ_PIXEL);
-	Commands.ClearDSV(SceneContext.DepthBuffer->GetDSV());
-
-	Commands.SetRenderTarget(0, SceneContext.RenderTargets[0].GetRTV());
-	if (SceneContext.DepthBuffer) {
-		Commands.SetDepthStencil(SceneContext.DepthBuffer->GetDSV());
-	}
-	Commands.SetViewport(SceneContext.RenderTargets[0].Resource->GetSizeAsViewport());
-}
-
-void RenderModel_Forward(FCommandsStream & Commands, FSceneRenderContext_Forward & SceneContext, FSceneStaticMesh * StaticMesh) {
-	// 
-	static FStaticModelShaderState_Debug ShaderState;
-	static FPipelineState * PipelineState;
-
-	static FInputLayout * StaticMeshInputLayout = GetInputLayout({
-		CreateInputElement("POSITION", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
-		CreateInputElement("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
-		CreateInputElement("TANGENT", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
-		CreateInputElement("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
-		CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 0, 0),
-		CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 1, 0),
-		CreateInputElement("COLOR", DXGI_FORMAT_R8G8B8A8_UNORM, 0, 0),
-	});
-
-	static FPipelineFactory Factory;
-	Factory.SetInputLayout(StaticMeshInputLayout);
-	if (SceneContext.DepthBuffer) {
-		Factory.SetDepthStencil(SceneContext.DepthBuffer->GetWriteFormat());
-	}
-	Factory.SetRenderTarget(SceneContext.RenderTargets[0].GetFormat(), 0);
-	Factory.SetShaderState(&ShaderState);
-	Factory.SetTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	PipelineState = Factory.GetPipelineState();
-	Commands.SetPipelineState(PipelineState);
-
-	FStaticModelShaderState_Debug::FConstantBufferData Constants;
-	Constants.ViewProj = SceneContext.Viewport.TViewProjectionMatrix;
-	Constants.InvView = SceneContext.Viewport.TInvViewMatrix;
-	Constants.Resolution = float2(SceneContext.Viewport.Resolution);
-	Constants.WorldToShadow = SceneContext.WorldToShadowMatrix;
-	Constants.L = SceneContext.L;
-	CreateWorldMatrixT(StaticMesh->Position, 1, Constants.World);
-	Commands.SetConstantBuffer(&ShaderState.ConstantBuffer, CreateCBVFromData(&ShaderState.ConstantBuffer, Constants));
-	Commands.SetTexture(&ShaderState.UVTexture, Texture->GetSRV());
-	Commands.SetTexture(&ShaderState.ShadowmapTexture, Shadowmap->GetSRV());
-
-	Commands.SetVB(StaticMesh->Model->VertexBuffer, 0);
-	Commands.SetIB(StaticMesh->Model->IndexBuffer);
-	for (auto & Mesh : StaticMesh->Model->Meshes) {
-		Commands.DrawIndexed(Mesh.IndicesNum, Mesh.StartIndex, Mesh.BaseVertex);
-	}
-}
-
-void Render_Forward(FCommandsStream & Stream, FSceneRenderContext_Forward SceneContext) {
-
-	PreRender_Forward(Stream, SceneContext);
-	for (auto StaticMeshPtr : SceneContext.Scene->StaticMeshes) {
-		RenderModel_Forward(Stream, SceneContext, StaticMeshPtr);
+		AllocateShadowmap();
 	}
 }
 
@@ -299,7 +131,7 @@ void FApplicationImpl::Init() {
 	Camera.Up = float3(0, 1.f, 0);
 	Camera.Direction = normalize(float3(0) - Camera.Position);
 
-	Scene.AddStaticMesh(L"Tree", GetModel(L"Models/tree.obj"));
+	Scene.AddStaticMesh(L"Tree", GetModel(L"Models/mitsuba.obj"));
 
 	FGPUContext Context;
 	Context.Open(EContextType::DIRECT);
@@ -308,7 +140,7 @@ void FApplicationImpl::Init() {
 	Context.Close();
 	Context.ExecuteImmediately();
 
-	Shadowmap = GetTexturesAllocator()->CreateTexture(1024, 1024, 1, DXGI_FORMAT_R32_TYPELESS, TextureFlags::ALLOW_DEPTH_STENCIL, L"Shadowmap");
+	AllocateShadowmap();
 }
 
 void FApplicationImpl::AllocateScreenResources() {
@@ -319,45 +151,7 @@ void FApplicationImpl::Shutdown() {
 
 }
 
-class FCopyShaderState : public FShaderState {
-public:
-	FTextureParam SourceTexture;
-
-	FCopyShaderState() :
-		FShaderState(
-			GetShader("Shaders/Utility.hlsl", "VertexMain", "vs_5_1", {}, 0),
-			GetShader("Shaders/Utility.hlsl", "CopyPixelMain", "ps_5_1", {}, 0)) {}
-
-	void InitParams() override final {
-		SourceTexture = Root->CreateTextureParam(this, "SourceTexture");
-	}
-};
-
-void DrawTexture(FCommandsStream & Context, FGPUResource * Texture, float2 Location, float2 Size, FRT1Context & RTContext) {
-	Context.SetAccess(Texture, EAccessType::READ_PIXEL);
-	Context.SetAccess(RTContext.RenderTargets[0].Resource, EAccessType::WRITE_RT);
-
-	static FCopyShaderState ShaderState;
-	static FPipelineFactory Factory;
-	Factory.SetTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	Factory.SetRenderTarget(RTContext.RenderTargets[0].GetFormat(), 0);
-	Factory.SetShaderState(&ShaderState);
-	static FInputLayout * InputLayout = GetInputLayout({});
-	Factory.SetInputLayout(InputLayout);
-	
-	Context.SetRenderTarget(0, RTContext.RenderTargets[0].GetRTV());
-	Context.SetDepthStencil({});
-	Context.SetPipelineState(Factory.GetPipelineState());
-	Context.SetTexture(&ShaderState.SourceTexture, Texture->GetSRV());
-	D3D12_VIEWPORT Viewport = RTContext.RenderTargets[0].Resource->GetSizeAsViewport();
-	Viewport.TopLeftX = Location.x;
-	Viewport.TopLeftY = Location.y;
-	Viewport.Width = Size.x;
-	Viewport.Height = Size.y;
-	Context.SetViewport(Viewport);
-	Context.Draw(3);
-}
-
+#include "RenderingUtils.h"
 #include "DebugPrimitivesRendering.h"
 
 bool FApplicationImpl::Update() {
@@ -388,25 +182,42 @@ bool FApplicationImpl::Update() {
 	FGPUContext Context;
 	Context.Open(EContextType::DIRECT);
 
-	FSceneRenderContext_Shadowmap ShadowmapContext;
-	ShadowmapContext.DepthBuffer = Shadowmap;
-	ShadowmapContext.Scene = &Scene;
-	GenerateShadowmapViewport(ShadowmapContext.Viewport, Vec2i(Shadowmap->GetDimensions().x, Shadowmap->GetDimensions().y), ShadowRenderingParams.LightDirection * -1.f);
+	FDepthRenderContext ShadowmapContext;
+	ShadowmapContext.OutputVSM = true;
+	ShadowmapContext.RenderTargets.DepthBuffer = Shadowmap;
+	ShadowmapContext.RenderTargets.Outputs.resize(1);
+	ShadowmapContext.RenderTargets.Outputs[0].OutputSRGB = false;
+	ShadowmapContext.RenderTargets.Outputs[0].Resource = ShadowmapM2;
+	ShadowmapContext.RenderTargets.Viewport = Shadowmap->GetSizeAsViewport();
+	UpdateShadowmapViewport(ShadowmapContext, Vec2i(Shadowmap->GetDimensions().x, Shadowmap->GetDimensions().y), ShadowRenderingParams.LightDirection * -1.f);
 
-	Render_Shadowmap(Stream, ShadowmapContext);
+	Render_Depth(Stream, &ShadowmapContext, &Scene);
 
-	FSceneRenderContext_Forward SceneContext;
-	SceneContext.RenderTargets[0].Resource = GetBackbuffer();
-	SceneContext.RenderTargets[0].OutputSRGB = 1;
-	SceneContext.DepthBuffer = DepthBuffer;
-	GenerateViewport(SceneContext.Viewport, &Camera, Vec2i(GApplication::WindowWidth, GApplication::WindowHeight));
-	SceneContext.Scene = &Scene;
+	GenerateMipmaps(Stream, Shadowmap);
+	GenerateMipmaps(Stream, ShadowmapM2);
+
+	FForwardRenderContext SceneContext;
+	UpdateViewport(SceneContext, &Camera, Vec2i(GApplication::WindowWidth, GApplication::WindowHeight));
+	SceneContext.RenderTargets.Outputs.resize(1);
+	SceneContext.RenderTargets.Outputs[0].Resource = GetBackbuffer();
+	SceneContext.RenderTargets.Outputs[0].OutputSRGB = 1;
+	SceneContext.RenderTargets.DepthBuffer = DepthBuffer;
 	SceneContext.Camera = &Camera;
-	SceneContext.WorldToShadowMatrix = ShadowmapContext.Viewport.TViewProjectionMatrix;
-	SceneContext.L = ShadowRenderingParams.LightDirection;
-	Render_Forward(Stream, SceneContext);
+	SceneContext.WorldToShadowmap = ShadowmapContext.ViewProjectionMatrix;
+	SceneContext.Shadowmap = Shadowmap;
+	SceneContext.ShadowmapM2 = ShadowmapM2;
+	SceneContext.RenderTargets.Viewport = DepthBuffer->GetSizeAsViewport();
+	Render_Forward(Stream, &SceneContext, &Scene);
 
-	DrawTexture(Stream, Shadowmap, 0.f, float2(128, 128), SceneContext);
+	FRenderTargetContext RenderTargets = SceneContext.RenderTargets;
+
+	if(ShadowRenderingParams.ShowTextures) {
+		RenderTargets.DepthBuffer = nullptr;
+		DrawTexture(Stream, Shadowmap, 0.f, float2(512, 512), ShadowRenderingParams.ShowMipmap, RenderTargets);
+		DrawTexture(Stream, ShadowmapM2, float2(0, 512), float2(512, 512), ShadowRenderingParams.ShowMipmap, RenderTargets);
+	}
+
+	RenderTargets.DepthBuffer = DepthBuffer;
 
 	Stream.Close();
 	Playback(Context, &Stream);
@@ -429,7 +240,7 @@ bool FApplicationImpl::Update() {
 		DebugAcc.AddLine(B, B + float3(0, 0, GridSpan), Color);
 	}
 
-	DebugAcc.FlushToViewport(Context, SceneContext);
+	DebugAcc.FlushToViewport(Context, RenderTargets, &SceneContext.ViewProjectionMatrix);
 
 	Context.Execute();
 

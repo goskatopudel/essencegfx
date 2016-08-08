@@ -166,7 +166,7 @@ void RenderImDrawLists(ImDrawData *draw_data) {
 
 	Stream.SetPipelineState(UIPipelineState);
 	Stream.SetConstantBuffer(&UIShaderState.ConstantBuffer, CreateCBVFromData(&UIShaderState.ConstantBuffer, matrix));
-	Stream.SetRenderTarget(0, GetBackbuffer()->GetRTV(DXGI_FORMAT_R8G8B8A8_UNORM));
+	Stream.SetRenderTarget(GetBackbuffer()->GetRTV(DXGI_FORMAT_R8G8B8A8_UNORM), 0);
 	Stream.SetViewport(GetBackbuffer()->GetSizeAsViewport());
 
 	u32 vtxOffset = 0;

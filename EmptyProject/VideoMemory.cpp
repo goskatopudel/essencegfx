@@ -414,12 +414,12 @@ void AllocateResourceViews(FGPUResource* resource, DXGI_FORMAT format, FResource
 				GetPrimaryDevice()->D12Device->CreateShaderResourceView(resource->D12Resource.get(), &SRVDesc, outViews.MainSRV.GetCPUHandle(1));
 			}
 
-			if (resource->IsWritable() && (resource->FatData->Desc.MipLevels > 1 || (resource->FatData->Desc.DepthOrArraySize > 1 && !resource->IsTexture3D()))) {
+			if (resource->IsWritable() && resource->FatData->Desc.MipLevels > 1) {
 				check(!outViews.SubresourcesSRVs.IsValid());
 				u32 subresourcesWithViewsNum = resource->GetSubresourcesNum();
 			
 				resource->FatData->Views.MainSet.SubresourcesSRVs = SOVsAllocator->Allocate(subresourcesWithViewsNum);
-			
+
 				for (u32 s = 0; s < subresourcesWithViewsNum; ++s) {
 					auto subresInfo = resource->GetSubresourceInfo(s);
 					SRVDesc.Texture2D.MipLevels = 1;
@@ -453,27 +453,27 @@ void AllocateResourceViews(FGPUResource* resource, DXGI_FORMAT format, FResource
 
 		if (resource->FatData->IsDepthStencil) {
 			check(!outViews.SubresourcesDSVs.IsValid());
-			u32 viewsNum = resource->GetSubresourcesNum() * 2;
-			outViews.SubresourcesDSVs = DSVsAllocator->Allocate(viewsNum * 2);
-
 			const u32 planesNum = resource->FatData->PlanesNum;
+			const u32 mipmapsNum = resource->GetMipmapsNum();
+			u32 viewsNum = mipmapsNum * planesNum * 2; // for read-only accesses
+			outViews.SubresourcesDSVs = DSVsAllocator->Allocate(viewsNum);
 
 			D3D12_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
 			DSVDesc.Format = GetDepthStencilFormat(format);
 			DSVDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 			
-			for (u32 v = 0; v < viewsNum / 2 / planesNum; ++v) {
+			for (u32 v = 0; v < mipmapsNum; ++v) {
 				auto subresInfo = resource->GetSubresourceInfo(v);
 				DSVDesc.Texture2D.MipSlice = subresInfo.Mip;
 				DSVDesc.Flags = D3D12_DSV_FLAG_NONE;
-				GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v * 4 + 0));
+				GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v));
 				DSVDesc.Flags = D3D12_DSV_FLAG_READ_ONLY_DEPTH;
-				GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v * 4 + 1));
+				GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v + mipmapsNum * planesNum));
 				if(planesNum == 2) {
 					DSVDesc.Flags = D3D12_DSV_FLAG_READ_ONLY_STENCIL;
-					GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v * 4 + 2));
+					GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v + 2 * mipmapsNum * planesNum));
 					DSVDesc.Flags = D3D12_DSV_FLAG_READ_ONLY_DEPTH | D3D12_DSV_FLAG_READ_ONLY_STENCIL;
-					GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v * 4 + 3));
+					GetPrimaryDevice()->D12Device->CreateDepthStencilView(resource->D12Resource.get(), &DSVDesc, outViews.SubresourcesDSVs.GetCPUHandle(v + 3 * mipmapsNum * planesNum));
 				}
 			}
 		}

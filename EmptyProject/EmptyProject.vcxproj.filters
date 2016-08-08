@@ -135,19 +135,28 @@
     <ClCompile Include="ImGui\imgui_demo.cpp">
       <Filter>ImGui</Filter>
     </ClCompile>
-    <ClCompile Include="ImGui\imgui_draw.cpp">
-      <Filter>ImGui</Filter>
-    </ClCompile>
     <ClCompile Include="tiny_obj_loader.cc">
       <Filter>Rendering\Models</Filter>
     </ClCompile>
     <ClCompile Include="Model.cpp">
       <Filter>Rendering\Models</Filter>
     </ClCompile>
-    <ClCompile Include="Viewport.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
     <ClCompile Include="Scene.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="BasePass.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="DepthPass.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_draw.cpp">
+      <Filter>ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="Viewport.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderingUtils.cpp">
       <Filter>Rendering</Filter>
     </ClCompile>
   </ItemGroup>
@@ -242,9 +251,6 @@
     <ClInclude Include="DebugPrimitivesRendering.h">
       <Filter>Core</Filter>
     </ClInclude>
-    <ClInclude Include="Viewport.h">
-      <Filter>Core</Filter>
-    </ClInclude>
     <ClInclude Include="ImGui\imgui_internal.h">
       <Filter>ImGui</Filter>
     </ClInclude>
@@ -270,6 +276,21 @@
       <Filter>Rendering\Models</Filter>
     </ClInclude>
     <ClInclude Include="Scene.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="Frame.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="BasePass.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="DepthPass.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="Viewport.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderingUtils.h">
       <Filter>Rendering</Filter>
     </ClInclude>
   </ItemGroup>

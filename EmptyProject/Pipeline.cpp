@@ -1496,6 +1496,20 @@ void FPipelineFactory::SetBlendState(D3D12_BLEND_DESC const& BlendState) {
 	Dirty = 1;
 }
 
+#include "Viewport.h"
+
+void FPipelineFactory::SetRenderTargets(FRenderTargetContext const * Context) {
+	if (Context->DepthBuffer) {
+		SetDepthStencil(Context->DepthBuffer->GetWriteFormat());
+	}
+	
+	u32 Index = 0;
+	for (auto & RT : Context->Outputs) {
+		SetRenderTarget(Context->Outputs[Index].GetFormat(), Index);
+		Index++;
+	}
+}
+
 FPipelineState * FPipelineFactory::GetPipelineState() {
 	if (Dirty) {
 		if (PipelineType == EPipelineType::Graphics) {
@@ -1546,6 +1560,7 @@ void FPipelineFactory::Reset() {
 	PipelineDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 	PipelineDesc.SampleMask = UINT_MAX;
 	PipelineDesc.SampleDesc.Count = 1;
+	PipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
 	ComputePipelineDesc = {};
 }

@@ -39,3 +39,21 @@ eastl::string ConvertToString(const wchar_t* src, u64 len) {
 eastl::wstring ConvertToWString(eastl::string const& str) {
 	return std::move(ConvertToWString(str.c_str(), str.size()));
 }
+
+eastl::string Format(const char* pFormat, ...) {
+	va_list args;
+	eastl::string w;
+	va_start(args, pFormat);
+	w.sprintf_va_list(pFormat, args);
+	va_end(args);
+	return std::move(w);
+}
+
+eastl::wstring Format(const wchar_t* pFormat, ...) {
+	va_list args;
+	eastl::wstring w;
+	va_start(args, pFormat);
+	w.sprintf_va_list(pFormat, args);
+	va_end(args);
+	return std::move(w);
+}

@@ -94,15 +94,13 @@ D3D12_SHADER_BYTECODE GetBytecode(FShader const* shader) {
 	return d3d12bytecode;
 }
 
-FShader* GetShader(eastl::string file, eastl::string func, const char* target, eastl::vector<ShaderMacroPair> macros, u32 flags) {
+FShader* GetShader(eastl::string file, eastl::string func, const char* target, std::initializer_list<ShaderMacroPair> macros, u32 flags) {
 	u64 shaderLocationHash = flags;
 	shaderLocationHash = MurmurHash2_64(file.data(), file.size() * sizeof(file[0]), shaderLocationHash);
 	shaderLocationHash = MurmurHash2_64(func.data(), func.size() * sizeof(func[0]), shaderLocationHash);
 	shaderLocationHash = MurmurHash2_64(target, strlen(target) * sizeof(target[0]), shaderLocationHash);
-	eastl::sort(macros.begin(), macros.end(), [](ShaderMacroPair const& a, ShaderMacroPair const& b) { return a.first < b.first; });
-	for (auto macro : macros) {
-		shaderLocationHash = MurmurHash2_64(macro.first.data(), macro.first.size() * sizeof(macro.first[0]), shaderLocationHash);
-		shaderLocationHash = MurmurHash2_64(macro.second.data(), macro.second.size() * sizeof(macro.second[0]), shaderLocationHash);
+	if (macros.size()) {
+		shaderLocationHash = MurmurHash2_64(macros.begin(), macros.size() * sizeof(macros.begin()[0]), shaderLocationHash);
 	}
 
 	ShaderHash hashLookup = { shaderLocationHash };
@@ -111,10 +109,17 @@ FShader* GetShader(eastl::string file, eastl::string func, const char* target, e
 		return cacheFind->second.get();
 	}
 
-	FShader* shader = new FShader();
-	ShadersLocationLookup[hashLookup] = eastl::shared_ptr<FShader>(shader);
+	auto & Ref = ShadersLocationLookup[hashLookup] = eastl::make_shared<FShader>();
+	FShader* shader = Ref.get();
 
 	eastl::unique_ptr<D3D_SHADER_MACRO[]> d3dmacros = eastl::make_unique<D3D_SHADER_MACRO[]>(macros.size() + 1);
+	for (auto & Macro : macros) {
+		shader->MacrosRaw.push_back(Macro);
+	}
+	for (u32 Index = 0; Index < macros.size(); ++Index) {
+		d3dmacros[Index].Name = shader->MacrosRaw[Index].first.c_str();
+		d3dmacros[Index].Definition = shader->MacrosRaw[Index].second.c_str();
+	}
 	d3dmacros[macros.size()] = {};
 
 	shader->File = file;

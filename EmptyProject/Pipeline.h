@@ -277,7 +277,6 @@ bool IsDepthReadOnly(D3D12_GRAPHICS_PIPELINE_STATE_DESC const* desc);
 bool IsStencilReadOnly(D3D12_GRAPHICS_PIPELINE_STATE_DESC const* desc);
 D3D12_PRIMITIVE_TOPOLOGY_TYPE GetPrimitiveTopologyType(D3D_PRIMITIVE_TOPOLOGY topology);
 
-
 class FPipelineFactory {
 public:
 	eastl::hash_map<u64, FPipelineState*> Cached;
@@ -301,6 +300,7 @@ public:
 	void SetRasterizerState(D3D12_RASTERIZER_DESC const& RasterizerState);
 	void SetDepthStencilState(D3D12_DEPTH_STENCIL_DESC const& DepthStencilState);
 	void SetBlendState(D3D12_BLEND_DESC const& BlendState);
+	void SetRenderTargets(struct FRenderTargetContext const * Context);
 	FPipelineState * GetPipelineState();
 	void Reset();
 };

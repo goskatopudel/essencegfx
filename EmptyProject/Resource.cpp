@@ -63,6 +63,17 @@ D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetRTV(DXGI_FORMAT format) {
 	return lookup.first->second.SubresourcesRTVs.GetCPUHandle(0);
 }
 
+D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetRTV(u32 MipLevel) const {
+	return FatData->Views.MainSet.SubresourcesRTVs.GetCPUHandle(GetSubresourceIndex(MipLevel));
+}
+D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetSRV(u32 MipLevel) const {
+	return FatData->Views.MainSet.SubresourcesSRVs.GetCPUHandle(GetSubresourceIndex(MipLevel));
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetDSV(u32 MipLevel) const {
+	return FatData->Views.MainSet.SubresourcesDSVs.GetCPUHandle(GetSubresourceIndex(MipLevel));
+}
+
 D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetDSV() const {
 	return FatData->Views.MainSet.SubresourcesDSVs.GetCPUHandle(0);
 }
@@ -141,7 +152,7 @@ FSubresourceInfo FGPUResource::GetSubresourceInfo(u32 subresourceIndex) const {
 	u32 ArraySize = (IsTexture3D() ? 1 : FatData->Desc.DepthOrArraySize);
 	u32 Planes = FatData->PlanesNum;
 	
-	Info.Mip = subresourceIndex % (ArraySize * Planes);
+	Info.Mip = subresourceIndex % Mips;
 	Info.ArrayIndex = (subresourceIndex / Mips) % ArraySize;
 	Info.Plane = subresourceIndex / (Mips * ArraySize);
 	
@@ -152,12 +163,23 @@ u32		FGPUResource::GetSubresourcesNum() const {
 	return FatData->PlanesNum * FatData->Desc.MipLevels * (IsTexture3D() ? 1 : FatData->Desc.DepthOrArraySize);
 }
 
+u32 FGPUResource::GetMipmapsNum() const {
+	return FatData->Desc.MipLevels;
+}
+
 bool	FGPUResource::IsReadOnly() const {
 	return !FatData->IsRenderTarget && !FatData->IsDepthStencil && !FatData->IsUnorderedAccess;
 }
 
 bool	FGPUResource::IsWritable() const {
 	return !IsReadOnly();
+}
+
+bool FGPUResource::IsDepthStencil() const {
+	return FatData->IsDepthStencil;
+}
+bool FGPUResource::IsRenderTarget() const {
+	return FatData->IsRenderTarget;
 }
 
 bool	FGPUResource::HasStencil() const {

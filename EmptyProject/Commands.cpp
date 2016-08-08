@@ -495,6 +495,8 @@ void FGPUContext::Barrier(FGPUResource* resource, u32 subresource, EAccessType b
 	BarriersList.push_back(Barrier);
 }
 
+bool GLogBarriers = true;
+
 void FGPUContext::FlushBarriers() {
 	if (BarriersList.size() - FlushCounter) {
 		eastl::vector<D3D12_RESOURCE_BARRIER> ScratchMem;
@@ -508,6 +510,17 @@ void FGPUContext::FlushBarriers() {
 			barrier.Transition.StateAfter = GetAPIResourceState(BarriersList[Index].To);
 			barrier.Transition.Subresource = BarriersList[Index].Subresource;
 			ScratchMem.push_back(barrier);
+
+			if(GLogBarriers) {
+				PrintFormated(L"Transition %s, %u: %x -> %x\n", BarriersList[Index].Resource->FatData->Name.c_str(), BarriersList[Index].Subresource,
+					barrier.Transition.StateBefore,
+					barrier.Transition.StateAfter
+					);
+			}
+
+			if(BarriersList[Index].Resource->FatData->AutomaticBarriers) {
+				GetResourceStateRegistry()->SetCurrentState(BarriersList[Index].Resource, BarriersList[Index].Subresource, BarriersList[Index].To);
+			}
 		}
 		FlushCounter = (u32)BarriersList.size();
 		RawCommandList()->ResourceBarrier((u32)ScratchMem.size(), ScratchMem.data());
@@ -1005,7 +1018,7 @@ void ProcessResourceBarriers(
 
 	auto NeedNewNode = [&](u32 Prev, EAccessType Access) -> bool {
 		bool Differs = Access != Nodes[Prev].Access;
-		return (IsExclusiveAccess(Access) || Nodes[Prev].Immutable) && Differs;
+		return (IsExclusiveAccess(Nodes[Prev].Access) || IsExclusiveAccess(Access) || Nodes[Prev].Immutable) && Differs;
 	};
 
 	for (auto & Request : Requests) {
@@ -1021,7 +1034,7 @@ void ProcessResourceBarriers(
 					PropagateRead(Prev, Request.Access);
 				}
 			}
-			// !ResourceInSameState
+			// !SubresourcesShareState
 			else {
 				// LastComplementaryNode
 				LastAllSubresNode = SpawnNode(LastComplementaryNode, Request.Access, Request.Subresource, Request.BatchIndex);
@@ -1073,15 +1086,43 @@ void ProcessResourceBarriers(
 	}
 
 	for (u32 Index = 0; Index < Nodes.size(); Index++) {
+		if (Nodes[Index].Complementary || Nodes[Index].Immutable) {
+			// this is helper node
+			continue;
+		}
 		for (u32 Prev : Nodes[Index].PrevIndices) {
 			if (Nodes[Prev].Access != Nodes[Index].Access) {
-				FResourceBarrier Barrier = {};
-				Barrier.Resource = Resource;
-				Barrier.Subresource = Nodes[Index].Subresource;
-				Barrier.From = Nodes[Prev].Access;
-				Barrier.To = Nodes[Index].Access;
+				if (Nodes[Prev].Complementary && Nodes[Index].Subresource == ALL_SUBRESOURCES) {
+					// todo: this should be solved by producing nodes differently? 
+					eastl::hash_set<u32> SubresourcesComplement;
+					for (u32 Prev : Nodes[Index].PrevIndices) {
+						if (Nodes[Prev].Subresource != ALL_SUBRESOURCES) {
+							SubresourcesComplement.insert(Nodes[Prev].Subresource);
+						}
+					}
 
-				OutBarriers[Nodes[Index].BatchIndex].push_back(Barrier);
+					for (u32 Subresource = 0; Subresource < Resource->GetSubresourcesNum(); ++Subresource) {
+						if (SubresourcesComplement.count(Subresource) == 0) {
+							FResourceBarrier Barrier = {};
+
+							Barrier.Resource = Resource;
+							Barrier.Subresource = Subresource;
+							Barrier.From = Nodes[Prev].Access;
+							Barrier.To = Nodes[Index].Access;
+
+							OutBarriers[Nodes[Index].BatchIndex].push_back(Barrier);
+						}
+					}
+				}
+				else {
+					FResourceBarrier Barrier = {};
+					Barrier.Resource = Resource;
+					Barrier.Subresource = Nodes[Prev].Subresource != ALL_SUBRESOURCES ? Nodes[Prev].Subresource : Nodes[Index].Subresource;
+					Barrier.From = Nodes[Prev].Access;
+					Barrier.To = Nodes[Index].Access;
+
+					OutBarriers[Nodes[Index].BatchIndex].push_back(Barrier);
+				}
 			}
 		}
 	}
@@ -1094,16 +1135,32 @@ void FResourceStateRegistry::SetCurrentState(FGPUResource* Resource, u32 Subreso
 	if (Subresource == ALL_SUBRESOURCES) {
 		Entry.AllSubresources = Access;
 		Entry.Complementary = EAccessType::UNSPECIFIED;
-		Entry.Subresources.clear();
+		if (Entry.Subresources.size() == Resource->GetSubresourcesNum()) {
+			Entry.Subresources.clear();
+		}
+		check(Entry.Subresources.size() == 0);
 	}
-	else if (Entry.AllSubresources != EAccessType::UNSPECIFIED) {
+	else if (Entry.AllSubresources != EAccessType::UNSPECIFIED) { // transition from same-state to per-subresources + complementary
+		check(Access != Entry.AllSubresources);
 		Entry.Complementary = Entry.AllSubresources;
 		Entry.Subresources[Subresource] = Access;
 		Entry.AllSubresources = EAccessType::UNSPECIFIED;
 	}
-	else {
-		Entry.Complementary = Entry.AllSubresources;
-		Entry.Subresources.clear();
+	else { // update subresource state
+		auto Iter = Entry.Subresources.find(Subresource);
+		if (Iter != Entry.Subresources.end() && Access == Entry.Complementary) {
+			check(Iter->second != Entry.Complementary);
+			Entry.Subresources.erase(Subresource);
+
+			if (Entry.Subresources.size() == 0) { // revert to shared subresource state
+				Entry.AllSubresources = Access;
+				Entry.Complementary = EAccessType::UNSPECIFIED;
+			}
+		}
+		else {
+			check(Access != Entry.Complementary);
+			Entry.Subresources[Subresource] = Access;
+		}
 	}
 }
 
@@ -1155,6 +1212,26 @@ void FCommandsStream::Reset() {
 void FCommandsStream::Close() {
 	BatchBarriers();
 	IsClosed = 1;
+}
+
+#include "Viewport.h"
+
+void FCommandsStream::SetRenderTargets(FRenderTargetContext * Context) {
+	if(Context->DepthBuffer) {
+		SetAccess(Context->DepthBuffer, EAccessType::WRITE_DEPTH);
+	}
+	SetDepthStencil(Context->DepthBuffer ? Context->DepthBuffer->GetDSV() : D3D12_CPU_DESCRIPTOR_HANDLE());
+	u32 Index = 0;
+	for (auto & RT : Context->Outputs) {
+		SetAccess(Context->Outputs[Index].Resource, EAccessType::WRITE_RT);
+		SetRenderTarget(RT.GetRTV(), Index);
+		Index++;
+	}
+	SetViewport(Context->Viewport);
+}
+
+void FCommandsStream::SetConstantBufferData(FConstantBuffer * ConstantBuffer, const void * Data, u64 Size) {
+	SetConstantBuffer(ConstantBuffer, CreateCBVFromData(ConstantBuffer, Data, Size));
 }
 
 void FCommandsStream::ProcessBarriersPreExecution(FResourceStateRegistry & Registry) {
@@ -1234,7 +1311,8 @@ void Playback(FGPUContext & Context, FCommandsStream * Stream) {
 	}
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE CreateCBVFromData(FConstantBuffer *, void const * Data, u64 Size) {
+D3D12_CPU_DESCRIPTOR_HANDLE CreateCBVFromData(FConstantBuffer * CB, void const * Data, u64 Size) {
+	check(Size <= CB->Size);
 	auto allocation = GetConstantsAllocator()->Allocate(Size);
 	memcpy(allocation.CPUPtr, Data, Size);
 	return allocation.CPUHandle;;

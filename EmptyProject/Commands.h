@@ -326,6 +326,9 @@ public:
 	void BatchBarriers();
 	void ExecuteBatchedBarriers(FGPUContext * Context, u32 BatchIndex);
 
+	void SetRenderTargets(struct FRenderTargetContext * Context);
+	void SetConstantBufferData(FConstantBuffer * ConstantBuffer, const void * Data, u64 Size);
+	
 	void PreCommandAdd() {
 		check(!IsClosed);
 	}
@@ -430,11 +433,11 @@ public:
 		auto Data = ReservePacket<FRenderCmdSetTopology, FRenderCmdSetTopologyFunc>();
 		Data->Topology = Topology;
 	}
-	inline void SetRenderTarget(u8 Index, D3D12_CPU_DESCRIPTOR_HANDLE RTV) {
+	inline void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE RTV, u8 Index) {
 		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetRenderTarget, FRenderCmdSetRenderTargetFunc>();
-		Data->Index = Index;
 		Data->RTV = RTV;
+		Data->Index = Index;
 	}
 	inline void SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE DSV) {
 		PreCommandAdd();

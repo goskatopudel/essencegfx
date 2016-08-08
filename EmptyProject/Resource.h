@@ -73,8 +73,11 @@ public:
 
 	D3D12_CPU_DESCRIPTOR_HANDLE GetRTV() const;
 	D3D12_CPU_DESCRIPTOR_HANDLE GetRTV(DXGI_FORMAT);
+	D3D12_CPU_DESCRIPTOR_HANDLE GetRTV(u32 MipLevel) const;
 	D3D12_CPU_DESCRIPTOR_HANDLE GetDSV() const;
+	D3D12_CPU_DESCRIPTOR_HANDLE GetDSV(u32 MipLevel) const;
 	D3D12_CPU_DESCRIPTOR_HANDLE GetSRV() const;
+	D3D12_CPU_DESCRIPTOR_HANDLE GetSRV(u32 MipLevel) const;
 	D3D12_CPU_DESCRIPTOR_HANDLE GetUAV() const;
 
 	Vec3u GetDimensions() const;
@@ -85,8 +88,11 @@ public:
 	u32 GetSubresourceIndex(u32 mip, u32 arraySlice = 0, u32 planeSlice = 0) const;
 	FSubresourceInfo GetSubresourceInfo(u32 subresourceIndex) const;
 	u32 GetSubresourcesNum() const;
+	u32 GetMipmapsNum() const;
 	bool IsReadOnly() const;
 	bool IsWritable() const;
+	bool IsDepthStencil() const;
+	bool IsRenderTarget() const;
 	bool HasStencil() const;
 	bool IsTexture3D() const;
 

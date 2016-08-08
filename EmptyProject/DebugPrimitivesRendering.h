@@ -50,5 +50,5 @@ public:
 	void AddMeshNormals(FEditorMesh * Mesh, float Scale = 1.f, Color4b Color = Color4b(255, 0, 0, 255));
 
 	// draw
-	void FlushToViewport(FGPUContext & Context, FRT1Context const& Target);
+	void FlushToViewport(FGPUContext & Context, FRenderTargetContext const& Target, float4x4 const * ViewProjectionMatrix);
 };

@@ -9,7 +9,7 @@
 
 class FShader;
 class FCompiledShader;
-typedef eastl::pair<eastl::wstring, eastl::wstring> ShaderMacroPair;
+typedef eastl::pair<eastl::string, eastl::string> ShaderMacroPair;
 
 class FShader {
 public:
@@ -20,13 +20,14 @@ public:
 	eastl::string							Func;
 	const char*								Target;
 	eastl::unique_ptr<D3D_SHADER_MACRO[]>	Macros;
+	eastl::vector<ShaderMacroPair>			MacrosRaw;
 	u32										Flags;
 
 	void Compile();
 	eastl::wstring	GetDebugName() const;
 };
 
-FShader* GetShader(eastl::string file, eastl::string func, const char* target, eastl::vector<ShaderMacroPair> macros, u32 flags);
+FShader* GetShader(eastl::string file, eastl::string func, const char* target, std::initializer_list<ShaderMacroPair> macros, u32 flags);
 // used to identify source of shader, not it's content (persistent between code changes)
 u64 GetShaderHash(FShader const* shader);
 
@@ -36,3 +37,5 @@ u64 GetBytecodeHash(FShader const* shader);
 
 void RecompileChangedShaders();
 u32 GetShadersNum();
+
+constexpr FShader * NO_SHADER = nullptr;

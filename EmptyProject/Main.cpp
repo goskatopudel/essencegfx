@@ -87,6 +87,7 @@ struct FShadowRenderingParams {
 	float2 LightAngles = float2(0, 0);
 	bool ShowTextures = false;
 	int ShowMipmap = 0;
+	bool Blur = false;
 
 	float3 LightDirection;
 } ShadowRenderingParams;
@@ -110,6 +111,7 @@ void ShowShadowmapOptions() {
 
 	ImGui::Checkbox("Visualize", &ShadowRenderingParams.ShowTextures);
 	ImGui::SliderInt("Mipmap", &ShadowRenderingParams.ShowMipmap, 0, 5);
+	ImGui::Checkbox("Blur", &ShadowRenderingParams.Blur);
 
 	ImGui::End();
 
@@ -193,6 +195,20 @@ bool FApplicationImpl::Update() {
 
 	Render_Depth(Stream, &ShadowmapContext, &Scene);
 
+	if(ShadowRenderingParams.Blur) {
+		BlurTexture(Stream, Shadowmap, PingPong);
+		Stream.SetAccess(Shadowmap, EAccessType::COPY_DEST, 0);
+		Stream.SetAccess(PingPong, EAccessType::COPY_SRC, 0);
+		Stream.BatchBarriers();
+		Stream.CopyTextureRegion(Shadowmap, 0, PingPong, 0);
+
+		BlurTexture(Stream, ShadowmapM2, PingPong);
+		Stream.SetAccess(ShadowmapM2, EAccessType::COPY_DEST, 0);
+		Stream.SetAccess(PingPong, EAccessType::COPY_SRC, 0);
+		Stream.BatchBarriers();
+		Stream.CopyTextureRegion(ShadowmapM2, 0, PingPong, 0);
+	}
+
 	GenerateMipmaps(Stream, Shadowmap);
 	GenerateMipmaps(Stream, ShadowmapM2);
 
@@ -213,8 +229,8 @@ bool FApplicationImpl::Update() {
 
 	if(ShadowRenderingParams.ShowTextures) {
 		RenderTargets.DepthBuffer = nullptr;
-		DrawTexture(Stream, Shadowmap, 0.f, float2(512, 512), ShadowRenderingParams.ShowMipmap, RenderTargets);
-		DrawTexture(Stream, ShadowmapM2, float2(0, 512), float2(512, 512), ShadowRenderingParams.ShowMipmap, RenderTargets);
+		DrawTexture(Stream, Shadowmap, 0.f, float2(512, 512), ETextureFiltering::Point, ShadowRenderingParams.ShowMipmap, RenderTargets);
+		DrawTexture(Stream, ShadowmapM2, float2(0, 512), float2(512, 512), ETextureFiltering::Point, ShadowRenderingParams.ShowMipmap, RenderTargets);
 	}
 
 	RenderTargets.DepthBuffer = DepthBuffer;

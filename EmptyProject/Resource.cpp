@@ -30,6 +30,7 @@ FGPUResource::FGPUResource(ID3D12Resource* resource, DXGI_FORMAT viewFormat) : D
 }
 
 FGPUResource::~FGPUResource() {
+	GetResourceStateRegistry()->Deregister(this);
 	if (FatData.get() && FatData->CpuPtr) {
 		D12Resource->Unmap(0, nullptr);
 	}

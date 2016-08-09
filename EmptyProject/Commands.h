@@ -254,6 +254,7 @@ public:
 	void SetVB(FBufferLocation BufferView, u32 Stream = 0);
 	void SetIB(FBufferLocation BufferView);
 	void Dispatch(u32 X, u32 Y = 1, u32 Z = 1);
+	void CopyTextureRegion(FGPUResource * dst, u32 dstSubresource, FGPUResource * src, u32 srcSubresource);
 
 	// Binding 
 
@@ -283,6 +284,7 @@ public:
 	eastl::hash_map<FGPUResource*, FResourceEntry>	Resources;
 
 	void SetCurrentState(FGPUResource* Resource, u32 Subresource, EAccessType Access);
+	void Deregister(FGPUResource* Resource);
 };
 
 FResourceStateRegistry * GetResourceStateRegistry();
@@ -444,6 +446,22 @@ public:
 		auto Data = ReservePacket<FRenderCmdSetDepthStencil, FRenderCmdSetDepthStencilFunc>();
 		Data->DSV = DSV;
 	}
+	inline void CopyResource(FGPUResource * Dst, FGPUResource * Src) {
+		PreCommandAdd();
+		auto Data = ReservePacket<FRenderCmdCopyResource, FRenderCmdCopyResourceFunc>();
+		Data->Dst = Dst;
+		Data->Src = Src;
+	}
+	inline void CopyTextureRegion(FGPUResource * Dst, u16 DstSubresource, FGPUResource * Src, u16 SrcSubresource) {
+		PreCommandAdd();
+		auto Data = ReservePacket<FRenderCmdCopyTextureRegion, FRenderCmdCopyTextureRegionFunc>();
+		Data->Dst = Dst;
+		Data->DstSubresource = DstSubresource;
+		Data->Src = Src;
+		Data->SrcSubresource = SrcSubresource;
+	}
+
+
 
 	void	ReserveStreamSize(u64 Size);
 	void *	Reserve(u64 Size);

@@ -104,3 +104,15 @@ u64 FRenderCmdDispatchFunc(FGPUContext * Context, void * DataVoidPtr) {
 	Context->Dispatch(Data->X, Data->Y, Data->Z);
 	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdDispatch);
 }
+
+u64 FRenderCmdCopyResourceFunc(FGPUContext * Context, void * DataVoidPtr) {
+	auto Data = (FRenderCmdCopyResource*)DataVoidPtr;
+	Context->CopyResource(Data->Dst, Data->Src);
+	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdCopyResource);
+}
+
+u64 FRenderCmdCopyTextureRegionFunc(FGPUContext * Context, void * DataVoidPtr) {
+	auto Data = (FRenderCmdCopyTextureRegion*)DataVoidPtr;
+	Context->CopyTextureRegion(Data->Dst, Data->DstSubresource, Data->Src, Data->SrcSubresource);
+	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdCopyTextureRegion);
+}

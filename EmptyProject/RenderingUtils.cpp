@@ -41,7 +41,7 @@ T& GetInstance() {
 	return Instance;
 }
 
-void DrawTexture(FCommandsStream & Context, FGPUResource * Texture, float2 Location, float2 Size, u32 Mipmap, FRenderTargetContext & RTContext) {
+void DrawTexture(FCommandsStream & Context, FGPUResource * Texture, float2 Location, float2 Size, ETextureFiltering Filtering, u32 Mipmap, FRenderTargetContext & RTContext) {
 	Context.SetAccess(Texture, EAccessType::READ_PIXEL);
 	Context.SetRenderTargets(&RTContext);
 
@@ -123,4 +123,38 @@ void GenerateMipmaps(FCommandsStream & Context, FGPUResource * Texture) {
 			Context.Draw(3);
 		}
 	}
+}
+
+class FBlurShaderState : public FShaderState {
+public:
+	FTextureParam SourceTexture;
+
+	FBlurShaderState() :
+		FShaderState(
+			GetShader("Shaders/Utility.hlsl", "VertexMain", "vs_5_1", {}, 0),
+			GetShader("Shaders/Utility.hlsl", "BlurPixelMain", "ps_5_1", {}, 0)) {}
+
+	void InitParams() override final {
+		SourceTexture = Root->CreateTextureParam(this, "SourceTexture");
+	}
+};
+
+
+void BlurTexture(FCommandsStream & Context, FGPUResource * SrcTexture, FGPUResource * OutTexture) {
+	auto & ShaderState = GetInstance<FBlurShaderState>();
+	static FPipelineFactory Factory;
+	Factory.SetShaderState(&ShaderState);
+	static FInputLayout * InputLayout = GetInputLayout({});
+	Factory.SetInputLayout(InputLayout);
+	Factory.SetRenderTarget(OutTexture->GetWriteFormat(), 0);
+	Factory.SetDepthStencil(DXGI_FORMAT_UNKNOWN);
+	Context.SetPipelineState(Factory.GetPipelineState());
+	Context.SetDepthStencil({});
+	auto Viewport = OutTexture->GetSizeAsViewport();
+	Context.SetAccess(SrcTexture, EAccessType::READ_PIXEL);
+	Context.SetAccess(OutTexture, EAccessType::WRITE_RT);
+	Context.SetTexture(&ShaderState.SourceTexture, SrcTexture->GetSRV());
+	Context.SetRenderTarget(OutTexture->GetRTV(OutTexture->GetWriteFormat()), 0);
+	Context.SetViewport(Viewport);
+	Context.Draw(3);
 }

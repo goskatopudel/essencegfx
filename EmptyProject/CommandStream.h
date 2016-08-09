@@ -146,3 +146,19 @@ struct FRenderCmdDispatch {
 };
 
 u64 FRenderCmdDispatchFunc(FGPUContext * Context, void * DataVoidPtr);
+
+struct FRenderCmdCopyResource {
+	FGPUResource * Dst;
+	FGPUResource * Src;
+};
+
+u64 FRenderCmdCopyResourceFunc(FGPUContext * Context, void * DataVoidPtr);
+
+struct FRenderCmdCopyTextureRegion {
+	FGPUResource * Dst;
+	FGPUResource * Src;
+	u16 DstSubresource;
+	u16 SrcSubresource;
+};
+
+u64 FRenderCmdCopyTextureRegionFunc(FGPUContext * Context, void * DataVoidPtr);

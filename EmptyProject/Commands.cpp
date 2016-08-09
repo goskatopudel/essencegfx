@@ -439,13 +439,14 @@ void FGPUContext::Execute() {
 		Close();
 	}
 	check(CommandList->State == GPUCommandList::ClosedState);
-	if (BarriersList.size()) {
+	// done in flush
+	/*if (BarriersList.size()) {
 		for (u32 Index = 0; Index < BarriersList.size(); Index++) {
 			if (BarriersList[Index].Resource->FatData->AutomaticBarriers) {
 				GetResourceStateRegistry()->SetCurrentState(BarriersList[Index].Resource, BarriersList[Index].Subresource, BarriersList[Index].To);
 			}
 		}
-	}
+	}*/
 	Queue->Execute(CommandList);
 	CommandList = nullptr;
 }
@@ -495,7 +496,7 @@ void FGPUContext::Barrier(FGPUResource* resource, u32 subresource, EAccessType b
 	BarriersList.push_back(Barrier);
 }
 
-bool GLogBarriers = true;
+bool GLogBarriers = false;
 
 void FGPUContext::FlushBarriers() {
 	if (BarriersList.size() - FlushCounter) {
@@ -729,6 +730,18 @@ void FGPUContext::Draw(u32 vertexCount, u32 startVertex, u32 instances, u32 star
 void FGPUContext::DrawIndexed(u32 indexCount, u32 startIndex, i32 baseVertex, u32 instances, u32 startInstance) {
 	PreDraw();
 	RawCommandList()->DrawIndexedInstanced(indexCount, instances, startIndex, baseVertex, startInstance);
+}
+
+void FGPUContext::CopyTextureRegion(FGPUResource * dst, u32 dstSubresource, FGPUResource * src, u32 srcSubresource) {
+	D3D12_TEXTURE_COPY_LOCATION CopyDst = {};
+	CopyDst.pResource = dst->D12Resource.get();
+	CopyDst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+	CopyDst.SubresourceIndex = dstSubresource;
+	D3D12_TEXTURE_COPY_LOCATION CopySrc = {};
+	CopySrc.pResource = src->D12Resource.get();
+	CopySrc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+	CopySrc.SubresourceIndex = srcSubresource;
+	RawCommandList()->CopyTextureRegion(&CopyDst, 0, 0, 0, &CopySrc, nullptr);
 }
 
 bool operator != (D3D12_VERTEX_BUFFER_VIEW const& A, D3D12_VERTEX_BUFFER_VIEW const & B) {
@@ -1164,12 +1177,20 @@ void FResourceStateRegistry::SetCurrentState(FGPUResource* Resource, u32 Subreso
 	}
 }
 
+void FResourceStateRegistry::Deregister(FGPUResource* Resource) {
+	Resources.erase(Resource);
+}
+
 void	FCommandsStream::SetAccess(FGPUResource * Resource, EAccessType Access, u32 Subresource) {
 	PreCommandAdd();
 	if (!Resource->FatData->AutomaticBarriers) {
 		return;
 	}
 	check(Resource->FatData->AutomaticBarriers);
+
+	if (Resource->GetMipmapsNum() == 1) {
+		Subresource = ALL_SUBRESOURCES;
+	}
 
 	FResourceAccess ResourceAccess;
 	ResourceAccess.Subresource = Subresource;

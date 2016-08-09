@@ -40,9 +40,9 @@ SamplerState    	PointSampler : register(TEXTURE_POINT_CLAMP_SAMPLER);
 float4 				WriteColor;
 float 				WriteDepth;
 
-float4 CopyPixelMain(float4 position : SV_POSITION, float2 texcoord : TEXCOORD) : SV_TARGET
+float4 CopyPixelMain(float4 SvPosition : SV_POSITION, float2 Texcoord : TEXCOORD) : SV_TARGET
 {
-	return SourceTexture.SampleLevel(Sampler, texcoord, Mipmap);
+	return SourceTexture.SampleLevel(Sampler, Texcoord, Mipmap);
 }
 
 #define DEPTH_BILINEAR 0
@@ -74,4 +74,20 @@ float4 ColorPS(float4 position : SV_POSITION, float2 texcoord : TEXCOORD) : SV_T
 float DepthPS(float4 position : SV_POSITION, float2 texcoord : TEXCOORD) : SV_Depth
 {
 	return WriteDepth;
+}
+
+float4 BlurPixelMain(float4 SvPosition : SV_POSITION, float2 Texcoord : TEXCOORD) : SV_TARGET
+{
+	float4 Sum = 0;
+	int2 Texel = SvPosition.xy;
+
+	// 3x3 box
+	[unroll]
+	for(int x = -1; x <= 1; ++x) {
+		[unroll]
+		for(int y = -1; y <= 1; ++y) {
+			Sum += SourceTexture[Texel + int2(x, y)];
+		}
+	}
+	return Sum / 9.f;
 }

@@ -21,7 +21,7 @@ struct FRenderTargetDesc {
 	D3D12_CPU_DESCRIPTOR_HANDLE GetRTV() const;
 };
 
-struct FRenderTargetContext {
+struct FRenderTargetsBundle {
 	typedef eastl::vector<FRenderTargetDesc> RTArray;
 	RTArray Outputs;
 	FGPUResource * DepthBuffer = nullptr;
@@ -30,7 +30,7 @@ struct FRenderTargetContext {
 };
 
 struct FRenderViewport {
-	FRenderTargetContext RenderTargets;
+	FRenderTargetsBundle RenderTargets;
 	Vec2i Resolution;
 	FCamera * Camera;
 	float4x4 ViewMatrix;

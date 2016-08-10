@@ -26,7 +26,7 @@ public:
 };
 
 void PreRender_Depth(FCommandsStream & Commands, FDepthRenderContext * Viewport, FScene * Scene) {
-	Commands.SetRenderTargets(&Viewport->RenderTargets);
+	Commands.SetRenderTargetsBundle(&Viewport->RenderTargets);
 	Commands.ClearDSV(Viewport->RenderTargets.DepthBuffer->GetDSV());
 	Commands.ClearRTV(Viewport->RenderTargets.Outputs[0].GetRTV(), 0.f);
 	Commands.SetViewport(Viewport->RenderTargets.Viewport);
@@ -34,8 +34,7 @@ void PreRender_Depth(FCommandsStream & Commands, FDepthRenderContext * Viewport,
 
 void RenderModel_Depth(FCommandsStream & Commands, FDepthRenderContext * Viewport, FScene * Scene, FSceneStaticMesh * StaticMesh) {
 	static FStaticModelShaderState_Depth<true> ShaderState;
-	static FPipelineState * PipelineState;
-
+	
 	static FInputLayout * StaticMeshInputLayout = GetInputLayout({
 		CreateInputElement("POSITION", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
 		CreateInputElement("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
@@ -46,18 +45,20 @@ void RenderModel_Depth(FCommandsStream & Commands, FDepthRenderContext * Viewpor
 		CreateInputElement("COLOR", DXGI_FORMAT_R8G8B8A8_UNORM, 0, 0),
 	});
 
-	static FPipelineFactory Factory;
-	Factory.SetInputLayout(StaticMeshInputLayout);
-	Factory.SetRenderTargets(&Viewport->RenderTargets);
-	Factory.SetShaderState(&ShaderState);
+	static FPipelineCache PipelineCache;
+	static FPipelineContext<FCommandsStream> PipelineContext;
+
+	PipelineContext.Bind(&Commands, &PipelineCache);
+	PipelineContext.SetInputLayout(StaticMeshInputLayout);
+	PipelineContext.SetRenderTargetsBundle(&Viewport->RenderTargets);
+	PipelineContext.SetShaderState(&ShaderState);
 
 	D3D12_RASTERIZER_DESC Desc;
 	SetD3D12StateDefaults(&Desc);
 	Desc.CullMode = D3D12_CULL_MODE_NONE;
-	Factory.SetRasterizerState(Desc);
+	PipelineContext.SetRasterizerState(Desc);
 
-	PipelineState = Factory.GetPipelineState();
-	Commands.SetPipelineState(PipelineState);
+	PipelineContext.ApplyState();
 
 	FShadowProjectionConstants Constants;
 	StoreTransposed(GetWorldMatrix(StaticMesh->Position, 1) * Load(Viewport->ViewProjectionMatrix), &Constants.WorldViewProjectionMatrix);

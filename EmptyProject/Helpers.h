@@ -1,5 +1,11 @@
 #pragma once
 
+template<typename T>
+T& GetInstance() {
+	static T Instance;
+	return Instance;
+}
+
 template <typename F>
 struct ScopeExit {
 	ScopeExit(F f) : f(f) {}

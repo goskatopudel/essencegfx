@@ -640,6 +640,10 @@ FShaderState::FShaderState(FShader * inVertexShader, FShader * inHullShader, FSh
 }
 
 void FShaderState::Compile() {
+	if (!IsOutdated()) {
+		return;
+	}
+
 	if (Type == EPipelineType::Graphics) {
 		Root = GetRootLayout(VertexShader, HullShader, DomainShader, GeometryShader, PixelShader, RootSignature);
 		if (!FixedRootSignature) {
@@ -1423,144 +1427,5 @@ D3D12_PRIMITIVE_TOPOLOGY_TYPE GetPrimitiveTopologyType(D3D_PRIMITIVE_TOPOLOGY to
 	return D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED;
 }
 
-FPipelineFactory::FPipelineFactory() {
-	Reset();
-}
-
-void FPipelineFactory::SetInputLayout(FInputLayout * inInputLayout) {
-	if (InputLayout != inInputLayout) {
-		InputLayout = inInputLayout;
-		Dirty = 1;
-	}
-}
-
-void FPipelineFactory::SetShaderState(FShaderState * inShaderState) {
-	if (ShaderState != inShaderState) {
-		ShaderState = inShaderState;
-		PipelineType = ShaderState->Type;
-		Dirty = 1;
-	}
-}
-
-void FPipelineFactory::SetRenderTarget(DXGI_FORMAT Format, u32 Index) {
-	if (PipelineDesc.RTVFormats[Index] == Format) {
-		return;
-	}
-
-	Dirty = 1;
-	PipelineDesc.RTVFormats[Index] = Format;
-
-	if (Format != DXGI_FORMAT_UNKNOWN) {
-		PipelineDesc.NumRenderTargets = eastl::max(PipelineDesc.NumRenderTargets, Index + 1);
-	}
-	else {
-		i32 maxIndex = PipelineDesc.NumRenderTargets;
-		for (i32 i = (i32)PipelineDesc.NumRenderTargets - 1; i >= 0; --i) {
-			if (PipelineDesc.RTVFormats[i] == DXGI_FORMAT_UNKNOWN) {
-				--PipelineDesc.NumRenderTargets;
-				check(i > 0 || PipelineDesc.NumRenderTargets == 0);
-			}
-			else {
-				break;
-			}
-		}
-	}
-}
-
-void FPipelineFactory::SetDepthStencil(DXGI_FORMAT Format) {
-	if (Format != PipelineDesc.DSVFormat) {
-		PipelineDesc.DSVFormat = Format;
-		Dirty = 1;
-	}
-}
-
-void FPipelineFactory::SetTopology(D3D_PRIMITIVE_TOPOLOGY inTopology) {
-	if (GetPrimitiveTopologyType(inTopology) != PipelineDesc.PrimitiveTopologyType) {
-		PipelineDesc.PrimitiveTopologyType = GetPrimitiveTopologyType(inTopology);
-		Dirty = 1;
-	}
-}
-
-void FPipelineFactory::SetRasterizerState(D3D12_RASTERIZER_DESC const& RasterizerState) {
-	PipelineDesc.RasterizerState = RasterizerState;
-	Dirty = 1;
-}
-
-void FPipelineFactory::SetDepthStencilState(D3D12_DEPTH_STENCIL_DESC const& DepthStencilState) {
-	PipelineDesc.DepthStencilState = DepthStencilState;
-	Dirty = 1;
-}
-
-void FPipelineFactory::SetBlendState(D3D12_BLEND_DESC const& BlendState) {
-	PipelineDesc.BlendState = BlendState;
-	Dirty = 1;
-}
-
-#include "Viewport.h"
-
-void FPipelineFactory::SetRenderTargets(FRenderTargetContext const * Context) {
-	if (Context->DepthBuffer) {
-		SetDepthStencil(Context->DepthBuffer->GetWriteFormat());
-	}
-	
-	u32 Index = 0;
-	for (auto & RT : Context->Outputs) {
-		SetRenderTarget(Context->Outputs[Index].GetFormat(), Index);
-		Index++;
-	}
-}
-
-FPipelineState * FPipelineFactory::GetPipelineState() {
-	if (Dirty) {
-		if (PipelineType == EPipelineType::Graphics) {
-			u64 Hash = MurmurHash2_64(&PipelineDesc, sizeof(PipelineDesc), 0);
-			Hash = HashCombine64(Hash, ShaderState->ContentHash);
-			Hash = HashCombine64(Hash, InputLayout->ValueHash);
-
-			auto Iter = Cached.find(Hash);
-			if (Iter == Cached.end()) {
-				CurrentPipelineState = GetGraphicsPipelineState(ShaderState, &PipelineDesc, InputLayout);
-
-				Cached[Hash] = CurrentPipelineState;
-			}
-			else {
-				CurrentPipelineState = Iter->second;
-			}
-		}
-		else {
-			u64 Hash = MurmurHash2_64(&PipelineDesc, sizeof(PipelineDesc), 0);
-
-			auto Iter = Cached.find(Hash);
-			if (Iter == Cached.end()) {
-				CurrentPipelineState = GetComputePipelineState(ShaderState, &ComputePipelineDesc);
-
-				Cached[Hash] = CurrentPipelineState;
-			}
-			else {
-				CurrentPipelineState = Iter->second;
-			}
-		}
-
-		Dirty = 0;
-	}
-
-	return CurrentPipelineState;
-}
-
-void FPipelineFactory::Reset() {
-	PipelineType = EPipelineType::Graphics;
-	CurrentPipelineState = nullptr;
-
-	ShaderState = nullptr;
-	InputLayout = nullptr;
-
-	PipelineDesc = {};
-	PipelineDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	PipelineDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	PipelineDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	PipelineDesc.SampleMask = UINT_MAX;
-	PipelineDesc.SampleDesc.Count = 1;
-	PipelineDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-
-	ComputePipelineDesc = {};
+FPipelineCache::FPipelineCache() {
 }

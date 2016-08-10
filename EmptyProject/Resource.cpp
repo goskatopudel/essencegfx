@@ -131,20 +131,34 @@ bool	FGPUResource::IsFixedState() const {
 	return FatData->HeapProperties.Type == D3D12_HEAP_TYPE_UPLOAD || FatData->HeapProperties.Type == D3D12_HEAP_TYPE_READBACK;
 }
 
-DXGI_FORMAT	FGPUResource::GetFormat() const {
+DXGI_FORMAT	FGPUResource::GetRawFormat() const {
 	return FatData->Desc.Format;
+}
+
+DXGI_FORMAT FGPUResource::GetReadFormat(bool bSRGB) const {
+	if (FatData->IsDepthStencil) {
+		check(!bSRGB);
+		return GetDepthReadFormat(FatData->Desc.Format);
+	}
+
+	if (bSRGB && !IsSRGB(GetRawFormat())) {
+		return MakeSRGB(GetRawFormat());
+	}
+
+	return GetRawFormat();
 }
 
 DXGI_FORMAT FGPUResource::GetWriteFormat(bool bSRGB) const {
 	if (FatData->IsDepthStencil) {
-		return GetDepthStencilFormat(GetFormat());
+		check(!bSRGB);
+		return GetDepthStencilFormat(GetRawFormat());
 	}
 
-	if (bSRGB && !IsSRGB(GetFormat())) {
-		return MakeSRGB(GetFormat());
+	if (bSRGB && !IsSRGB(GetRawFormat())) {
+		return MakeSRGB(GetRawFormat());
 	}
 
-	return GetFormat();
+	return GetRawFormat();
 }
 
 FSubresourceInfo FGPUResource::GetSubresourceInfo(u32 subresourceIndex) const {
@@ -186,3 +200,4 @@ bool FGPUResource::IsRenderTarget() const {
 bool	FGPUResource::HasStencil() const {
 	return FatData->IsDepthStencil && FatData->PlanesNum > 1;
 }
+

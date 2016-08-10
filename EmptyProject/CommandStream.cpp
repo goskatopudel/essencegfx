@@ -53,7 +53,7 @@ u64 FRenderCmdSetViewportFunc(FGPUContext * Context, void * DataVoidPtr) {
 
 u64 FRenderCmdSetRenderTargetFunc(FGPUContext * Context, void * DataVoidPtr) {
 	auto Data = (FRenderCmdSetRenderTarget*)DataVoidPtr;
-	Context->SetRenderTarget(Data->Index, Data->RTV);
+	Context->SetRenderTarget(Data->RTV, Data->Index);
 	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdSetRenderTarget);
 };
 

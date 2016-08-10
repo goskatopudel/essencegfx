@@ -202,7 +202,7 @@ public:
 };
 
 
-void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRenderTargetContext const& Target, float4x4 const * ViewProjectionMatrix) {
+void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRenderTargetsBundle const& Target, float4x4 const * ViewProjectionMatrix) {
 	if (Batches.size() == 0) {
 		return;
 	}
@@ -224,13 +224,14 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRender
 
 	u32 StartVertex = 0;
 
-	static FPipelineFactory LocalPipelineFactory;
-	FPipelineState * PipelineState = nullptr;
+	static FPipelineCache PipelineCache;
+	static FPipelineContext<FGPUContext> PipelineContext;
 
-	LocalPipelineFactory.SetInputLayout(InputLayout);
-	LocalPipelineFactory.SetShaderState(&ShaderState);
-	LocalPipelineFactory.SetRenderTargets(&Target);
-	PipelineState = LocalPipelineFactory.GetPipelineState();
+	PipelineContext.Bind(&Context, &PipelineCache);
+
+	PipelineContext.SetInputLayout(InputLayout);
+	PipelineContext.SetShaderState(&ShaderState);
+	PipelineContext.SetRenderTargetsBundle(&Target);
 
 	D3D12_DEPTH_STENCIL_DESC DepthStencilState;
 	SetD3D12StateDefaults(&DepthStencilState);
@@ -241,7 +242,7 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRender
 	else {
 		DepthStencilState.DepthEnable = false;
 	}
-	LocalPipelineFactory.SetDepthStencilState(DepthStencilState);
+	PipelineContext.SetDepthStencilState(DepthStencilState);
 
 	D3D12_BLEND_DESC BlendState;
 	SetD3D12StateDefaults(&BlendState);
@@ -253,36 +254,28 @@ void FDebugPrimitivesAccumulator::FlushToViewport(FGPUContext & Context, FRender
 	BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
 	BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
 	BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-	LocalPipelineFactory.SetBlendState(BlendState);
+	PipelineContext.SetBlendState(BlendState);
+
+	ShaderState.Compile();
 
 	FDrawPrimitiveShaderState::FConstantBufferData Constants = {};
 	StoreTransposed(Load(*ViewProjectionMatrix), &Constants.ViewProjMatrix);
 	auto CBV = CreateCBVFromData(&ShaderState.ConstantBuffer, Constants);
 
-	if(Target.DepthBuffer) {
-		Context.SetDepthStencil(Target.DepthBuffer->GetDSV());
-	}
-	Context.SetRenderTarget(0, Target.Outputs[0].Resource->GetRTV(Target.Outputs[0].GetFormat()));
-	Context.SetViewport(Target.Outputs[0].Resource->GetSizeAsViewport());
+	PipelineContext.SetRenderTargetsBundle(&Target);
 
 	for (auto & Batch : Batches) {
 		if (Batch.Type == EPrimitive::Line) {			
-			LocalPipelineFactory.SetTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
-
-			Context.SetTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
-			Context.SetPSO(LocalPipelineFactory.GetPipelineState());
-			Context.SetRoot(ShaderState.Root);
+			PipelineContext.SetTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+			PipelineContext.ApplyState();
 
 			Context.SetConstantBuffer(&ShaderState.ConstantBuffer, CBV);
 			Context.Draw(Batch.Num * 2, StartVertex);
 			StartVertex += Batch.Num * 2;
 		}
 		else if (Batch.Type == EPrimitive::Polygon) {
-			LocalPipelineFactory.SetTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-			Context.SetTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			Context.SetPSO(LocalPipelineFactory.GetPipelineState());
-			Context.SetRoot(ShaderState.Root);
+			PipelineContext.SetTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			PipelineContext.ApplyState();
 
 			Context.SetConstantBuffer(&ShaderState.ConstantBuffer, CBV);
 			Context.Draw(Batch.Num * 3, StartVertex);

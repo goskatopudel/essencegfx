@@ -48,6 +48,13 @@ struct FSubresourceInfo {
 	u32		ArrayIndex;
 };
 
+struct FResourceView {
+	D3D12_CPU_DESCRIPTOR_HANDLE DescHandle;
+	DXGI_FORMAT Format;
+	FGPUResource * Resource;
+	u32 Subresource;
+	EAccessType RequiredAccess;
+};
 
 class FResourceAllocator;
 class FGPUResourceFat;
@@ -98,7 +105,8 @@ public:
 
 	EAccessType GetDefaultAccess() const;
 	bool IsFixedState() const;
-	DXGI_FORMAT GetFormat() const;
+	DXGI_FORMAT GetRawFormat() const;
+	DXGI_FORMAT GetReadFormat(bool bSRGB = false) const;
 	DXGI_FORMAT GetWriteFormat(bool bSRGB = false) const;
 
 	void FenceDeletion(SyncPoint Sync);

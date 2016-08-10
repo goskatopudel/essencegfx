@@ -30,7 +30,9 @@ VOut VertexMain(VIn Input, uint VertexId : SV_VertexID)
 void PixelMain(VOut Interpolated, out float OutRT0 : SV_TARGET0)
 {
 	float LinearDepth = Interpolated.SvPosition.z;
-	OutRT0 = LinearDepth * LinearDepth;
+	float dx = ddx(LinearDepth);
+	float dy = ddy(LinearDepth);
+	OutRT0 = LinearDepth * LinearDepth;// + 0.25f * dx*dx + dy*dy;
 }
 
 

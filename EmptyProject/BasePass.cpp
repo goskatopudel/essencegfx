@@ -29,7 +29,7 @@ public:
 };
 
 void PreRender_Forward(FCommandsStream & Commands, FForwardRenderContext * Viewport, FScene * Scene) {
-	Commands.SetRenderTargets(&Viewport->RenderTargets);
+	Commands.SetRenderTargetsBundle(&Viewport->RenderTargets);
 	Commands.ClearDSV(Viewport->RenderTargets.DepthBuffer->GetDSV());
 	Commands.SetViewport(Viewport->RenderTargets.Viewport);
 }
@@ -49,13 +49,14 @@ void RenderModel_Forward(FCommandsStream & Commands, FForwardRenderContext * Vie
 		CreateInputElement("COLOR", DXGI_FORMAT_R8G8B8A8_UNORM, 0, 0),
 	});
 
-	static FPipelineFactory Factory;
-	Factory.SetInputLayout(StaticMeshInputLayout);
-	Factory.SetRenderTargets(&Viewport->RenderTargets);
-	Factory.SetShaderState(&ShaderState);
+	static FPipelineCache PipelineCache;
+	static FPipelineContext<FCommandsStream> PipelineContext;
 
-	PipelineState = Factory.GetPipelineState();
-	Commands.SetPipelineState(PipelineState);
+	PipelineContext.Bind(&Commands, &PipelineCache);
+	PipelineContext.SetInputLayout(StaticMeshInputLayout);
+	PipelineContext.SetRenderTargetsBundle(&Viewport->RenderTargets);
+	PipelineContext.SetShaderState(&ShaderState);
+	PipelineContext.ApplyState();
 
 	FFrameConstants FrameConstants;
 	StoreTransposed(Load(Viewport->ViewProjectionMatrix), &FrameConstants.ViewProjectionMatrix);

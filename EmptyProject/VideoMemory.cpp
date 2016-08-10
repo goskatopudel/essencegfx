@@ -188,7 +188,7 @@ void	FLinearAllocator::Tick() {
 
 FLinearAllocator *		GetConstantsAllocator() {
 	if (!ConstantsAllocator.get()) {
-		ConstantsAllocator.reset(new FLinearAllocator(64 * 1024));
+		ConstantsAllocator = eastl::make_unique<FLinearAllocator>(64 * 1024);
 	}
 
 	return ConstantsAllocator.get();
@@ -196,7 +196,7 @@ FLinearAllocator *		GetConstantsAllocator() {
 
 FUploadBufferAllocator *	GetUploadAllocator() {
 	if (!UploadAllocator.get()) {
-		UploadAllocator.reset(new FUploadBufferAllocator(64 * 1024));
+		UploadAllocator = eastl::make_unique<FUploadBufferAllocator>(64 * 1024);
 	}
 
 	return UploadAllocator.get();
@@ -289,7 +289,7 @@ bool HasStencil(DXGI_FORMAT format) {
 
 FDescriptorAllocator* GetOnlineDescriptorsAllocator() {
 	if (!OnlineSOVsAllocator.get()) {
-		OnlineSOVsAllocator.reset(new FDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 999'936, true));
+		OnlineSOVsAllocator = eastl::make_unique<FDescriptorAllocator>(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 999'936, true);
 	}
 
 	return OnlineSOVsAllocator.get();
@@ -302,9 +302,9 @@ D3D12_CPU_DESCRIPTOR_HANDLE	NULL_TEXTURE2D_UAV_VIEW;
 
 void InitDescriptorHeaps() {
 	if (!SOVsAllocator.get()) {
-		SOVsAllocator.reset(new FDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 32768, false));
-		DSVsAllocator.reset(new FDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 32768, false));
-		RTVsAllocator.reset(new FDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 32768, false));
+		SOVsAllocator = eastl::make_unique<FDescriptorAllocator>(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 32768, false);
+		DSVsAllocator = eastl::make_unique<FDescriptorAllocator>(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 32768, false);
+		RTVsAllocator = eastl::make_unique<FDescriptorAllocator>(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 32768, false);
 
 		auto NullViewsAllocation = SOVsAllocator->Allocate(4);
 
@@ -520,9 +520,7 @@ void AllocateResourceViews(FGPUResource* resource) {
 	AllocateResourceViews(resource, resource->FatData->ViewFormat, resource->FatData->Views.MainSet);
 }
 
-FGPUResourceRef FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depthOrArraySize, DXGI_FORMAT format, TextureFlags flags, wchar_t const* debugName, DXGI_FORMAT clearFormat, float4 clearColor, float clearDepth, u8 clearStencil) {
-	FGPUResourceRef result = Allocate();
-
+void ConstructTexture(FGPUResource * Resource, u64 width, u32 height, u32 depthOrArraySize, DXGI_FORMAT format, TextureFlags flags, wchar_t const* debugName, DXGI_FORMAT clearFormat, float4 clearColor, float clearDepth, u8 clearStencil) {
 	check(!((flags & (ALLOW_RENDER_TARGET | ALLOW_UNORDERED_ACCESS)) && (flags & ALLOW_DEPTH_STENCIL)));
 	check(!((flags & TEXTURE_3D) && (flags & TEXTURE_CUBEMAP)));
 	check(!((flags & TEXTURE_CUBEMAP) && (depthOrArraySize % 6) != 0));
@@ -543,9 +541,9 @@ FGPUResourceRef FTextureAllocator::CreateTexture(u64 width, u32 height, u32 dept
 		| (flags & ALLOW_UNORDERED_ACCESS) ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE
 		;
 
-	result->FatData->PlanesNum = 1;
+	Resource->FatData->PlanesNum = 1;
 	if ((flags & ALLOW_DEPTH_STENCIL) && HasStencil(format)) {
-		result->FatData->PlanesNum = 2;
+		Resource->FatData->PlanesNum = 2;
 	}
 
 	if ((flags & ALLOW_RENDER_TARGET) && clearFormat == DXGI_FORMAT_UNKNOWN) {
@@ -561,84 +559,84 @@ FGPUResourceRef FTextureAllocator::CreateTexture(u64 width, u32 height, u32 dept
 		clearValue.Format = clearFormat;
 		bool needsClearValue = false;
 		if (flags & ALLOW_DEPTH_STENCIL) {
-			result->FatData->IsDepthStencil = 1;
+			Resource->FatData->IsDepthStencil = 1;
 			needsClearValue = true;
 			clearValue.Format = clearFormat;
 			clearValue.DepthStencil.Depth = clearDepth;
 			clearValue.DepthStencil.Stencil = clearStencil;
-			result->FatData->ViewFormat = GetDepthReadFormat(clearFormat);
+			Resource->FatData->ViewFormat = GetDepthReadFormat(clearFormat);
 		}
 		else if (flags & ALLOW_RENDER_TARGET) {
-			result->FatData->IsRenderTarget = 1;
+			Resource->FatData->IsRenderTarget = 1;
 			needsClearValue = true;
 			clearValue.Color[0] = clearColor.x;
 			clearValue.Color[1] = clearColor.y;
 			clearValue.Color[2] = clearColor.z;
 			clearValue.Color[3] = clearColor.w;
-			result->FatData->ViewFormat = clearFormat;
+			Resource->FatData->ViewFormat = clearFormat;
 		}
 	}
 	else {
-		result->FatData->ViewFormat = format;
+		Resource->FatData->ViewFormat = format;
 	}
 
-	result->FatData->IsShaderReadable = 1;
+	Resource->FatData->IsShaderReadable = 1;
 
 	if (flags & TEXTURE_3D) {
-		result->FatData->ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+		Resource->FatData->ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
 	}
 	else if ((flags & TEXTURE_CUBEMAP) && (flags & TEXTURE_ARRAY)) {
-		result->FatData->ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBEARRAY;
+		Resource->FatData->ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBEARRAY;
 	}
 	else if (flags & TEXTURE_CUBEMAP) {
-		result->FatData->ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+		Resource->FatData->ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
 	}
 	else if (flags & TEXTURE_ARRAY) {
-		result->FatData->ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+		Resource->FatData->ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
 	}
 	else {
-		result->FatData->ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		Resource->FatData->ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	}
 
-	result->FatData->IsUnorderedAccess = (flags & ALLOW_UNORDERED_ACCESS) > 0;
+	Resource->FatData->IsUnorderedAccess = (flags & ALLOW_UNORDERED_ACCESS) > 0;
 
 	if (flags & TEXTURE_TILED) {
 		D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON;
 
-		result->FatData->IsReserved = 1;
-		result->FatData->HeapProperties = {};
+		Resource->FatData->IsReserved = 1;
+		Resource->FatData->HeapProperties = {};
 
 		VERIFYDX12(GetPrimaryDevice()->D12Device->CreateReservedResource(
 			&desc,
 			initialState,
 			clearFormat != DXGI_FORMAT_UNKNOWN ? &clearValue : nullptr,
-			IID_PPV_ARGS(result->D12Resource.get_init())
-			));
+			IID_PPV_ARGS(Resource->D12Resource.get_init())
+		));
 	}
 	else {
 		D3D12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 		D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON;
-		if (result->FatData->IsRenderTarget) {
+		if (Resource->FatData->IsRenderTarget) {
 			initialState = D3D12_RESOURCE_STATE_RENDER_TARGET;
-			result->FatData->AutomaticBarriers = 1;
-			GetResourceStateRegistry()->SetCurrentState(result.get(), ALL_SUBRESOURCES, EAccessType::WRITE_RT);
+			Resource->FatData->AutomaticBarriers = 1;
+			GetResourceStateRegistry()->SetCurrentState(Resource, ALL_SUBRESOURCES, EAccessType::WRITE_RT);
 		}
-		else if (result->FatData->IsDepthStencil) {
+		else if (Resource->FatData->IsDepthStencil) {
 			initialState = D3D12_RESOURCE_STATE_DEPTH_WRITE;
-			result->FatData->AutomaticBarriers = 1;
-			GetResourceStateRegistry()->SetCurrentState(result.get(), ALL_SUBRESOURCES, EAccessType::WRITE_DEPTH);
+			Resource->FatData->AutomaticBarriers = 1;
+			GetResourceStateRegistry()->SetCurrentState(Resource, ALL_SUBRESOURCES, EAccessType::WRITE_DEPTH);
 		}
-		else if (result->FatData->IsUnorderedAccess) {
+		else if (Resource->FatData->IsUnorderedAccess) {
 			initialState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-			result->FatData->AutomaticBarriers = 1;
-			GetResourceStateRegistry()->SetCurrentState(result.get(), ALL_SUBRESOURCES, EAccessType::WRITE_UAV);
+			Resource->FatData->AutomaticBarriers = 1;
+			GetResourceStateRegistry()->SetCurrentState(Resource, ALL_SUBRESOURCES, EAccessType::WRITE_UAV);
 		}
 		else {
 			initialState = D3D12_RESOURCE_STATE_COPY_DEST;
 		}
 
-		result->FatData->IsCommited = 1;
-		result->FatData->HeapProperties = heapProperties;
+		Resource->FatData->IsCommited = 1;
+		Resource->FatData->HeapProperties = heapProperties;
 
 		VERIFYDX12(GetPrimaryDevice()->D12Device->CreateCommittedResource(
 			&heapProperties,
@@ -646,21 +644,27 @@ FGPUResourceRef FTextureAllocator::CreateTexture(u64 width, u32 height, u32 dept
 			&desc,
 			initialState,
 			clearFormat != DXGI_FORMAT_UNKNOWN ? &clearValue : nullptr,
-			IID_PPV_ARGS(result->D12Resource.get_init())
-			));
+			IID_PPV_ARGS(Resource->D12Resource.get_init())
+		));
 	}
 
-	result->FatData->Desc = result->D12Resource->GetDesc();
-	result->FatData->Name = eastl::wstring(debugName);
+	Resource->FatData->Desc = Resource->D12Resource->GetDesc();
+	Resource->FatData->Name = eastl::wstring(debugName);
 
 	if (debugName) {
-		SetDebugName(result->D12Resource.get(), debugName);
+		SetDebugName(Resource->D12Resource.get(), debugName);
 	}
 
-	AllocateResourceViews(result.get(), result->FatData->ViewFormat, result->FatData->Views.MainSet);
-	if (result->IsReadOnly()) {
-		result->ReadOnlySRV = result->FatData->Views.MainSet.MainSRV.GetCPUHandle(0);
+	AllocateResourceViews(Resource, Resource->FatData->ViewFormat, Resource->FatData->Views.MainSet);
+	if (Resource->IsReadOnly()) {
+		Resource->ReadOnlySRV = Resource->FatData->Views.MainSet.MainSRV.GetCPUHandle(0);
 	}
+}
+
+FGPUResourceRef FTextureAllocator::CreateTexture(u64 width, u32 height, u32 depthOrArraySize, DXGI_FORMAT format, TextureFlags flags, wchar_t const* debugName, DXGI_FORMAT clearFormat, float4 clearColor, float clearDepth, u8 clearStencil) {
+	FGPUResourceRef result = Allocate();
+
+	ConstructTexture(result.get(), width, height, depthOrArraySize, format, flags, debugName, clearFormat, clearColor, clearDepth, clearStencil);
 
 	return result;
 }
@@ -764,4 +768,34 @@ FBuffersAllocator *			GetBuffersAllocator() {
 		BuffersAllocator = eastl::make_unique<FBuffersAllocator>(64 * 1024);
 	}
 	return BuffersAllocator.get();
+}
+
+eastl::unique_ptr<FPooledRenderTargetAllocator>	PooledRenderTargetAllocator;
+
+struct FHeap {
+	unique_com_ptr<ID3D12Heap> D3D12Heap;
+	u64 Size;
+};
+
+typedef eastl::tuple<u64, u64> FRangeTuple;
+
+struct FSharedHeapInfo {
+	eastl::vector<FRangeTuple> RangesInUse;
+};
+
+// AllocateFromPool
+	// find free <resource, range>
+		// if found return
+	// find free range (create heap if needed)
+		// placement create new <resource, range>, return
+
+// FreeToPool
+	// mark range as free: return <resource, range> to free pools
+
+
+FPooledRenderTargetAllocator * GetPooledRenderTargetAllocator() {
+	if (!PooledRenderTargetAllocator.get()) {
+		PooledRenderTargetAllocator = eastl::make_unique<FPooledRenderTargetAllocator>(64 * 1024);
+	}
+	return PooledRenderTargetAllocator.get();
 }

@@ -184,6 +184,34 @@ struct FResourceBarrier {
 	EAccessType		To;
 };
 
+struct FStateCache {
+	static const u32 MAX_RTVS = D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
+	static const u32 MAX_VBVS = D3D12_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT;
+
+	D3D12_VIEWPORT										Viewport;
+	D3D12_RECT											ScissorRect;
+	D3D_PRIMITIVE_TOPOLOGY								Topology;
+	D3D12_CPU_DESCRIPTOR_HANDLE							RTVs[MAX_RTVS];
+	D3D12_CPU_DESCRIPTOR_HANDLE							DSV;
+	u32													NumRenderTargets : 4;
+	u32													NumVertexBuffers : 5;
+	u32													DirtyRTVs : 1;
+	u32													UsesDepth : 1;
+	u32													DirtyVBVs : 1;
+	D3D12_VERTEX_BUFFER_VIEW							VBVs[MAX_VBVS];
+	D3D12_INDEX_BUFFER_VIEW								IBV;
+
+	bool SetTopology(D3D_PRIMITIVE_TOPOLOGY Topology);
+	bool SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, u32 Index);
+	bool SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE dsv);
+	bool SetViewport(D3D12_VIEWPORT const & Viewport);
+	bool SetScissorRect(D3D12_RECT const & Rect);
+	bool SetVB(FBufferLocation const & BufferView, u32 Stream = 0);
+	bool SetIB(FBufferLocation const & BufferView);
+
+	void Reset();
+};
+
 class FGPUContext {
 public:
 	GPUCommandList*		CommandList;
@@ -202,33 +230,18 @@ public:
 	void Barrier(FGPUResource* resource, u32 subresource, EAccessType before, EAccessType after);
 	void FlushBarriers();	
 
+	EPipelineType PipelineType;
+	u32 DirtyRoot : 1;
 
-	static const u32 MAX_RTVS = D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT;
-	static const u32 MAX_VBVS = D3D12_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT;
+	FStateCache StateCache;
 
-	D3D12_VIEWPORT										Viewport;
-	D3D12_RECT											ScissorRect;
-	D3D_PRIMITIVE_TOPOLOGY								Topology;
-	D3D12_CPU_DESCRIPTOR_HANDLE							RTVs[MAX_RTVS];
-	D3D12_CPU_DESCRIPTOR_HANDLE							DSV;
-	u32													NumRenderTargets : 4;
-	u32													NumVertexBuffers : 5;
-	u32													DirtyRTVs : 1;
-	u32													UsesDepth : 1;
-	u32													DirtyVBVs : 1;
-	u32													DirtyRoot : 1;
-	D3D12_VERTEX_BUFFER_VIEW							VBVs[MAX_VBVS];
-	D3D12_INDEX_BUFFER_VIEW								IBV;
-
-	EPipelineType										PipelineType;
-
-	ID3D12Device*										Device;
-	FPipelineState const *								PipelineState;
-	FRootLayout const *									RootLayout;
-	FRootSignature const *								RootSignature;
-	FDescriptorAllocator*								OnlineDescriptors;
-	eastl::array<FBoundRootParam, MAX_ROOT_PARAMS>		RootParams;
-	u32													RootParamsNum;
+	ID3D12Device* Device;
+	FPipelineState const * PipelineState;
+	FRootLayout const * RootLayout;
+	FRootSignature const * RootSignature;
+	FDescriptorAllocator* OnlineDescriptors;
+	eastl::array<FBoundRootParam, MAX_ROOT_PARAMS> RootParams;
+	u32 RootParamsNum;
 
 	// Execution 
 
@@ -245,19 +258,20 @@ public:
 	void ClearDSV(D3D12_CPU_DESCRIPTOR_HANDLE dsv, float depth = 1.f, u8 stencil = 0);
 	void CopyResource(FGPUResource* dst, FGPUResource* src);
 	void SetTopology(D3D_PRIMITIVE_TOPOLOGY topology);
-	void SetRenderTarget(u32 index, D3D12_CPU_DESCRIPTOR_HANDLE rtv);
+	void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, u32 index);
 	void SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE dsv);
-	void SetViewport(D3D12_VIEWPORT viewport);
-	void SetScissorRect(D3D12_RECT rect);
+	void SetViewport(D3D12_VIEWPORT const & viewport);
+	void SetScissorRect(D3D12_RECT const & rect);
 	void Draw(u32 vertexCount, u32 startVertex = 0, u32 instances = 1, u32 startInstance = 0);
 	void DrawIndexed(u32 indexCount, u32 startIndex = 0, i32 baseVertex = 0, u32 instances = 1, u32 startInstance = 0);
-	void SetVB(FBufferLocation BufferView, u32 Stream = 0);
-	void SetIB(FBufferLocation BufferView);
+	void SetVB(FBufferLocation const & BufferView, u32 Stream = 0);
+	void SetIB(FBufferLocation const & BufferView);
 	void Dispatch(u32 X, u32 Y = 1, u32 Z = 1);
 	void CopyTextureRegion(FGPUResource * dst, u32 dstSubresource, FGPUResource * src, u32 srcSubresource);
 
 	// Binding 
 
+	void SetPipelineState(FPipelineState const* PipelineState);
 	void SetPSO(FPipelineState const* pipelineState);
 	void SetRoot(FRootLayout const* rootLayout);
 	void SetConstantBuffer(FConstantBuffer const * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV);
@@ -266,6 +280,7 @@ public:
 
 	// Helpers
 
+	void SetRenderTargetsBundle(struct FRenderTargetsBundle const * Bundle);
 	void PreDraw();
 	void Reset();
 };
@@ -328,7 +343,7 @@ public:
 	void BatchBarriers();
 	void ExecuteBatchedBarriers(FGPUContext * Context, u32 BatchIndex);
 
-	void SetRenderTargets(struct FRenderTargetContext * Context);
+	void SetRenderTargetsBundle(struct FRenderTargetsBundle const * Bundle);
 	void SetConstantBufferData(FConstantBuffer * ConstantBuffer, const void * Data, u64 Size);
 	
 	void PreCommandAdd() {
@@ -454,6 +469,9 @@ public:
 	}
 	inline void CopyTextureRegion(FGPUResource * Dst, u16 DstSubresource, FGPUResource * Src, u16 SrcSubresource) {
 		PreCommandAdd();
+		SetAccess(Dst, EAccessType::COPY_DEST, DstSubresource);
+		SetAccess(Src, EAccessType::COPY_SRC, SrcSubresource);
+		BatchBarriers();
 		auto Data = ReservePacket<FRenderCmdCopyTextureRegion, FRenderCmdCopyTextureRegionFunc>();
 		Data->Dst = Dst;
 		Data->DstSubresource = DstSubresource;
@@ -461,7 +479,7 @@ public:
 		Data->SrcSubresource = SrcSubresource;
 	}
 
-
+	//
 
 	void	ReserveStreamSize(u64 Size);
 	void *	Reserve(u64 Size);

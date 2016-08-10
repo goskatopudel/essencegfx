@@ -133,7 +133,7 @@ void FApplicationImpl::Init() {
 	Camera.Up = float3(0, 1.f, 0);
 	Camera.Direction = normalize(float3(0) - Camera.Position);
 
-	Scene.AddStaticMesh(L"Tree", GetModel(L"Models/mitsuba.obj"));
+	Scene.AddStaticMesh(L"Tree", GetModel(L"Models/tree.obj"));
 
 	FGPUContext Context;
 	Context.Open(EContextType::DIRECT);
@@ -197,15 +197,9 @@ bool FApplicationImpl::Update() {
 
 	if(ShadowRenderingParams.Blur) {
 		BlurTexture(Stream, Shadowmap, PingPong);
-		Stream.SetAccess(Shadowmap, EAccessType::COPY_DEST, 0);
-		Stream.SetAccess(PingPong, EAccessType::COPY_SRC, 0);
-		Stream.BatchBarriers();
 		Stream.CopyTextureRegion(Shadowmap, 0, PingPong, 0);
 
 		BlurTexture(Stream, ShadowmapM2, PingPong);
-		Stream.SetAccess(ShadowmapM2, EAccessType::COPY_DEST, 0);
-		Stream.SetAccess(PingPong, EAccessType::COPY_SRC, 0);
-		Stream.BatchBarriers();
 		Stream.CopyTextureRegion(ShadowmapM2, 0, PingPong, 0);
 	}
 
@@ -225,7 +219,7 @@ bool FApplicationImpl::Update() {
 	SceneContext.RenderTargets.Viewport = DepthBuffer->GetSizeAsViewport();
 	Render_Forward(Stream, &SceneContext, &Scene);
 
-	FRenderTargetContext RenderTargets = SceneContext.RenderTargets;
+	FRenderTargetsBundle RenderTargets = SceneContext.RenderTargets;
 
 	if(ShadowRenderingParams.ShowTextures) {
 		RenderTargets.DepthBuffer = nullptr;

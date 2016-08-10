@@ -96,9 +96,17 @@ public:
 	FGPUResourceRef	CreateBuffer(u64 size, u64 alignment, u32 stride, EBufferFlags flags, wchar_t const * debugName);
 };
 
+class FPooledRenderTargetAllocator : public FResourceAllocator {
+public:
+	FPooledRenderTargetAllocator(u32 MaxResources) : FResourceAllocator(MaxResources) {}
+	FGPUResourceRef CreateTexture(u64 width, u32 height, u32 depthOrArraySize, DXGI_FORMAT format, TextureFlags flags, wchar_t const * debugName, DXGI_FORMAT clearFormat = DXGI_FORMAT_UNKNOWN, float4 clearColor = float4(0, 0, 0, 0), float clearDepth = 1.f, u8 clearStencil = 0);
+	FGPUResourceRef CreateShadow(FGPUResource * Resource);
+};
+
 FLinearAllocator * GetConstantsAllocator();
 FTextureAllocator * GetTexturesAllocator();
 FDescriptorAllocator * GetOnlineDescriptorsAllocator();
 FUploadBufferAllocator * GetUploadAllocator();
 FBuffersAllocator * GetBuffersAllocator();
+FPooledRenderTargetAllocator * GetPooledRenderTargetAllocator();
 void TickDescriptors(SyncPoint FrameEndSync);

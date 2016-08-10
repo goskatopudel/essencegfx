@@ -11,25 +11,16 @@
 #define WORKLOAD_STATS 1
 #define API_STATS 1
 
-namespace API_CPUCost {
-const u32	Barrier = 1;
-const u32	SetPso = 1;
-const u32	SetRoot = 1;
-const u32	Draw = 1;
-const u32	SetRootParam = 1;
+bool operator != (D3D12_VERTEX_BUFFER_VIEW const& A, D3D12_VERTEX_BUFFER_VIEW const & B) {
+	return A.BufferLocation != B.BufferLocation || A.SizeInBytes != B.SizeInBytes || A.StrideInBytes != B.StrideInBytes;
 }
 
-commands_stats_t& operator += (commands_stats_t& lhs, commands_stats_t const& rhs) {
-	lhs.graphic_pipeline_state_changes += rhs.graphic_pipeline_state_changes;
-	lhs.graphic_root_signature_changes += rhs.graphic_root_signature_changes;
-	lhs.graphic_root_params_set += rhs.graphic_root_params_set;
-	lhs.draw_calls += rhs.draw_calls;
-	lhs.compute_pipeline_state_changes += rhs.compute_pipeline_state_changes;
-	lhs.compute_root_signature_changes += rhs.compute_root_signature_changes;
-	lhs.compute_root_params_set += rhs.compute_root_params_set;
-	lhs.dispatches += rhs.dispatches;
-	lhs.constants_bytes_uploaded += rhs.constants_bytes_uploaded;
-	return lhs;
+bool operator != (D3D12_INDEX_BUFFER_VIEW const& A, D3D12_INDEX_BUFFER_VIEW const & B) {
+	return A.BufferLocation != B.BufferLocation || A.SizeInBytes != B.SizeInBytes || A.Format != B.Format;
+}
+
+bool operator != (D3D12_RECT const& A, D3D12_RECT const& B) {
+	return A.bottom != B.bottom || A.left != B.left || A.right != B.right || A.top != B.top;
 }
 
 class CommandListPool;
@@ -579,6 +570,121 @@ ID3D12GraphicsCommandList* FGPUContext::RawCommandList() const {
 	return CommandList->D12CommandList.get();
 }
 
+bool FStateCache::SetTopology(D3D_PRIMITIVE_TOPOLOGY topology) {
+	if (Topology != topology) {
+		Topology = topology;
+		return true;
+	}
+	return false;
+}
+
+bool FStateCache::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, u32 index) {
+	if (RTVs[index] == rtv) {
+		return false;
+	}
+
+	RTVs[index] = rtv;
+	DirtyRTVs = true;
+	if (rtv.ptr) {
+		NumRenderTargets = eastl::max(NumRenderTargets, index + 1);
+	}
+	else {
+		i32 maxIndex = NumRenderTargets;
+		for (i32 i = (i32)NumRenderTargets - 1; i >= 0; --i) {
+			if (!RTVs[i].ptr) {
+				--NumRenderTargets;
+				check(i > 0 || NumRenderTargets == 0);
+			}
+			else {
+				break;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool FStateCache::SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE dsv) {
+	if (DSV != dsv) {
+		DirtyRTVs = true;
+		UsesDepth = dsv.ptr > 0;
+		DSV = dsv;
+		return true;
+	}
+	return false;
+}
+
+bool FStateCache::SetViewport(D3D12_VIEWPORT const & viewport) {
+	if (Viewport != viewport) {
+		Viewport = viewport;
+		return true;
+	}
+	return false;
+}
+
+bool FStateCache::SetScissorRect(D3D12_RECT const & rect) {
+	if (ScissorRect != rect) {
+		return true;
+	}
+	return false;
+}
+
+bool FStateCache::SetVB(FBufferLocation const & BufferView, u32 Stream) {
+	D3D12_VERTEX_BUFFER_VIEW VBV;
+	VBV.BufferLocation = BufferView.Address;
+	VBV.StrideInBytes = BufferView.Stride;
+	VBV.SizeInBytes = BufferView.Size;
+	if (VBVs[Stream] != VBV) {
+		DirtyVBVs = 1;
+		VBVs[Stream] = VBV;
+		if (VBV.BufferLocation) {
+			NumVertexBuffers = eastl::max(NumVertexBuffers, Stream + 1);
+		}
+		else {
+			NumVertexBuffers--;
+			for (i32 index = Stream - 1; index >= 0; index--) {
+				if (VBVs[index].BufferLocation) {
+					break;
+				}
+				else {
+					NumVertexBuffers--;
+				}
+			}
+		}
+
+		return true;
+	}
+	return false;
+}
+
+bool FStateCache::SetIB(FBufferLocation const & BufferView) {
+	D3D12_INDEX_BUFFER_VIEW NewIBV;
+	NewIBV.BufferLocation = BufferView.Address;
+	check(BufferView.Stride == 4 || BufferView.Stride == 2);
+	NewIBV.Format = BufferView.Stride == 4 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
+	NewIBV.SizeInBytes = BufferView.Size;
+	if (IBV != NewIBV) {
+		IBV = NewIBV;
+		return true;
+	}
+	return false;
+}
+
+void FStateCache::Reset() {
+	memset(RTVs, 0, sizeof(RTVs));
+	NumRenderTargets = 0;
+	DSV = {};
+	UsesDepth = false;
+	DirtyRTVs = false;
+	DirtyVBVs = false;
+	Viewport = {};
+	ScissorRect = {};
+	Topology = {};
+	IBV = {};
+	memset(VBVs, 0, sizeof(VBVs));
+	NumVertexBuffers = 0;
+}
+
 void FGPUContext::Open(EContextType Type, EContextLifetime Lifetime) {
 	if (Lifetime == EContextLifetime::DEFAULT) {
 		switch (Type) {
@@ -633,6 +739,11 @@ void FGPUContext::CopyResource(FGPUResource* dst, FGPUResource* src) {
 	RawCommandList()->CopyResource(dst->D12Resource.get(), src->D12Resource.get());
 }
 
+void FGPUContext::SetPipelineState(FPipelineState const* PipelineState) {
+	SetPSO(PipelineState);
+	SetRoot(PipelineState->ShaderState->Root);
+}
+
 void FGPUContext::SetPSO(FPipelineState const* pso) {
 	if (PipelineState != pso) {
 		PipelineState = pso;
@@ -667,57 +778,27 @@ void FGPUContext::SetRoot(FRootLayout const* rootLayout) {
 }
 
 void FGPUContext::SetTopology(D3D_PRIMITIVE_TOPOLOGY topology) {
-	if (Topology != topology) {
-		Topology = topology;
+	if (StateCache.SetTopology(topology)) {
 		RawCommandList()->IASetPrimitiveTopology(topology);
 	}
 }
 
 void FGPUContext::SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE dsv) {
-	if (DSV != dsv) {
-		DirtyRTVs = true;
-		UsesDepth = dsv.ptr > 0;
-		DSV = dsv;
-	}
+	StateCache.SetDepthStencil(dsv);
 }
 
-void FGPUContext::SetRenderTarget(u32 index, D3D12_CPU_DESCRIPTOR_HANDLE rtv) {
-	if (RTVs[index] == rtv) {
-		return;
-	}
-
-	RTVs[index] = rtv;
-	DirtyRTVs = true;
-	if (rtv.ptr) {
-		NumRenderTargets = eastl::max(NumRenderTargets, index + 1);
-	}
-	else {
-		i32 maxIndex = NumRenderTargets;
-		for (i32 i = (i32)NumRenderTargets - 1; i >= 0; --i) {
-			if (!RTVs[i].ptr) {
-				--NumRenderTargets;
-				check(i > 0 || NumRenderTargets == 0);
-			}
-			else {
-				break;
-			}
-		}
-	}
+void FGPUContext::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, u32 index) {
+	StateCache.SetRenderTarget(rtv, index);
 }
 
-void FGPUContext::SetViewport(D3D12_VIEWPORT viewport) {
-	if (Viewport != viewport) {
-		Viewport = viewport;
+void FGPUContext::SetViewport(D3D12_VIEWPORT const & viewport) {
+	if (StateCache.SetViewport(viewport)) {
 		RawCommandList()->RSSetViewports(1, &viewport);
 	}
 }
 
-bool operator != (D3D12_RECT const& A, D3D12_RECT const& B) {
-	return A.bottom != B.bottom || A.left != B.left || A.right != B.right || A.top != B.top;
-}
-
-void FGPUContext::SetScissorRect(D3D12_RECT rect) {
-	if (ScissorRect != rect) {
+void FGPUContext::SetScissorRect(D3D12_RECT const & rect) {
+	if (StateCache.SetScissorRect(rect)) {
 		RawCommandList()->RSSetScissorRects(1, &rect);
 	}
 }
@@ -744,48 +825,13 @@ void FGPUContext::CopyTextureRegion(FGPUResource * dst, u32 dstSubresource, FGPU
 	RawCommandList()->CopyTextureRegion(&CopyDst, 0, 0, 0, &CopySrc, nullptr);
 }
 
-bool operator != (D3D12_VERTEX_BUFFER_VIEW const& A, D3D12_VERTEX_BUFFER_VIEW const & B) {
-	return A.BufferLocation != B.BufferLocation || A.SizeInBytes != B.SizeInBytes || A.StrideInBytes != B.StrideInBytes;
+void FGPUContext::SetVB(FBufferLocation const & BufferView, u32 Stream) {
+	StateCache.SetVB(BufferView, Stream);
 }
 
-bool operator != (D3D12_INDEX_BUFFER_VIEW const& A, D3D12_INDEX_BUFFER_VIEW const & B) {
-	return A.BufferLocation != B.BufferLocation || A.SizeInBytes != B.SizeInBytes || A.Format != B.Format;
-}
-
-void FGPUContext::SetVB(FBufferLocation BufferView, u32 Stream) {
-	D3D12_VERTEX_BUFFER_VIEW VBV;
-	VBV.BufferLocation = BufferView.Address;
-	VBV.StrideInBytes = BufferView.Stride;
-	VBV.SizeInBytes = BufferView.Size;
-	if (VBVs[Stream] != VBV) {
-		DirtyVBVs = 1;
-		VBVs[Stream] = VBV;
-		if (VBV.BufferLocation) {
-			NumVertexBuffers = eastl::max(NumVertexBuffers, Stream + 1);
-		}
-		else {
-			NumVertexBuffers--;
-			for (i32 index = Stream - 1; index >= 0; index--) {
-				if (VBVs[index].BufferLocation) {
-					break;
-				}
-				else {
-					NumVertexBuffers--;
-				}
-			}
-		}
-	}
-}
-
-void FGPUContext::SetIB(FBufferLocation BufferView) {
-	D3D12_INDEX_BUFFER_VIEW NewIBV;
-	NewIBV.BufferLocation = BufferView.Address;
-	check(BufferView.Stride == 4 || BufferView.Stride == 2);
-	NewIBV.Format = BufferView.Stride == 4 ? DXGI_FORMAT_R32_UINT : DXGI_FORMAT_R16_UINT;
-	NewIBV.SizeInBytes = BufferView.Size;
-	if (IBV != NewIBV) {
-		IBV = NewIBV;
-		RawCommandList()->IASetIndexBuffer(&IBV);
+void FGPUContext::SetIB(FBufferLocation const & BufferView) {
+	if (StateCache.SetIB(BufferView)) {
+		RawCommandList()->IASetIndexBuffer(&StateCache.IBV);
 	}
 }
 
@@ -798,6 +844,8 @@ void FGPUContext::Reset() {
 	FlushCounter = 0;
 	BarriersList.clear();
 
+	StateCache.Reset();
+
 	PipelineType = EPipelineType::Graphics;
 
 	RootLayout = nullptr;
@@ -809,19 +857,6 @@ void FGPUContext::Reset() {
 		Param = {};
 	}
 	RootParamsNum = 0;
-
-	memset(RTVs, 0, sizeof(RTVs));
-	NumRenderTargets = 0;
-	DSV = {};
-	UsesDepth = false;
-	DirtyRTVs = false;
-	DirtyVBVs = false;
-	Viewport = {};
-	ScissorRect = {};
-	Topology = {};
-	IBV = {};
-	memset(VBVs, 0, sizeof(VBVs));
-	NumVertexBuffers = 0;
 }
 
 void FGPUContext::SetConstantBuffer(FConstantBuffer const * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV) {
@@ -873,14 +908,14 @@ void FGPUContext::PreDraw() {
 	}
 
 	if (PipelineType == EPipelineType::Graphics) {
-		if (DirtyRTVs) {
-			RawCommandList()->OMSetRenderTargets(NumRenderTargets, RTVs, false, UsesDepth ? &DSV : nullptr);
-			DirtyRTVs = false;
+		if (StateCache.DirtyRTVs) {
+			RawCommandList()->OMSetRenderTargets(StateCache.NumRenderTargets, StateCache.RTVs, false, StateCache.UsesDepth ? &StateCache.DSV : nullptr);
+			StateCache.DirtyRTVs = false;
 		}
 
-		if (DirtyVBVs) {
-			RawCommandList()->IASetVertexBuffers(0, NumVertexBuffers, VBVs);
-			DirtyVBVs = false;
+		if (StateCache.DirtyVBVs) {
+			RawCommandList()->IASetVertexBuffers(0, StateCache.NumVertexBuffers, StateCache.VBVs);
+			StateCache.DirtyVBVs = false;
 		}
 	}
 
@@ -900,6 +935,16 @@ void FGPUContext::PreDraw() {
 			}
 		}
 	}
+}
+
+void FGPUContext::SetRenderTargetsBundle(FRenderTargetsBundle const * Bundle) {
+	SetDepthStencil(Bundle->DepthBuffer ? Bundle->DepthBuffer->GetDSV() : D3D12_CPU_DESCRIPTOR_HANDLE());
+	u32 Index = 0;
+	for (auto & RT : Bundle->Outputs) {
+		SetRenderTarget(RT.GetRTV(), Index);
+		Index++;
+	}
+	SetViewport(Bundle->Viewport);
 }
 
 //#include <intrin.h>
@@ -1237,18 +1282,18 @@ void FCommandsStream::Close() {
 
 #include "Viewport.h"
 
-void FCommandsStream::SetRenderTargets(FRenderTargetContext * Context) {
-	if(Context->DepthBuffer) {
-		SetAccess(Context->DepthBuffer, EAccessType::WRITE_DEPTH);
+void FCommandsStream::SetRenderTargetsBundle(FRenderTargetsBundle const * RenderTargets) {
+	if(RenderTargets->DepthBuffer) {
+		SetAccess(RenderTargets->DepthBuffer, EAccessType::WRITE_DEPTH);
 	}
-	SetDepthStencil(Context->DepthBuffer ? Context->DepthBuffer->GetDSV() : D3D12_CPU_DESCRIPTOR_HANDLE());
+	SetDepthStencil(RenderTargets->DepthBuffer ? RenderTargets->DepthBuffer->GetDSV() : D3D12_CPU_DESCRIPTOR_HANDLE());
 	u32 Index = 0;
-	for (auto & RT : Context->Outputs) {
-		SetAccess(Context->Outputs[Index].Resource, EAccessType::WRITE_RT);
+	for (auto & RT : RenderTargets->Outputs) {
+		SetAccess(RenderTargets->Outputs[Index].Resource, EAccessType::WRITE_RT);
 		SetRenderTarget(RT.GetRTV(), Index);
 		Index++;
 	}
-	SetViewport(Context->Viewport);
+	SetViewport(RenderTargets->Viewport);
 }
 
 void FCommandsStream::SetConstantBufferData(FConstantBuffer * ConstantBuffer, const void * Data, u64 Size) {

@@ -4,7 +4,7 @@
 #include "Camera.h"
 using namespace DirectX;
 
-void UpdateViewport(FRenderViewport &Viewport, FCamera * Camera, Vec2i Resolution, float FovY, float NearPlane, float FarPlane) {
+void UpdateViewport(FRenderViewport &Viewport, FCamera * Camera, Vec2u Resolution, float FovY, float NearPlane, float FarPlane) {
 	Viewport.Resolution = Resolution;
 
 	auto ProjMatrix = XMMatrixPerspectiveFovLH(
@@ -33,7 +33,7 @@ void UpdateViewport(FRenderViewport &Viewport, FCamera * Camera, Vec2i Resolutio
 	DirectX::XMStoreFloat4x4((XMFLOAT4X4*)&Viewport.InvViewProjectionMatrix, InvViewProjMatrix);
 }
 
-void UpdateShadowmapViewport(FRenderViewport &Viewport, Vec2i Resolution, float3 Direction) {
+void UpdateShadowmapViewport(FRenderViewport &Viewport, Vec2u Resolution, float3 Direction) {
 	Viewport.Resolution = Resolution;
 
 	auto ProjMatrix = XMMatrixOrthographicLH(50.f, 50.f, 0.1f, 100.f);
@@ -62,7 +62,7 @@ void UpdateShadowmapViewport(FRenderViewport &Viewport, Vec2i Resolution, float3
 #include "Resource.h"
 
 DXGI_FORMAT FRenderTargetDesc::GetFormat() const {
-	return Resource ? Resource->GetWriteFormat(IsSRGB > 0) : DXGI_FORMAT_UNKNOWN;
+	return Resource ? Resource->GetWriteFormat(OutputSRGB > 0) : DXGI_FORMAT_UNKNOWN;
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE FRenderTargetDesc::GetRTV() const {

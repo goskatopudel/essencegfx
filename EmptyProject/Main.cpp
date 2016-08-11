@@ -74,6 +74,8 @@ void UpdateCamera() {
 #include "DepthPass.h"
 #include "Viewport.h"
 
+#include "Rendering.h"
+
 FScene Scene;
 FGPUResourceRef DepthBuffer;
 FGPUResourceRef Shadowmap;
@@ -128,6 +130,22 @@ void ShowShadowmapOptions() {
 	}
 }
 
+struct FGBufferDebugParams {
+	
+};
+
+FGBufferDebugParams GBufferDebugParams;
+
+void ShowGBufferOptions() {
+	ImGui::Begin("GBuffer");
+
+	const char* Items[] = { "None", "Depth", "Normals", "Motion vectors" };
+	static int Item = 0;
+	ImGui::Combo("Debug view", &Item, Items, _ARRAYSIZE(Items));
+
+	ImGui::End();
+}
+
 void FApplicationImpl::Init() {
 	Camera.Position = float3(0, 0.f, -10.f);
 	Camera.Up = float3(0, 1.f, 0);
@@ -147,6 +165,7 @@ void FApplicationImpl::Init() {
 
 void FApplicationImpl::AllocateScreenResources() {
 	DepthBuffer = GetTexturesAllocator()->CreateTexture(GApplication::WindowWidth, GApplication::WindowHeight, 1, DXGI_FORMAT_R24G8_TYPELESS, TextureFlags::ALLOW_DEPTH_STENCIL, L"DepthBuffer");
+	AllocateGBuffer();
 }
 
 void FApplicationImpl::Shutdown() {
@@ -169,6 +188,7 @@ bool FApplicationImpl::Update() {
 	}
 
 	ShowAppStats();
+	ShowGBufferOptions();
 	ShowShadowmapOptions();
 
 	ImGui::ShowTestWindow();
@@ -191,7 +211,7 @@ bool FApplicationImpl::Update() {
 	ShadowmapContext.RenderTargets.Outputs[0].OutputSRGB = false;
 	ShadowmapContext.RenderTargets.Outputs[0].Resource = ShadowmapM2;
 	ShadowmapContext.RenderTargets.Viewport = Shadowmap->GetSizeAsViewport();
-	UpdateShadowmapViewport(ShadowmapContext, Vec2i(Shadowmap->GetDimensions().x, Shadowmap->GetDimensions().y), ShadowRenderingParams.LightDirection * -1.f);
+	UpdateShadowmapViewport(ShadowmapContext, Vec2u(Shadowmap->GetDimensions().x, Shadowmap->GetDimensions().y), ShadowRenderingParams.LightDirection * -1.f);
 
 	Render_Depth(Stream, &ShadowmapContext, &Scene);
 
@@ -206,8 +226,11 @@ bool FApplicationImpl::Update() {
 	GenerateMipmaps(Stream, Shadowmap);
 	GenerateMipmaps(Stream, ShadowmapM2);
 
+	static FSceneRenderingFrame PrevFrame = {};
+	RenderScene(Stream, &Scene, &Camera, &PrevFrame);
+
 	FForwardRenderContext SceneContext;
-	UpdateViewport(SceneContext, &Camera, Vec2i(GApplication::WindowWidth, GApplication::WindowHeight));
+	UpdateViewport(SceneContext, &Camera, Vec2u(GApplication::WindowWidth, GApplication::WindowHeight));
 	SceneContext.RenderTargets.Outputs.resize(1);
 	SceneContext.RenderTargets.Outputs[0].Resource = GetBackbuffer();
 	SceneContext.RenderTargets.Outputs[0].OutputSRGB = 1;

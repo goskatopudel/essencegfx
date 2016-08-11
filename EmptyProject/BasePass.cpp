@@ -20,7 +20,7 @@ public:
 			GetShader("Shaders/VSMShadow.hlsl", "PixelMain", "ps_5_1", {}, 0)) {}
 
 	void InitParams() override final {
-		FrameCB = Root->CreateConstantBuffer(this, "FrameConstants");
+		FrameCB = Root->CreateConstantBuffer(this, "Frame");
 		ObjectCB = Root->CreateConstantBuffer(this, "ObjectConstants");
 
 		ShadowmapTexture = Root->CreateTextureParam(this, "ShadowmapTexture");
@@ -85,4 +85,69 @@ void Render_Forward(FCommandsStream & Commands, FForwardRenderContext * Viewport
 	for (auto StaticMeshPtr : Scene->StaticMeshes) {
 		RenderModel_Forward(Commands, Viewport, Scene, StaticMeshPtr);
 	}
+}
+
+
+///////////
+
+void PreRender_GBuffer(FCommandsStream & Commands, FGBufferRenderContext * Viewport, FSceneRenderingFrame * Frame) {
+	Commands.SetRenderTargetsBundle(&Viewport->RenderTargets);
+	Commands.ClearDSV(Viewport->RenderTargets.DepthBuffer->GetDSV());
+	Commands.SetViewport(Viewport->RenderTargets.Viewport);
+}
+
+void RenderModel_GBuffer(FCommandsStream & Commands, FGBufferRenderContext * Viewport, FSceneRenderingFrame * Frame, FSceneStaticMesh * StaticMesh) {
+	// 
+	static FStaticModelShaderState_GBuffer ShaderState;
+	static FPipelineState * PipelineState;
+
+	static FInputLayout * StaticMeshInputLayout = GetInputLayout({
+		CreateInputElement("POSITION", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("TANGENT", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 0, 0),
+		CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 1, 0),
+		CreateInputElement("COLOR", DXGI_FORMAT_R8G8B8A8_UNORM, 0, 0),
+	});
+
+	static FPipelineCache PipelineCache;
+	static FPipelineContext<FCommandsStream> PipelineContext;
+
+	PipelineContext.Bind(&Commands, &PipelineCache);
+	PipelineContext.SetInputLayout(StaticMeshInputLayout);
+	PipelineContext.SetRenderTargetsBundle(&Viewport->RenderTargets);
+	PipelineContext.SetShaderState(&ShaderState);
+	PipelineContext.ApplyState();
+
+	FObjectConstants ObjectConstants;
+	auto WorldMatrix = GetWorldMatrix(StaticMesh->Position, 1);
+	StoreTransposed(WorldMatrix, &ObjectConstants.WorldMatrix);
+	ObjectConstants.PrevWorldMatrix = ObjectConstants.WorldMatrix;
+	
+	Commands.SetConstantBuffer(&ShaderState.FrameCB, Frame->FrameCBV);
+	Commands.SetConstantBufferData(&ShaderState.ObjectCB, &ObjectConstants, sizeof(ObjectConstants));
+
+	Commands.SetVB(StaticMesh->Model->VertexBuffer, 0);
+	Commands.SetIB(StaticMesh->Model->IndexBuffer);
+	for (auto & Mesh : StaticMesh->Model->Meshes) {
+		Commands.DrawIndexed(Mesh.IndicesNum, Mesh.StartIndex, Mesh.BaseVertex);
+	}
+}
+
+void Render_GBuffer(FCommandsStream & Commands, FGBufferRenderContext * Viewport, FSceneRenderingFrame * Frame) {
+	PreRender_GBuffer(Commands, Viewport, Frame);
+	for (auto StaticMeshPtr : Frame->Scene->StaticMeshes) {
+		RenderModel_GBuffer(Commands, Viewport, Frame, StaticMeshPtr);
+	}
+}
+
+FStaticModelShaderState_GBuffer::FStaticModelShaderState_GBuffer() :
+	FShaderState(
+		GetShader("Shaders/StandardMaterial.hlsl", "VertexMain", "vs_5_1", {}, 0),
+		GetShader("Shaders/StandardMaterial.hlsl", "PixelMain", "ps_5_1", {}, 0)) {}
+
+void FStaticModelShaderState_GBuffer::InitParams() {
+	FrameCB = Root->CreateConstantBuffer(this, "Frame");
+	ObjectCB = Root->CreateConstantBuffer(this, "ObjectConstants");
 }

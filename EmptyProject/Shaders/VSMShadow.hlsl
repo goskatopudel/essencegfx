@@ -1,17 +1,11 @@
-cbuffer FrameConstants : register(b0)
-{      
-    float4x4 ViewProjectionMatrix;
-	float4x4 ViewMatrix;
-	float4x4 ProjectionMatrix;
-	float4x4 InvViewProjectionMatrix;
-	float4x4 InvViewMatrix;
-	float4x4 InvProjectionMatrix;
-	float2 ScreenResolution;
-}
+#include "ShaderCommon.inl"
+
+ConstantBuffer<FFrameConstants> Frame : register(b0);
 
 cbuffer ObjectConstants : register(b2)
 {      
     float4x4 WorldMatrix;
+    float4x4 PrevWorldMatrix;
     float4x4 ShadowmapMatrix;
 }
 
@@ -25,12 +19,6 @@ struct VIn
 	float2 	Texcoord1 : TEXCOORD1;
 	float3 	Color : COLOR;
 };
-
-#define TEXTURE_ANISO_SAMPLER s0, space0
-#define TEXTURE_BILINEAR_WRAP_SAMPLER s0, space1
-#define TEXTURE_POINT_WRAP_SAMPLER s0, space2
-#define TEXTURE_BILINEAR_CLAMP_SAMPLER s0, space3
-#define TEXTURE_POINT_CLAMP_SAMPLER s0, space4
 
 Texture2D<float> ShadowmapTexture	: register(t0);
 Texture2D<float> ShadowmapM2Texture	: register(t1);
@@ -48,7 +36,7 @@ VOut VertexMain(VIn Input, uint VertexId : SV_VertexID)
 
 	float4 position = mul(float4(Input.Position, 1), WorldMatrix);
 	Output.WorldPosition = position.xyz;
-	Output.SvPosition = mul(position, ViewProjectionMatrix);
+	Output.SvPosition = mul(position, Frame.ViewProjectionMatrix);
 
 	return Output;
 } 

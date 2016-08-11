@@ -55,10 +55,10 @@ public:
 	FDescriptorsAllocation Allocate(u32 num);
 	void FreeInternal(FDescriptorsAllocation allocation);
 
-	typedef eastl::pair<SyncPoint, FDescriptorsAllocation> QueuedElement;
+	typedef eastl::pair<FGPUSyncPoint, FDescriptorsAllocation> QueuedElement;
 	eastl::queue<QueuedElement>	DeferredDeletionQueue;
 
-	void					Free(FDescriptorsAllocation allocation, SyncPoint sync);
+	void					Free(FDescriptorsAllocation allocation, FGPUSyncPoint sync);
 	void					Free(FDescriptorsAllocation allocation);
 	void					Tick();
 
@@ -68,10 +68,10 @@ public:
 	};
 
 	eastl::queue<FastAllocationBlock>	FastAllocationBlocks;
-	typedef eastl::pair<SyncPoint, u32> FencedFastAllocations;
+	typedef eastl::pair<FGPUSyncPoint, u32> FencedFastAllocations;
 	eastl::queue<FencedFastAllocations>	DeferredFastAllocationDeletionQueue;
 	u32 FrameFastAllocationBlocksNum = 0;
 
 	FDescriptorsAllocation	FastTemporaryAllocate(u32 num);
-	void					FenceTemporaryAllocations(SyncPoint sync);
+	void					FenceTemporaryAllocations(FGPUSyncPoint sync);
 };

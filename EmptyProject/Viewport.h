@@ -8,8 +8,8 @@ class FGPUResource;
 class FCamera;
 struct FRenderViewport;
 
-void UpdateViewport(FRenderViewport &Viewport, FCamera * Camera, Vec2i Resolution, float FovY = M_PI_4, float NearPlane = 0.1f, float FarPlane = 1000.f);
-void UpdateShadowmapViewport(FRenderViewport &Viewport, Vec2i Resolution, float3 Direction);
+void UpdateViewport(FRenderViewport &Viewport, FCamera * Camera, Vec2u Resolution, float FovY = M_PI_4, float NearPlane = 0.1f, float FarPlane = 1000.f);
+void UpdateShadowmapViewport(FRenderViewport &Viewport, Vec2u Resolution, float3 Direction);
 
 #include "Resource.h"
 
@@ -31,7 +31,7 @@ struct FRenderTargetsBundle {
 
 struct FRenderViewport {
 	FRenderTargetsBundle RenderTargets;
-	Vec2i Resolution;
+	Vec2u Resolution;
 	FCamera * Camera;
 	float4x4 ViewMatrix;
 	float4x4 InvViewMatrix;

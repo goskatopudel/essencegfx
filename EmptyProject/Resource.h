@@ -109,7 +109,7 @@ public:
 	DXGI_FORMAT GetReadFormat(bool bSRGB = false) const;
 	DXGI_FORMAT GetWriteFormat(bool bSRGB = false) const;
 
-	void FenceDeletion(SyncPoint Sync);
+	void FenceDeletion(FGPUSyncPoint Sync);
 	void SetDebugName(const wchar_t*);
 };
 
@@ -138,13 +138,13 @@ public:
 	u64						DataSizeBytes;
 	u64						UnaliasedHeapMemoryBytes;
 	void*					CpuPtr = nullptr;
-	SyncPoint				DeletionSyncPoint;
+	FGPUSyncPoint				DeletionFGPUSyncPoint;
 };
 
 
 void			AllocateResourceViews(FGPUResource* resource);
 void			AllocateResourceViews(FGPUResource* resource, DXGI_FORMAT format, FResourceViewsSet& outViews);
-void			FreeResourceViews(FGPUResource* resource, SyncPoint sync);
+void			FreeResourceViews(FGPUResource* resource, FGPUSyncPoint sync);
 
 extern			D3D12_CPU_DESCRIPTOR_HANDLE	NULL_CBV_VIEW;
 extern			D3D12_CPU_DESCRIPTOR_HANDLE	NULL_TEXTURE2D_VIEW;

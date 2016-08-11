@@ -29,13 +29,13 @@ enum class EContextLifetime {
 	DEFAULT
 };
 
-class SyncPoint {
+class FGPUSyncPoint {
 public:
 	u32	Generation;
 	u32 Index;
 
-	SyncPoint() = default;
-	SyncPoint(u32 index, u32 generation) : Index(index), Generation(generation) {}
+	FGPUSyncPoint() = default;
+	FGPUSyncPoint(u32 index, u32 generation) : Index(index), Generation(generation) {}
 	bool IsCompleted();
 	void WaitForCompletion();
 	void SetTrigger(GPUCommandQueue*);
@@ -43,12 +43,12 @@ public:
 	bool IsSet();
 };
 
-bool operator == (SyncPoint A, SyncPoint B);
-bool operator != (SyncPoint A, SyncPoint B);
+bool operator == (FGPUSyncPoint A, FGPUSyncPoint B);
+bool operator != (FGPUSyncPoint A, FGPUSyncPoint B);
 
-SyncPoint GetDummySyncPoint();
-SyncPoint GetCurrentFrameSyncPoint();
-SyncPoint GetLastFrameSyncPoint();
+FGPUSyncPoint GetDummyFGPUSyncPoint();
+FGPUSyncPoint GetCurrentFrameFGPUSyncPoint();
+FGPUSyncPoint GetLastFrameFGPUSyncPoint();
 
 void EndFrame();
 
@@ -71,7 +71,7 @@ public:
 
 	GPUCommandQueue(D3D12Device* device, TypeEnum type);
 
-	void Wait(SyncPoint fence);
+	void Wait(FGPUSyncPoint fence);
 	void Execute(GPUCommandList* list);
 	void Flush();
 
@@ -80,8 +80,8 @@ public:
 	u64	GetCurrentSyncValue() const;
 	u64 GetCompletedValue();
 	u64 AdvanceSyncValue();
-	SyncPoint GenerateSyncPoint();
-	SyncPoint GetCompletionSyncPoint();
+	FGPUSyncPoint GenerateFGPUSyncPoint();
+	FGPUSyncPoint GetCompletionFGPUSyncPoint();
 };
 
 GPUCommandQueue*		GetDirectQueue();
@@ -162,7 +162,7 @@ struct FDescriptorsAllocation {
 	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUHandle(i32 offset) const;
 	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUHandle(i32 offset) const;
 
-	void Free(SyncPoint sync);
+	void Free(FGPUSyncPoint sync);
 };
 
 struct FBoundRootParam {
@@ -220,7 +220,7 @@ public:
 	void Close();
 	void Execute();
 	void ExecuteImmediately();
-	SyncPoint GetCompletionSyncPoint();
+	FGPUSyncPoint GetCompletionFGPUSyncPoint();
 
 	ID3D12GraphicsCommandList* RawCommandList() const;
 

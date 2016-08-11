@@ -159,6 +159,9 @@
     <ClCompile Include="RenderingUtils.cpp">
       <Filter>Rendering</Filter>
     </ClCompile>
+    <ClCompile Include="Rendering.cpp">
+      <Filter>Rendering</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Essence.h">
@@ -291,6 +294,9 @@
       <Filter>Rendering</Filter>
     </ClInclude>
     <ClInclude Include="RenderingUtils.h">
+      <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="Rendering.h">
       <Filter>Rendering</Filter>
     </ClInclude>
   </ItemGroup>

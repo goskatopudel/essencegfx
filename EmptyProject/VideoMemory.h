@@ -13,7 +13,7 @@ struct memory_stats_t {
 
 class FResourceAllocator {
 public:
-	typedef eastl::pair<SyncPoint, u32> SyncPair;
+	typedef eastl::pair<FGPUSyncPoint, u32> SyncPair;
 	eastl::queue<FGPUResource*> DeferredDeletionQueue;
 	eastl::queue<SyncPair> DeferredDeletionSyncBlocks;
 
@@ -35,7 +35,7 @@ public:
 	// used on pointer to destruct data (and construct back immediately)
 	// vector of resources owns data and on allocator destruction needs to call destructor on all elements, they can't have stale data (hence this destructor makes sure to recreate it)
 	void Free(FGPUResource*);
-	void Free(FGPUResource*, SyncPoint);
+	void Free(FGPUResource*, FGPUSyncPoint);
 
 	virtual void Tick();
 	virtual ~FResourceAllocator();
@@ -59,7 +59,7 @@ class FLinearAllocator : public FResourceAllocator {
 	FGPUResourceRef CurrentBlock;
 	u64 CurrentBlockOffset = 0;
 
-	typedef eastl::pair<SyncPoint, u32> FencedBlocks;
+	typedef eastl::pair<FGPUSyncPoint, u32> FencedBlocks;
 	eastl::queue<FencedBlocks> PendingQueue;
 	u32 CurrentFrameBlocks = 0;
 	eastl::queue<FGPUResourceRef> PendingBlocks;
@@ -73,7 +73,7 @@ public:
 
 	void AllocateNewBlock();
 	FFastUploadAllocation Allocate(u64 size, u64 alignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-	void FenceFrameAllocations(SyncPoint sync);
+	void FenceFrameAllocations(FGPUSyncPoint sync);
 	void Tick() override;
 };
 
@@ -109,4 +109,4 @@ FDescriptorAllocator * GetOnlineDescriptorsAllocator();
 FUploadBufferAllocator * GetUploadAllocator();
 FBuffersAllocator * GetBuffersAllocator();
 FPooledRenderTargetAllocator * GetPooledRenderTargetAllocator();
-void TickDescriptors(SyncPoint FrameEndSync);
+void TickDescriptors(FGPUSyncPoint FrameEndSync);

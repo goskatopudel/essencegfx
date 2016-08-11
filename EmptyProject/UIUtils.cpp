@@ -46,6 +46,10 @@ void ShowMemoryInfo() {
 
 void ShowAppStats() {
 	ImGui::Begin("Stats");
+
+	float FPS = 1.f / ImGui::GetIO().DeltaTime;
+	ImGui::Text("FPS: %f", FPS);
+
 	if (ImGui::CollapsingHeader("Shaders")) {
 		extern u64 GShadersCompilationVersion;
 

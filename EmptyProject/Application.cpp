@@ -261,7 +261,7 @@ extern u32		GIgnoreRelease;
 void FApplication::CoreShutdown() {
 	Shutdown();
 
-	auto finalSyncPoint = GetDirectQueue()->GenerateSyncPoint();
+	auto finalFGPUSyncPoint = GetDirectQueue()->GenerateFGPUSyncPoint();
 	GetDirectQueue()->WaitForCompletion();
 	EndFrame();
 	ImGui::Shutdown();

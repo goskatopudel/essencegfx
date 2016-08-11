@@ -13,7 +13,7 @@ eastl::unique_ptr<FTextureAllocator>		TexturesAllocator;
 eastl::unique_ptr<FLinearAllocator>			ConstantsAllocator;
 eastl::unique_ptr<FUploadBufferAllocator>	UploadAllocator;
 
-void TickDescriptors(SyncPoint FrameEndSync) {
+void TickDescriptors(FGPUSyncPoint FrameEndSync) {
 	SOVsAllocator->FenceTemporaryAllocations(FrameEndSync);
 	SOVsAllocator->Tick();
 	DSVsAllocator->Tick();
@@ -80,7 +80,7 @@ void	FResourceAllocator::Tick() {
 	}
 }
 
-void	FResourceAllocator::Free(FGPUResource* Resource, SyncPoint sync) {
+void	FResourceAllocator::Free(FGPUResource* Resource, FGPUSyncPoint sync) {
 	if (sync.IsCompleted()) {
 		Free(Resource);
 	}
@@ -103,11 +103,11 @@ u32 GIgnoreRelease = 0;
 
 void eastl::default_delete<FGPUResource>::operator()(FGPUResource* GPUResource) const EA_NOEXCEPT {
 	if (!GIgnoreRelease && GPUResource->FatData->Allocator) {
-		if (!GPUResource->FatData->DeletionSyncPoint.IsSet()) {
-			GPUResource->FenceDeletion(GetCurrentFrameSyncPoint());
+		if (!GPUResource->FatData->DeletionFGPUSyncPoint.IsSet()) {
+			GPUResource->FenceDeletion(GetCurrentFrameFGPUSyncPoint());
 		}
 
-		GPUResource->FatData->Allocator->Free(GPUResource, GPUResource->FatData->DeletionSyncPoint);
+		GPUResource->FatData->Allocator->Free(GPUResource, GPUResource->FatData->DeletionFGPUSyncPoint);
 	}
 	else if(!GIgnoreRelease && !GPUResource->FatData->Allocator) {
 		GPUResource->~FGPUResource();
@@ -162,7 +162,7 @@ FFastUploadAllocation		FLinearAllocator::Allocate(u64 size, u64 alignment) {
 	return result;
 }
 
-void	FLinearAllocator::FenceFrameAllocations(SyncPoint sync) {
+void	FLinearAllocator::FenceFrameAllocations(FGPUSyncPoint sync) {
 	if (CurrentBlock) {
 		PendingBlocks.push(std::move(CurrentBlock));
 		++CurrentFrameBlocks;
@@ -346,7 +346,7 @@ FTextureAllocator* GetTexturesAllocator() {
 	return TexturesAllocator.get();
 }
 
-void FreeResourceViews(FGPUResource* resource, SyncPoint sync) {
+void FreeResourceViews(FGPUResource* resource, FGPUSyncPoint sync) {
 	resource->FatData->Views.MainSet.MainSRV.Free(sync);
 	resource->FatData->Views.MainSet.SubresourcesSRVs.Free(sync);
 	if (resource->FatData->IsDepthStencil) {

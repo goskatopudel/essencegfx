@@ -41,10 +41,10 @@ void FGPUResource::SetDebugName(const wchar_t* Name) {
 	FatData->Name = Name;
 }
 
-void FGPUResource::FenceDeletion(SyncPoint Sync) {
+void FGPUResource::FenceDeletion(FGPUSyncPoint Sync) {
 	// support only one for now
-	check(!FatData->DeletionSyncPoint.IsSet());
-	FatData->DeletionSyncPoint = Sync;
+	check(!FatData->DeletionFGPUSyncPoint.IsSet());
+	FatData->DeletionFGPUSyncPoint = Sync;
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetRTV() const {

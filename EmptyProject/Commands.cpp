@@ -36,14 +36,14 @@ public:
 
 	unique_com_ptr<ID3D12CommandAllocator>		D12CommandAllocator;
 	StateEnum									State;
-	eastl::queue<SyncPoint>						Fences;
+	eastl::queue<FGPUSyncPoint>						Fences;
 	CommandListPool*							Owner;
 	EContextLifetime							Lifetime;
 	u32											ApproximateWorkload = 0;
 	u32											Index;
 
 	CommandAllocator(CommandListPool* owner, EContextLifetime lifetime);
-	void Recycle(SyncPoint fence);
+	void Recycle(FGPUSyncPoint fence);
 	bool CanReset();
 	void Reset();
 };
@@ -60,7 +60,7 @@ u64											FencesCounter;
 
 const u32 DUMMY_SYNC_POINT = 0xFFFFFFFF;
 
-bool SyncPoint::IsCompleted() {
+bool FGPUSyncPoint::IsCompleted() {
 	if (Index == DUMMY_SYNC_POINT) {
 		return true;
 	}
@@ -76,25 +76,25 @@ bool SyncPoint::IsCompleted() {
 	return FencesPool[Index].Value <= FencesPool[Index].Queue->GetCompletedValue();
 }
 
-void SyncPoint::WaitForCompletion() {
+void FGPUSyncPoint::WaitForCompletion() {
 	if (!IsCompleted()) {
 		FencesPool[Index].Queue->WaitForCompletion(FencesPool[Index].Value);
 	}
 }
 
-void SyncPoint::SetTrigger(GPUCommandQueue* queue) {
+void FGPUSyncPoint::SetTrigger(GPUCommandQueue* queue) {
 	check(FencesPool[Index].Queue == nullptr);
 	FencesPool[Index].Queue = queue;
 	FencesPool[Index].Value = queue->AdvanceSyncValue();
 }
 
-void SyncPoint::SetTrigger(GPUCommandQueue* queue, u64 value) {
+void FGPUSyncPoint::SetTrigger(GPUCommandQueue* queue, u64 value) {
 	check(FencesPool[Index].Queue == nullptr);
 	FencesPool[Index].Queue = queue;
 	FencesPool[Index].Value = value;
 }
 
-SyncPoint CreateSyncPoint() {
+FGPUSyncPoint CreateFGPUSyncPoint() {
 	u32 index = (FencesCounter++) % MAX_PENDING_FENCES;
 
 	if (FencesPool[index].Queue) {
@@ -105,22 +105,22 @@ SyncPoint CreateSyncPoint() {
 	FencesPool[index].Value = 0;
 	auto generation = ++FenceGenerations[index];
 
-	return SyncPoint(index, generation);
+	return FGPUSyncPoint(index, generation);
 }
 
-bool SyncPoint::IsSet() {
+bool FGPUSyncPoint::IsSet() {
 	return Index == DUMMY_SYNC_POINT || (FencesPool[Index].Queue != nullptr && FenceGenerations[Index] == Generation);
 }
 
-SyncPoint GetDummySyncPoint() {
-	return SyncPoint(DUMMY_SYNC_POINT, 0);
+FGPUSyncPoint GetDummyFGPUSyncPoint() {
+	return FGPUSyncPoint(DUMMY_SYNC_POINT, 0);
 }
 
-bool operator == (SyncPoint A, SyncPoint B) {
+bool operator == (FGPUSyncPoint A, FGPUSyncPoint B) {
 	return A.Index == B.Index && A.Generation == B.Generation;
 }
 
-bool operator != (SyncPoint A, SyncPoint B) {
+bool operator != (FGPUSyncPoint A, FGPUSyncPoint B) {
 	return A.Index != B.Index || A.Generation != B.Generation;
 }
 
@@ -136,7 +136,7 @@ public:
 	StateEnum									State;
 	unique_com_ptr<ID3D12GraphicsCommandList>	D12CommandList;
 	CommandAllocator*							Allocator;
-	SyncPoint									SyncPoint;
+	FGPUSyncPoint									FGPUSyncPoint;
 	CommandListPool*							Owner;
 	u32											ApproximateWorkload = 0;
 
@@ -238,7 +238,7 @@ CommandAllocator::CommandAllocator(CommandListPool* owner, EContextLifetime life
 	Index = CommandAllocatorsNum++;
 }
 
-void CommandAllocator::Recycle(SyncPoint fence) {
+void CommandAllocator::Recycle(FGPUSyncPoint fence) {
 	check(State == RecordingState);
 	Fences.push(fence);
 	State = ReadyState;
@@ -262,7 +262,7 @@ GPUCommandList::GPUCommandList(CommandListPool* owner, CommandAllocator* allocat
 	VERIFYDX12(GetPrimaryDevice()->D12Device->CreateCommandList(0, Owner->Type, allocator->D12CommandAllocator.get(), nullptr, IID_PPV_ARGS(D12CommandList.get_init())));
 	Allocator->State = CommandAllocator::RecordingState;
 	State = RecordingState;
-	SyncPoint = CreateSyncPoint();
+	FGPUSyncPoint = CreateFGPUSyncPoint();
 }
 
 void GPUCommandList::Close() {
@@ -276,7 +276,7 @@ void GPUCommandList::Close() {
 void GPUCommandList::ReleaseAllocatorAfterRecording() {
 	check(State == ClosedState);
 	Allocator->ApproximateWorkload = eastl::max(ApproximateWorkload, Allocator->ApproximateWorkload);
-	Allocator->Recycle(SyncPoint);
+	Allocator->Recycle(FGPUSyncPoint);
 	Allocator = nullptr;
 }
 
@@ -295,7 +295,7 @@ void GPUCommandList::Reset(CommandAllocator* allocator) {
 	State = RecordingState;
 	ApproximateWorkload = 0;
 
-	SyncPoint = CreateSyncPoint();
+	FGPUSyncPoint = CreateFGPUSyncPoint();
 }
 
 GPUCommandQueue::GPUCommandQueue(D3D12Device* device, TypeEnum type) :
@@ -331,7 +331,7 @@ void GPUCommandQueue::WaitForCompletion(u64 syncValue) {
 	}
 }
 
-void GPUCommandQueue::Wait(SyncPoint fence) {
+void GPUCommandQueue::Wait(FGPUSyncPoint fence) {
 	check(fence.IsSet());
 	VERIFYDX12(D12CommandQueue->Wait(D12Fence.get(), FencesPool[fence.Index].Value));
 }
@@ -357,7 +357,7 @@ void GPUCommandQueue::Flush() {
 	u64 syncValue = AdvanceSyncValue();
 	for (auto commandList : QueuedCommandLists) {
 		commandList->State = GPUCommandList::ExecutedState;
-		commandList->SyncPoint.SetTrigger(this, syncValue);
+		commandList->FGPUSyncPoint.SetTrigger(this, syncValue);
 		commandList->Recycle();
 	}
 
@@ -384,8 +384,8 @@ u64 GPUCommandQueue::AdvanceSyncValue() {
 	return LastSignaledValue;
 }
 
-SyncPoint GPUCommandQueue::GenerateSyncPoint() {
-	SyncPoint result = CreateSyncPoint();
+FGPUSyncPoint GPUCommandQueue::GenerateFGPUSyncPoint() {
+	FGPUSyncPoint result = CreateFGPUSyncPoint();
 	result.SetTrigger(this);
 	return result;
 }
@@ -447,8 +447,8 @@ void FGPUContext::ExecuteImmediately() {
 	Queue->Flush();
 }
 
-SyncPoint FGPUContext::GetCompletionSyncPoint() {
-	return CommandList->SyncPoint;
+FGPUSyncPoint FGPUContext::GetCompletionFGPUSyncPoint() {
+	return CommandList->FGPUSyncPoint;
 }
 
 u32 HasFlag(EAccessType A, EAccessType B) {
@@ -547,7 +547,7 @@ void FGPUContext::CopyDataToSubresource(FGPUResource* Dst, u32 Subresource, void
 	DstLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 
 	RawCommandList()->CopyTextureRegion(&DstLocation, 0, 0, 0, &SrcLocation, nullptr);
-	uploadBuffer->FenceDeletion(GetCompletionSyncPoint());
+	uploadBuffer->FenceDeletion(GetCompletionFGPUSyncPoint());
 }
 
 void FGPUContext::CopyToBuffer(FGPUResource * Dst, void const* Src, u64 Size) {
@@ -563,7 +563,7 @@ void FGPUContext::CopyToBuffer(FGPUResource * Dst, void const* Src, u64 Size) {
 
 	RawCommandList()->CopyBufferRegion(Dst->D12Resource.get(), 0, uploadBuffer->D12Resource.get(), 0, Size);
 
-	uploadBuffer->FenceDeletion(GetCompletionSyncPoint());
+	uploadBuffer->FenceDeletion(GetCompletionFGPUSyncPoint());
 }
 
 ID3D12GraphicsCommandList* FGPUContext::RawCommandList() const {
@@ -955,25 +955,25 @@ void FGPUContext::SetRenderTargetsBundle(FRenderTargetsBundle const * Bundle) {
 //	return *(u32*)(TLS + 0x48);
 //}
 
-eastl::queue<SyncPoint>	PendingFrameSyncPoints;
+eastl::queue<FGPUSyncPoint>	PendingFrameFGPUSyncPoints;
 u32						MaxBufferedFrames = 3;
-bool					IsFrameSyncPointCreated = false;
-SyncPoint				LastFrameSyncPoint;
+bool					IsFrameFGPUSyncPointCreated = false;
+FGPUSyncPoint				LastFrameFGPUSyncPoint;
 
-SyncPoint GetCurrentFrameSyncPoint() {
+FGPUSyncPoint GetCurrentFrameFGPUSyncPoint() {
 	// todo: threadsafe
-	if (!IsFrameSyncPointCreated) {
-		IsFrameSyncPointCreated = true;
+	if (!IsFrameFGPUSyncPointCreated) {
+		IsFrameFGPUSyncPointCreated = true;
 
-		PendingFrameSyncPoints.push(CreateSyncPoint());
+		PendingFrameFGPUSyncPoints.push(CreateFGPUSyncPoint());
 	}
 
-	return PendingFrameSyncPoints.back();
+	return PendingFrameFGPUSyncPoints.back();
 }
 
-SyncPoint GetLastFrameSyncPoint() {
-	check(LastFrameSyncPoint.IsSet());
-	return LastFrameSyncPoint;
+FGPUSyncPoint GetLastFrameFGPUSyncPoint() {
+	check(LastFrameFGPUSyncPoint.IsSet());
+	return LastFrameFGPUSyncPoint;
 }
 
 void EndFrame() {
@@ -981,9 +981,9 @@ void EndFrame() {
 	CopyPool.ResetAllocators();
 	ComputePool.ResetAllocators();
 
-	SyncPoint FrameEndSync = GetCurrentFrameSyncPoint();
+	FGPUSyncPoint FrameEndSync = GetCurrentFrameFGPUSyncPoint();
 	FrameEndSync.SetTrigger(GetDirectQueue(), GetDirectQueue()->LastSignaledValue);
-	LastFrameSyncPoint = FrameEndSync;
+	LastFrameFGPUSyncPoint = FrameEndSync;
 
 	GetOnlineDescriptorsAllocator()->FenceTemporaryAllocations(FrameEndSync);
 	GetConstantsAllocator()->FenceFrameAllocations(FrameEndSync);
@@ -996,11 +996,11 @@ void EndFrame() {
 
 	TickDescriptors(FrameEndSync);
 
-	IsFrameSyncPointCreated = false;
-	PendingFrameSyncPoints.push(FrameEndSync);
-	while (PendingFrameSyncPoints.size() > MaxBufferedFrames) {
-		PendingFrameSyncPoints.front().WaitForCompletion();
-		PendingFrameSyncPoints.pop();
+	IsFrameFGPUSyncPointCreated = false;
+	PendingFrameFGPUSyncPoints.push(FrameEndSync);
+	while (PendingFrameFGPUSyncPoints.size() > MaxBufferedFrames) {
+		PendingFrameFGPUSyncPoints.front().WaitForCompletion();
+		PendingFrameFGPUSyncPoints.pop();
 	}
 }
 

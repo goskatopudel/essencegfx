@@ -89,7 +89,7 @@ void FDescriptorAllocator::FreeInternal(FDescriptorsAllocation allocation) {
 	FreeToBucketBlock(Blocks[blockIndex], (allocation.HeapOffset - blockIndex * BlockSize) / (1 << bucketIndex));
 }
 
-void FDescriptorAllocator::Free(FDescriptorsAllocation allocation, SyncPoint sync) {
+void FDescriptorAllocator::Free(FDescriptorsAllocation allocation, FGPUSyncPoint sync) {
 	if (!sync.IsCompleted()) {
 		DeferredDeletionQueue.push(QueuedElement(sync, allocation));
 	}
@@ -141,7 +141,7 @@ FDescriptorsAllocation FDescriptorAllocator::FastTemporaryAllocate(u32 num) {
 	return result;
 }
 
-void FDescriptorAllocator::FenceTemporaryAllocations(SyncPoint sync) {
+void FDescriptorAllocator::FenceTemporaryAllocations(FGPUSyncPoint sync) {
 	DeferredFastAllocationDeletionQueue.push(FencedFastAllocations(sync, FrameFastAllocationBlocksNum));
 	FrameFastAllocationBlocksNum = 0;
 	if (FastAllocationBlocks.size()) {
@@ -149,7 +149,7 @@ void FDescriptorAllocator::FenceTemporaryAllocations(SyncPoint sync) {
 	}
 }
 
-void FDescriptorsAllocation::Free(SyncPoint sync) {
+void FDescriptorsAllocation::Free(FGPUSyncPoint sync) {
 	if (Allocator) {
 		Allocator->Free(*this, sync);
 		Allocator = nullptr;

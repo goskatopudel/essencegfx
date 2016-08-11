@@ -54,15 +54,21 @@ void FShader::Compile() {
 	unique_com_ptr<ID3DBlob> ErrorsBlob;
 	HRESULT preprocessResult = D3DPreprocess(ShaderCode.Data, ShaderCode.Bytesize, File.c_str(), Macros.get(), D3D_COMPILE_STANDARD_FILE_INCLUDE, CodeBlob.get_init(), ErrorsBlob.get_init());
 
-	ShaderHash hashLookup = { MurmurHash2_64(CodeBlob->GetBufferPointer(), CodeBlob->GetBufferSize(), LocationHash) };
-	auto codeCacheFind = ShadersCodeLookup.find(hashLookup);
-	if (codeCacheFind != ShadersCodeLookup.end()) {
-		if (Bytecode.get() != codeCacheFind->second.get()) {
-			Bytecode = codeCacheFind->second;
-			LastChangedVersion = GShadersCompilationVersion;
+	ShaderHash hashLookup = {};
+
+	bool bFound = false;
+	if(CodeBlob.get()) {
+		hashLookup.hash = MurmurHash2_64(CodeBlob->GetBufferPointer(), CodeBlob->GetBufferSize(), LocationHash);
+		auto codeCacheFind = ShadersCodeLookup.find(hashLookup);
+		if (codeCacheFind != ShadersCodeLookup.end()) {
+			if (Bytecode.get() != codeCacheFind->second.get()) {
+				Bytecode = codeCacheFind->second;
+				LastChangedVersion = GShadersCompilationVersion;
+				bFound = true;
+			}
 		}
 	}
-	else if (CodeBlob.get() && CodeBlob->GetBufferPointer()) {
+	if (!bFound && CodeBlob.get() && CodeBlob->GetBufferPointer()) {
 		HRESULT hr = D3DCompile2(ShaderCode.Data, ShaderCode.Bytesize, File.c_str(), Macros.get(), D3D_COMPILE_STANDARD_FILE_INCLUDE, Func.c_str(), Target, Flags, 0, 0, nullptr, 0, CodeBlob.get_init(), ErrorsBlob.get_init());
 
 		if (ErrorsBlob.get() && ErrorsBlob->GetBufferPointer()) {
@@ -74,6 +80,9 @@ void FShader::Compile() {
 		}
 
 		LastChangedVersion = GShadersCompilationVersion;
+	}
+	else if(ErrorsBlob.get() && ErrorsBlob->GetBufferPointer()) {
+		PrintFormated(L"Compilation errors: %s\n", ConvertToWString((const char*)ErrorsBlob->GetBufferPointer(), ErrorsBlob->GetBufferSize()).c_str());
 	}
 }
 

@@ -8,6 +8,9 @@
 #define TEXTURE_POINT_WRAP_SAMPLER s0, space2
 #define TEXTURE_BILINEAR_CLAMP_SAMPLER s0, space3
 #define TEXTURE_POINT_CLAMP_SAMPLER s0, space4
+
+SamplerState TextureSampler : register(TEXTURE_BILINEAR_CLAMP_SAMPLER);
+SamplerState PointSampler : register(TEXTURE_POINT_CLAMP_SAMPLER);
 #endif
 
 struct FFrameConstants

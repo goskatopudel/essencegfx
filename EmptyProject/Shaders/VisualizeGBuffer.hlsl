@@ -1,4 +1,4 @@
-#include "Common.inl"
+#include "ShaderCommon.inl"
 
 ConstantBuffer<FFrameConstants> Frame : register(b0);
 
@@ -25,6 +25,7 @@ VOut VertexMain(uint vertexId : SV_VertexID)
 Texture2D<float> 	DepthBuffer : register(t0);
 Texture2D<float4> 	GBuffer0 : register(t1);
 Texture2D<float4> 	GBuffer1 : register(t2);
+Texture2D<float4> 	GBuffer2 : register(t3);
 
 float LinearizeDepth(float PostProjectionDepth, float Projection_33, float Projection_43) {
 	return Projection_43 / (PostProjectionDepth - Projection_33);
@@ -36,15 +37,17 @@ float LinearizeDepth(float PostProjectionDepth, matrix Projection) {
 
 struct GBufferData {
 	float4 SvPosition;
+	float3 Albedo;
 	float3 Normal;
 	float PostProjectionDepth;
 	float LinearDepth;
 };
 
-void FetchGBuffer(GBufferData inout GBuffer) {
+void FetchGBuffer(inout GBufferData GBuffer) {
+	GBuffer.Albedo = GBuffer0[GBuffer.SvPosition.xy].xyz;
 	GBuffer.PostProjectionDepth = DepthBuffer[GBuffer.SvPosition.xy].x;
 	GBuffer.LinearDepth = LinearizeDepth(GBuffer.PostProjectionDepth, Frame.ProjectionMatrix);
-	GBuffer.Normal = GBuffer0[GBuffer.SvPosition.xy].xyz * 2 - 1;
+	GBuffer.Normal = GBuffer1[GBuffer.SvPosition.xy].xyz * 2 - 1;
 }
 
 float4 VisualizeDepth(float4 SvPosition, float2 Texcoord)
@@ -55,12 +58,20 @@ float4 VisualizeDepth(float4 SvPosition, float2 Texcoord)
 	return GBuffer.LinearDepth / 100.f;
 }
 
+float4 VisualizeAlbedo(float4 SvPosition, float2 Texcoord)
+{
+	GBufferData GBuffer;
+	GBuffer.SvPosition = SvPosition;
+	FetchGBuffer(GBuffer);
+	return float4(GBuffer.Albedo, 1);
+}
+
 float4 VisualizeNormals(float4 SvPosition, float2 Texcoord)
 {
 	GBufferData GBuffer;
 	GBuffer.SvPosition = SvPosition;
 	FetchGBuffer(GBuffer);
-	return GBuffer.Normal * 0.5f + 0.5f;
+	return float4(GBuffer.Normal * 0.5f + 0.5f, 0);
 }
 
 float4 VisualizeMotionVectors(float4 SvPosition, float2 Texcoord) 
@@ -74,8 +85,10 @@ float4 VisualizeMotionVectors(float4 SvPosition, float2 Texcoord)
 
 float4 PixelMain(float4 SvPosition : SV_POSITION, float2 Texcoord : TEXCOORD) : SV_TARGET {
 	#if SHOW_ID == 0
-		return VisualizeDepth(SvPosition, Texcoord);
+		return VisualizeAlbedo(SvPosition, Texcoord);
 	#elif SHOW_ID == 1
 		return VisualizeNormals(SvPosition, Texcoord);
+	#elif SHOW_ID == 2
+		return VisualizeDepth(SvPosition, Texcoord);
 	#endif
 }

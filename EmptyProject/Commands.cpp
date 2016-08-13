@@ -112,7 +112,7 @@ bool FGPUSyncPoint::IsSet() {
 	return Index == DUMMY_SYNC_POINT || (FencesPool[Index].Queue != nullptr && FenceGenerations[Index] == Generation);
 }
 
-FGPUSyncPoint GetDummyFGPUSyncPoint() {
+FGPUSyncPoint GetDummyGPUSyncPoint() {
 	return FGPUSyncPoint(DUMMY_SYNC_POINT, 0);
 }
 
@@ -384,7 +384,7 @@ u64 GPUCommandQueue::AdvanceSyncValue() {
 	return LastSignaledValue;
 }
 
-FGPUSyncPoint GPUCommandQueue::GenerateFGPUSyncPoint() {
+FGPUSyncPoint GPUCommandQueue::GenerateGPUSyncPoint() {
 	FGPUSyncPoint result = CreateFGPUSyncPoint();
 	result.SetTrigger(this);
 	return result;
@@ -447,7 +447,7 @@ void FGPUContext::ExecuteImmediately() {
 	Queue->Flush();
 }
 
-FGPUSyncPoint FGPUContext::GetCompletionFGPUSyncPoint() {
+FGPUSyncPoint FGPUContext::GetCompletionGPUSyncPoint() {
 	return CommandList->FGPUSyncPoint;
 }
 
@@ -547,7 +547,7 @@ void FGPUContext::CopyDataToSubresource(FGPUResource* Dst, u32 Subresource, void
 	DstLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 
 	RawCommandList()->CopyTextureRegion(&DstLocation, 0, 0, 0, &SrcLocation, nullptr);
-	uploadBuffer->FenceDeletion(GetCompletionFGPUSyncPoint());
+	uploadBuffer->FenceDeletion(GetCompletionGPUSyncPoint());
 }
 
 void FGPUContext::CopyToBuffer(FGPUResource * Dst, void const* Src, u64 Size) {
@@ -563,7 +563,7 @@ void FGPUContext::CopyToBuffer(FGPUResource * Dst, void const* Src, u64 Size) {
 
 	RawCommandList()->CopyBufferRegion(Dst->D12Resource.get(), 0, uploadBuffer->D12Resource.get(), 0, Size);
 
-	uploadBuffer->FenceDeletion(GetCompletionFGPUSyncPoint());
+	uploadBuffer->FenceDeletion(GetCompletionGPUSyncPoint());
 }
 
 ID3D12GraphicsCommandList* FGPUContext::RawCommandList() const {
@@ -960,7 +960,7 @@ u32						MaxBufferedFrames = 3;
 bool					IsFrameFGPUSyncPointCreated = false;
 FGPUSyncPoint				LastFrameFGPUSyncPoint;
 
-FGPUSyncPoint GetCurrentFrameFGPUSyncPoint() {
+FGPUSyncPoint GetCurrentFrameGPUSyncPoint() {
 	// todo: threadsafe
 	if (!IsFrameFGPUSyncPointCreated) {
 		IsFrameFGPUSyncPointCreated = true;
@@ -971,7 +971,7 @@ FGPUSyncPoint GetCurrentFrameFGPUSyncPoint() {
 	return PendingFrameFGPUSyncPoints.back();
 }
 
-FGPUSyncPoint GetLastFrameFGPUSyncPoint() {
+FGPUSyncPoint GetLastFrameGPUSyncPoint() {
 	check(LastFrameFGPUSyncPoint.IsSet());
 	return LastFrameFGPUSyncPoint;
 }
@@ -981,7 +981,7 @@ void EndFrame() {
 	CopyPool.ResetAllocators();
 	ComputePool.ResetAllocators();
 
-	FGPUSyncPoint FrameEndSync = GetCurrentFrameFGPUSyncPoint();
+	FGPUSyncPoint FrameEndSync = GetCurrentFrameGPUSyncPoint();
 	FrameEndSync.SetTrigger(GetDirectQueue(), GetDirectQueue()->LastSignaledValue);
 	LastFrameFGPUSyncPoint = FrameEndSync;
 

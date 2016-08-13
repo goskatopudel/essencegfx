@@ -9,6 +9,8 @@ cbuffer ObjectConstants : register(b2)
     float4x4 Dummy;
 }
 
+Texture2D<float4> 	AlbedoTexture : register(t0);
+
 struct VIn 
 {
 	float3 	Position : POSITION;
@@ -47,13 +49,16 @@ VOut VertexMain(VIn Input, uint VertexId : SV_VertexID)
 
 struct OutputLayout {
 	float4 GBuffer0 : SV_TARGET0;
-	float2 GBuffer1 : SV_TARGET1;
+	float4 GBuffer1 : SV_TARGET1;
+	float2 GBuffer2 : SV_TARGET2;
 };
 
 void PixelMain(VOut Interpolated, out OutputLayout Output)
 {
+	Output.GBuffer0 = float4(AlbedoTexture.Sample(TextureSampler, Interpolated.Texcoord0).rgb, 1);
+
 	float3 N = normalize(Interpolated.Normal);
-	Output.GBuffer0 = float4(N * 0.5 + 0.5, 1);
+	Output.GBuffer1 = float4(N * 0.5 + 0.5, 1);
 
 	float2 curPosition = Interpolated.SvPosition.xy / Frame.ScreenResolution;
 
@@ -61,7 +66,7 @@ void PixelMain(VOut Interpolated, out OutputLayout Output)
 	prevPosition /= prevPosition.w;
 	prevPosition.xy = prevPosition.xy * float2(0.5f, -0.5f) + 0.5f;
 
-	Output.GBuffer1 = (prevPosition.xy - curPosition) * 0.5f + 0.5f;
+	Output.GBuffer2 = (prevPosition.xy - curPosition) * 0.5f + 0.5f;
 }
 
 

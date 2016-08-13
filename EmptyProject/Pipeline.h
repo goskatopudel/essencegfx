@@ -421,6 +421,7 @@ void FPipelineContext<T>::SetShaderState(FShaderState * InShaderState) {
 	if (ShaderState != InShaderState) {
 		ShaderState = InShaderState;
 		PipelineType = ShaderState->Type;
+		ShaderState->Compile();
 		Dirty = 1;
 	}
 }
@@ -452,6 +453,10 @@ template<typename T>
 void FPipelineContext<T>::ApplyState() {
 	if (Dirty) {
 		if (PipelineType == EPipelineType::Graphics) {
+			if (PipelineDesc.DSVFormat == DXGI_FORMAT_UNKNOWN) {
+				PipelineDesc.DepthStencilState.DepthEnable = false;
+			}
+
 			u64 Hash = MurmurHash2_64(&PipelineDesc, sizeof(PipelineDesc), 0);
 			Hash = HashCombine64(Hash, ShaderState->ContentHash);
 			Hash = HashCombine64(Hash, InputLayout->ValueHash);

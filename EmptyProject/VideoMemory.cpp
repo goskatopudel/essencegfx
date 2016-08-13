@@ -104,7 +104,7 @@ u32 GIgnoreRelease = 0;
 void eastl::default_delete<FGPUResource>::operator()(FGPUResource* GPUResource) const EA_NOEXCEPT {
 	if (!GIgnoreRelease && GPUResource->FatData->Allocator) {
 		if (!GPUResource->FatData->DeletionFGPUSyncPoint.IsSet()) {
-			GPUResource->FenceDeletion(GetCurrentFrameFGPUSyncPoint());
+			GPUResource->FenceDeletion(GetCurrentFrameGPUSyncPoint());
 		}
 
 		GPUResource->FatData->Allocator->Free(GPUResource, GPUResource->FatData->DeletionFGPUSyncPoint);
@@ -408,7 +408,6 @@ void AllocateResourceViews(FGPUResource* resource, DXGI_FORMAT format, FResource
 			GetPrimaryDevice()->D12Device->CreateShaderResourceView(resource->D12Resource.get(), &SRVDesc, outViews.MainSRV.GetCPUHandle(0));
 
 			if (resource->FatData->IsDepthStencil && resource->FatData->PlanesNum > 1) {
-
 				SRVDesc.Format = GetStencilReadFormat(format);
 				SRVDesc.Texture2D.PlaneSlice = 1;
 				GetPrimaryDevice()->D12Device->CreateShaderResourceView(resource->D12Resource.get(), &SRVDesc, outViews.MainSRV.GetCPUHandle(1));

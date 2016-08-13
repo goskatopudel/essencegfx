@@ -46,9 +46,9 @@ public:
 bool operator == (FGPUSyncPoint A, FGPUSyncPoint B);
 bool operator != (FGPUSyncPoint A, FGPUSyncPoint B);
 
-FGPUSyncPoint GetDummyFGPUSyncPoint();
-FGPUSyncPoint GetCurrentFrameFGPUSyncPoint();
-FGPUSyncPoint GetLastFrameFGPUSyncPoint();
+FGPUSyncPoint GetDummyGPUSyncPoint();
+FGPUSyncPoint GetCurrentFrameGPUSyncPoint();
+FGPUSyncPoint GetLastFrameGPUSyncPoint();
 
 void EndFrame();
 
@@ -80,8 +80,8 @@ public:
 	u64	GetCurrentSyncValue() const;
 	u64 GetCompletedValue();
 	u64 AdvanceSyncValue();
-	FGPUSyncPoint GenerateFGPUSyncPoint();
-	FGPUSyncPoint GetCompletionFGPUSyncPoint();
+	FGPUSyncPoint GenerateGPUSyncPoint();
+	FGPUSyncPoint GetCompletionGPUSyncPoint();
 };
 
 GPUCommandQueue*		GetDirectQueue();
@@ -220,7 +220,7 @@ public:
 	void Close();
 	void Execute();
 	void ExecuteImmediately();
-	FGPUSyncPoint GetCompletionFGPUSyncPoint();
+	FGPUSyncPoint GetCompletionGPUSyncPoint();
 
 	ID3D12GraphicsCommandList* RawCommandList() const;
 

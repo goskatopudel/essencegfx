@@ -3,7 +3,7 @@
 #include "Frame.h"
 #include "Viewport.h"
 #include "Scene.h"
-#include "Rendering.h"
+#include "SceneRendering.h"
 
 struct FForwardRenderContext : public FRenderViewport {
 	float4x4 WorldToShadowmap;
@@ -17,6 +17,7 @@ void RenderModel_Forward(FCommandsStream & Commands, FForwardRenderContext * Vie
 void Render_Forward(FCommandsStream & Commands, FForwardRenderContext * Viewport, FScene * Scene);
 
 struct FGBufferRenderContext : public FRenderViewport {
+	FGPUResource * MaterialTexture;
 };
 
 void PreRender_GBuffer(FCommandsStream & Commands, FGBufferRenderContext * Viewport, FSceneRenderingFrame * Scene);
@@ -30,6 +31,8 @@ class FStaticModelShaderState_GBuffer : public FShaderState {
 public:
 	FConstantBuffer FrameCB;
 	FConstantBuffer ObjectCB;
+
+	FTextureParam AlbedoTexture;
 
 	FStaticModelShaderState_GBuffer();
 	void InitParams() override final;

@@ -74,7 +74,7 @@ void UpdateCamera() {
 #include "DepthPass.h"
 #include "Viewport.h"
 
-#include "Rendering.h"
+#include "SceneRendering.h"
 
 FScene Scene;
 FGPUResourceRef DepthBuffer;
@@ -130,18 +130,20 @@ void ShowShadowmapOptions() {
 	}
 }
 
-struct FGBufferDebugParams {
-	
-};
-
-FGBufferDebugParams GBufferDebugParams;
+struct FGBufferVisualizeParams {
+	bool Show;
+	EGBufferView View;
+} GBufferVisualizeParams;
 
 void ShowGBufferOptions() {
 	ImGui::Begin("GBuffer");
 
-	const char* Items[] = { "None", "Depth", "Normals", "Motion vectors" };
+	const char* Items[] = { "None", "Albedo", "Normals", "Depth", "Motion vectors" };
 	static int Item = 0;
 	ImGui::Combo("Debug view", &Item, Items, _ARRAYSIZE(Items));
+
+	GBufferVisualizeParams.Show = Item != 0;
+	GBufferVisualizeParams.View = (EGBufferView)(Item - 1);
 
 	ImGui::End();
 }
@@ -151,7 +153,7 @@ void FApplicationImpl::Init() {
 	Camera.Up = float3(0, 1.f, 0);
 	Camera.Direction = normalize(float3(0) - Camera.Position);
 
-	Scene.AddStaticMesh(L"Tree", GetModel(L"Models/tree.obj"));
+	Scene.AddStaticMesh(L"Tree", GetModel(L"Models/cube.obj"));
 
 	FGPUContext Context;
 	Context.Open(EContextType::DIRECT);
@@ -226,8 +228,12 @@ bool FApplicationImpl::Update() {
 	GenerateMipmaps(Stream, Shadowmap);
 	GenerateMipmaps(Stream, ShadowmapM2);
 
-	static FSceneRenderingFrame PrevFrame = {};
-	RenderScene(Stream, &Scene, &Camera, &PrevFrame);
+	static FSceneRenderingFrame LastFrame = {};
+	RenderScene(Stream, &Scene, &Camera, LastFrame);
+
+	if (GBufferVisualizeParams.Show) {
+		VisualizeGBufferDebug(Stream, GBufferVisualizeParams.View, &LastFrame);
+	}
 
 	FForwardRenderContext SceneContext;
 	UpdateViewport(SceneContext, &Camera, Vec2u(GApplication::WindowWidth, GApplication::WindowHeight));
@@ -240,15 +246,15 @@ bool FApplicationImpl::Update() {
 	SceneContext.Shadowmap = Shadowmap;
 	SceneContext.ShadowmapM2 = ShadowmapM2;
 	SceneContext.RenderTargets.Viewport = DepthBuffer->GetSizeAsViewport();
-	Render_Forward(Stream, &SceneContext, &Scene);
+	//Render_Forward(Stream, &SceneContext, &Scene);
 
 	FRenderTargetsBundle RenderTargets = SceneContext.RenderTargets;
 
-	if(ShadowRenderingParams.ShowTextures) {
+	/*if(ShadowRenderingParams.ShowTextures) {
 		RenderTargets.DepthBuffer = nullptr;
 		DrawTexture(Stream, Shadowmap, 0.f, float2(512, 512), ETextureFiltering::Point, ShadowRenderingParams.ShowMipmap, RenderTargets);
 		DrawTexture(Stream, ShadowmapM2, float2(0, 512), float2(512, 512), ETextureFiltering::Point, ShadowRenderingParams.ShowMipmap, RenderTargets);
-	}
+	}*/
 
 	RenderTargets.DepthBuffer = DepthBuffer;
 

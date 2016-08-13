@@ -245,7 +245,7 @@ WinSwapChain::~WinSwapChain() {
 
 void WinSwapChain::Resize(u32 width, u32 height) {
 	for (u32 i = 0; i < BackbuffersNum; ++i) {
-		FreeResourceViews(Backbuffers[i].get(), GetDummyFGPUSyncPoint());
+		FreeResourceViews(Backbuffers[i].get(), GetDummyGPUSyncPoint());
 	}
 	Backbuffers.clear();
 

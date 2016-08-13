@@ -175,7 +175,7 @@
     <ClCompile Include="ImGui\imgui_draw.cpp" />
     <ClCompile Include="MathGeometry.cpp" />
     <ClCompile Include="Model.cpp" />
-    <ClCompile Include="Rendering.cpp" />
+    <ClCompile Include="SceneRendering.cpp" />
     <ClCompile Include="RenderingUtils.cpp" />
     <ClCompile Include="RenderMaterial.cpp" />
     <ClCompile Include="Scene.cpp" />
@@ -221,7 +221,7 @@
     <ClInclude Include="ImGui\stb_truetype.h" />
     <ClInclude Include="MathGeometry.h" />
     <ClInclude Include="Model.h" />
-    <ClInclude Include="Rendering.h" />
+    <ClInclude Include="SceneRendering.h" />
     <ClInclude Include="RenderingUtils.h" />
     <ClInclude Include="RenderMaterial.h" />
     <ClInclude Include="MathMatrix.h" />

@@ -126,6 +126,7 @@ void RenderModel_GBuffer(FCommandsStream & Commands, FGBufferRenderContext * Vie
 	ObjectConstants.PrevWorldMatrix = ObjectConstants.WorldMatrix;
 	
 	Commands.SetConstantBuffer(&ShaderState.FrameCB, Frame->FrameCBV);
+	Commands.SetTexture(&ShaderState.AlbedoTexture, Viewport->MaterialTexture->GetSRV());
 	Commands.SetConstantBufferData(&ShaderState.ObjectCB, &ObjectConstants, sizeof(ObjectConstants));
 
 	Commands.SetVB(StaticMesh->Model->VertexBuffer, 0);
@@ -150,4 +151,6 @@ FStaticModelShaderState_GBuffer::FStaticModelShaderState_GBuffer() :
 void FStaticModelShaderState_GBuffer::InitParams() {
 	FrameCB = Root->CreateConstantBuffer(this, "Frame");
 	ObjectCB = Root->CreateConstantBuffer(this, "ObjectConstants");
+
+	AlbedoTexture = Root->CreateTextureParam(this, "AlbedoTexture");
 }

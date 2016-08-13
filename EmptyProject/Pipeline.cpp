@@ -1372,7 +1372,9 @@ FConstantBuffer FRootLayout::CreateConstantBuffer(FShaderState *ShaderState, cha
 	if (ConstantBuffers.find(Param.BindId) == ConstantBuffers.end()) {
 		PrintFormated(L"Constant buffer '%s' not found in data layout for %s\n", ConvertToWString(name).c_str(), ShaderState->GetDebugName().c_str());
 	}
-	Param.Size = ConstantBuffers[Param.BindId].Size;
+	else {
+		Param.Size = ConstantBuffers[Param.BindId].Size;
+	}
 	return Param;
 }
 

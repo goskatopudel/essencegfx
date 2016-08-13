@@ -13,16 +13,25 @@ struct FSceneRenderingFrame {
 	FScene * Scene;
 	FCamera * Camera;
 	Vec2u Resolution;
+	float4x4 ViewProjection;
 
 	FGPUResource * DepthBuffer;
 	FGPUResource * GBuffer0;
 	FGPUResource * GBuffer1;
 
-	float4x4 PrevViewProjection;
 	Vec2u PrevResolution;
+	float4x4 PrevViewProjection;
 
 	D3D12_CPU_DESCRIPTOR_HANDLE FrameCBV;
 };
 
 void AllocateGBuffer();
-void RenderScene(FCommandsStream & Commands, FScene * Scene, FCamera * Camera, FSceneRenderingFrame * PrevFrame);
+void RenderScene(FCommandsStream & Commands, FScene * Scene, FCamera * Camera, FSceneRenderingFrame & PrevFrame);
+
+enum class EGBufferView {
+	Albedo,
+	Normals,
+	Depth,
+};
+
+void VisualizeGBufferDebug(FCommandsStream & Commands, EGBufferView Visualize, FSceneRenderingFrame * Frame);

@@ -159,7 +159,7 @@
     <ClCompile Include="RenderingUtils.cpp">
       <Filter>Rendering</Filter>
     </ClCompile>
-    <ClCompile Include="Rendering.cpp">
+    <ClCompile Include="SceneRendering.cpp">
       <Filter>Rendering</Filter>
     </ClCompile>
   </ItemGroup>
@@ -296,7 +296,7 @@
     <ClInclude Include="RenderingUtils.h">
       <Filter>Rendering</Filter>
     </ClInclude>
-    <ClInclude Include="Rendering.h">
+    <ClInclude Include="SceneRendering.h">
       <Filter>Rendering</Filter>
     </ClInclude>
   </ItemGroup>

@@ -86,6 +86,7 @@ public:
 enum class EBufferFlags {
 	NoFlags = 0,
 	ShaderReadable = 1,
+	UnorderedAccess = 2,
 };
 DEFINE_ENUM_FLAG_OPERATORS(EBufferFlags);
 
@@ -93,7 +94,8 @@ class FBuffersAllocator : public FResourceAllocator {
 public:
 	FBuffersAllocator(u32 MaxResources) : FResourceAllocator(MaxResources) {}
 	FGPUResourceRef	CreateSimpleBuffer(u64 size, u64 alignment, wchar_t const * debugName);
-	FGPUResourceRef	CreateBuffer(u64 size, u64 alignment, u32 stride, EBufferFlags flags, wchar_t const * debugName);
+	FGPUResourceRef	CreateBuffer(u64 size, u64 alignment, u32 stride, EBufferFlags flags, wchar_t const * debugName, FGPUResourceRef atomicCounter = {});
+	FGPUResourceRef CreateAtomicCounter();
 };
 
 class FPooledRenderTargetAllocator : public FResourceAllocator {

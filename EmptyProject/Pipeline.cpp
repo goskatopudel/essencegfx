@@ -1152,6 +1152,8 @@ bool FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_V
 			}
 			break;
 		case D3D_SIT_UAV_RWTYPED:
+		case D3D_SIT_UAV_RWSTRUCTURED:
+		case D3D_SIT_UAV_RWSTRUCTURED_WITH_COUNTER:
 			{
 				range.type = RootSlotType::UAV;
 				UpdateEntry(UAVs, bindDesc.Name, nameHash, range);

@@ -103,11 +103,11 @@ u32 GIgnoreRelease = 0;
 
 void eastl::default_delete<FGPUResource>::operator()(FGPUResource* GPUResource) const EA_NOEXCEPT {
 	if (!GIgnoreRelease && GPUResource->FatData->Allocator) {
-		if (!GPUResource->FatData->DeletionFGPUSyncPoint.IsSet()) {
+		if (!GPUResource->FatData->DeletionGPUSyncPoint.IsSet()) {
 			GPUResource->FenceDeletion(GetCurrentFrameGPUSyncPoint());
 		}
 
-		GPUResource->FatData->Allocator->Free(GPUResource, GPUResource->FatData->DeletionFGPUSyncPoint);
+		GPUResource->FatData->Allocator->Free(GPUResource, GPUResource->FatData->DeletionGPUSyncPoint);
 	}
 	else if(!GIgnoreRelease && !GPUResource->FatData->Allocator) {
 		GPUResource->~FGPUResource();
@@ -511,6 +511,26 @@ void AllocateResourceViews(FGPUResource* resource, DXGI_FORMAT format, FResource
 			SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
 			GetPrimaryDevice()->D12Device->CreateShaderResourceView(resource->D12Resource.get(), &SRVDesc, outViews.MainSRV.GetCPUHandle(0));
+
+			if (resource->IsUnorderedAccess()) {
+				outViews.SubresourcesUAVs = SOVsAllocator->Allocate(1);
+
+				D3D12_UNORDERED_ACCESS_VIEW_DESC UAVDesc = {};
+				UAVDesc.Format = DXGI_FORMAT_UNKNOWN;
+				UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+				UAVDesc.Buffer.FirstElement = 0;
+				UAVDesc.Buffer.StructureByteStride = resource->FatData->BufferStride;
+				UAVDesc.Buffer.NumElements = (u32)resource->FatData->Desc.Width / resource->FatData->BufferStride;
+				UAVDesc.Buffer.CounterOffsetInBytes = 0;
+				UAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+
+				ID3D12Resource * Counter = nullptr;
+				if (resource->FatData->CounterResource) {
+					Counter = resource->FatData->CounterResource->D12Resource.get();
+				}
+				
+				GetPrimaryDevice()->D12Device->CreateUnorderedAccessView(resource->D12Resource.get(), Counter, &UAVDesc, outViews.SubresourcesUAVs.GetCPUHandle(0));
+			}
 		}
 	}
 }
@@ -535,9 +555,9 @@ void ConstructTexture(FGPUResource * Resource, u64 width, u32 height, u32 depthO
 	desc.SampleDesc.Quality = 0;
 	desc.Layout = (flags & TEXTURE_TILED) ? D3D12_TEXTURE_LAYOUT_64KB_UNDEFINED_SWIZZLE : D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	desc.Flags =
-		(flags & ALLOW_RENDER_TARGET) ? D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET : D3D12_RESOURCE_FLAG_NONE
-		| (flags & ALLOW_DEPTH_STENCIL) ? D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL : D3D12_RESOURCE_FLAG_NONE
-		| (flags & ALLOW_UNORDERED_ACCESS) ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE
+		((flags & ALLOW_RENDER_TARGET) ? D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET : D3D12_RESOURCE_FLAG_NONE)
+		| ((flags & ALLOW_DEPTH_STENCIL) ? D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL : D3D12_RESOURCE_FLAG_NONE)
+		| ((flags & ALLOW_UNORDERED_ACCESS) ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE)
 		;
 
 	Resource->FatData->PlanesNum = 1;
@@ -712,7 +732,11 @@ bool Any(EBufferFlags E) {
 	return (u32)E != 0;
 }
 
-FGPUResourceRef	FBuffersAllocator::CreateBuffer(u64 size, u64 alignment, u32 stride, EBufferFlags flags, wchar_t const * debugName) {
+FGPUResourceRef FBuffersAllocator::CreateAtomicCounter() {
+	return CreateBuffer(4, 0, 4, EBufferFlags::UnorderedAccess, L"Counter");
+}
+
+FGPUResourceRef	FBuffersAllocator::CreateBuffer(u64 size, u64 alignment, u32 stride, EBufferFlags flags, wchar_t const * debugName, FGPUResourceRef atomicCounter) {
 	FGPUResourceRef result = Allocate();
 
 	D3D12_RESOURCE_DESC desc = {};
@@ -725,13 +749,21 @@ FGPUResourceRef	FBuffersAllocator::CreateBuffer(u64 size, u64 alignment, u32 str
 	desc.SampleDesc.Count = 1;
 	desc.SampleDesc.Quality = 0;
 	desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	desc.Flags = Any(flags & EBufferFlags::UnorderedAccess) ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
 
 	result->FatData->BufferStride = stride;
 	result->FatData->IsShaderReadable = Any(flags & EBufferFlags::ShaderReadable) ? 1 : 0;
 	result->FatData->ViewDimension = Any(flags & EBufferFlags::ShaderReadable) ? D3D12_SRV_DIMENSION_BUFFER : D3D12_SRV_DIMENSION_UNKNOWN;
+
+	result->FatData->IsUnorderedAccess = Any(flags & EBufferFlags::UnorderedAccess);
 	D3D12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 	D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON;
+
+	if (result->FatData->IsUnorderedAccess) {
+		initialState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+		result->FatData->AutomaticBarriers = 1;
+		GetResourceStateRegistry()->SetCurrentState(result, ALL_SUBRESOURCES, EAccessType::WRITE_UAV);
+	}
 
 	result->FatData->IsCommited = 1;
 	result->FatData->HeapProperties = heapProperties;
@@ -748,12 +780,14 @@ FGPUResourceRef	FBuffersAllocator::CreateBuffer(u64 size, u64 alignment, u32 str
 	result->FatData->Desc = result->D12Resource->GetDesc();
 	result->FatData->Name = eastl::wstring(debugName);
 
+	result->FatData->CounterResource = atomicCounter;
+
 	if (debugName) {
 		SetDebugName(result->D12Resource.get(), debugName);
 	}
 
 	AllocateResourceViews(result, result->FatData->ViewFormat, result->FatData->Views.MainSet);
-	if (result->IsReadOnly()) {
+	if (result->IsReadOnly() && result->FatData->IsShaderReadable) {
 		result->ReadOnlySRV = result->FatData->Views.MainSet.MainSRV.GetCPUHandle(0);
 	}
 

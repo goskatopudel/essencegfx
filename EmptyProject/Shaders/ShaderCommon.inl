@@ -11,6 +11,11 @@
 
 SamplerState TextureSampler : register(TEXTURE_BILINEAR_CLAMP_SAMPLER);
 SamplerState PointSampler : register(TEXTURE_POINT_CLAMP_SAMPLER);
+
+typedef uint u32;
+typedef int i32;
+typedef float fp32;
+typedef half fp16;
 #endif
 
 struct FFrameConstants

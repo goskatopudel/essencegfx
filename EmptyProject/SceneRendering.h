@@ -32,6 +32,7 @@ enum class EGBufferView {
 	Albedo,
 	Normals,
 	Depth,
+	MotionVectors
 };
 
 void VisualizeGBufferDebug(FCommandsStream & Commands, EGBufferView Visualize, FSceneRenderingFrame * Frame);

@@ -43,8 +43,8 @@ void FGPUResource::SetDebugName(const wchar_t* Name) {
 
 void FGPUResource::FenceDeletion(FGPUSyncPoint Sync) {
 	// support only one for now
-	check(!FatData->DeletionFGPUSyncPoint.IsSet());
-	FatData->DeletionFGPUSyncPoint = Sync;
+	check(!FatData->DeletionGPUSyncPoint.IsSet());
+	FatData->DeletionGPUSyncPoint = Sync;
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetRTV() const {
@@ -195,6 +195,9 @@ bool FGPUResource::IsDepthStencil() const {
 }
 bool FGPUResource::IsRenderTarget() const {
 	return FatData->IsRenderTarget;
+}
+bool FGPUResource::IsUnorderedAccess() const {
+	return FatData->IsUnorderedAccess;
 }
 
 bool	FGPUResource::HasStencil() const {

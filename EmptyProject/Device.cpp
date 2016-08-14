@@ -4,6 +4,7 @@
 #include "Commands.h"
 #include "PointerMath.h"
 #include "SwapChain.h"
+#include <d3d12sdklayers.h>
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "dxgi.lib")

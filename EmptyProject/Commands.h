@@ -256,6 +256,7 @@ public:
 
 	void ClearRTV(D3D12_CPU_DESCRIPTOR_HANDLE rtv, float4 color);
 	void ClearDSV(D3D12_CPU_DESCRIPTOR_HANDLE dsv, float depth = 1.f, u8 stencil = 0);
+	void ClearUAV(D3D12_CPU_DESCRIPTOR_HANDLE uav, FGPUResource * resource, Vec4u value = 0u);
 	void CopyResource(FGPUResource* dst, FGPUResource* src);
 	void SetTopology(D3D_PRIMITIVE_TOPOLOGY topology);
 	void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, u32 index);
@@ -367,6 +368,15 @@ public:
 		Data->Stencil = stencil;
 	}
 
+	inline void ClearUAV(D3D12_CPU_DESCRIPTOR_HANDLE uav, FGPUResource * resource, Vec4u value = 0u) {
+		PreCommandAdd();
+		BatchBarriers();
+		auto Data = ReservePacket<FRenderCmdClearUAV, FRenderCmdClearUAVFunc>();
+		Data->UAV = uav;
+		Data->Resource = resource;
+		Data->Value = value;
+	}
+
 	void SetAccess(FGPUResource * Resource, EAccessType Access, u32 Subresource = ALL_SUBRESOURCES);
 
 	inline void Draw(u32 vertexCount, u32 startVertex = 0, u32 instances = 1, u32 startInstance = 0) {
@@ -397,6 +407,15 @@ public:
 		Data->X = X;
 		Data->Y = Y;
 		Data->Z = Z;
+	}
+
+	inline void Dispatch(Vec3u Kernel) {
+		PreCommandAdd();
+		BatchBarriers();
+		auto Data = ReservePacket<FRenderCmdDispatch, FRenderCmdDispatchFunc>();
+		Data->X = Kernel.x;
+		Data->Y = Kernel.y;
+		Data->Z = Kernel.z;
 	}
 
 	inline void SetScissorRect(D3D12_RECT const& Rect) {

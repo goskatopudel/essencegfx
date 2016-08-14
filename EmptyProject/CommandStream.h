@@ -49,6 +49,14 @@ struct	FRenderCmdClearDSV {
 
 u64	FRenderCmdClearDSVFunc(FGPUContext * Context, void * DataVoidPtr);
 
+struct	FRenderCmdClearUAV {
+	D3D12_CPU_DESCRIPTOR_HANDLE	UAV;
+	FGPUResource * Resource;
+	Vec4u Value;
+};
+
+u64	FRenderCmdClearUAVFunc(FGPUContext * Context, void * DataVoidPtr);
+
 struct	FRenderCmdSetPipelineState {
 	FPipelineState *	State;
 };

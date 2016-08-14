@@ -100,6 +100,7 @@ public:
 	bool IsWritable() const;
 	bool IsDepthStencil() const;
 	bool IsRenderTarget() const;
+	bool IsUnorderedAccess() const;
 	bool HasStencil() const;
 	bool IsTexture3D() const;
 
@@ -111,6 +112,18 @@ public:
 
 	void FenceDeletion(FGPUSyncPoint Sync);
 	void SetDebugName(const wchar_t*);
+};
+
+template <>
+struct eastl::default_delete<FGPUResource>
+{
+	void operator()(FGPUResource* GPUResource) const EA_NOEXCEPT;
+};
+
+struct FGPUResourceRef : public eastl::shared_ptr<FGPUResource> {
+	using shared_ptr<FGPUResource>::shared_ptr;
+
+	operator FGPUResource *() const { return get(); };
 };
 
 class FGPUResourceFat {
@@ -137,8 +150,9 @@ public:
 	DXGI_FORMAT				ViewFormat;
 	u64						DataSizeBytes;
 	u64						UnaliasedHeapMemoryBytes;
+	FGPUResourceRef			CounterResource;
 	void*					CpuPtr = nullptr;
-	FGPUSyncPoint				DeletionFGPUSyncPoint;
+	FGPUSyncPoint			DeletionGPUSyncPoint;
 };
 
 
@@ -161,17 +175,6 @@ DXGI_FORMAT		GetDepthReadFormat(DXGI_FORMAT format);
 DXGI_FORMAT		GetStencilReadFormat(DXGI_FORMAT format);
 bool			HasStencil(DXGI_FORMAT format);
 
-template <>
-struct eastl::default_delete<FGPUResource>
-{
-	void operator()(FGPUResource* GPUResource) const EA_NOEXCEPT;
-};
-
-struct FGPUResourceRef : public eastl::shared_ptr<FGPUResource> {
-	using shared_ptr<FGPUResource>::shared_ptr;
-
-	operator FGPUResource *() const { return get(); };
-};
 
 FGPUResourceRef	LoadDDS(const wchar_t * Filename, bool ForceSrgb, FGPUContext & CopyContext);
 

@@ -20,6 +20,12 @@ u64	FRenderCmdClearDSVFunc(FGPUContext * Context, void * DataVoidPtr) {
 	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdClearDSV);
 }
 
+u64	FRenderCmdClearUAVFunc(FGPUContext * Context, void * DataVoidPtr) {
+	auto Data = (FRenderCmdClearUAV*)DataVoidPtr;
+	Context->ClearUAV(Data->UAV, Data->Resource, Data->Value);
+	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdClearUAV);
+}
+
 u64	FRenderCmdSetPipelineStateFunc(FGPUContext * Context, void * DataVoidPtr) {
 	auto Data = (FRenderCmdSetPipelineState*)DataVoidPtr;
 	Context->SetRoot(Data->State->ShaderState->Root);

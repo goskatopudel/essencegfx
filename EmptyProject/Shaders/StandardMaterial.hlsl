@@ -55,18 +55,18 @@ struct OutputLayout {
 
 void PixelMain(VOut Interpolated, out OutputLayout Output)
 {
+	float2 ScreenClipspace = Interpolated.SvPosition.xy / (float2) Frame.ScreenResolution * float2(2, -2) - 0.5f;
 	Output.GBuffer0 = float4(AlbedoTexture.Sample(TextureSampler, Interpolated.Texcoord0).rgb, 1);
 
 	float3 N = normalize(Interpolated.Normal);
 	Output.GBuffer1 = float4(N * 0.5 + 0.5, 1);
 
-	float2 curPosition = Interpolated.SvPosition.xy / Frame.ScreenResolution;
-
 	float4 prevPosition = Interpolated.PrevClipPosition;
 	prevPosition /= prevPosition.w;
-	prevPosition.xy = prevPosition.xy * float2(0.5f, -0.5f) + 0.5f;
 
-	Output.GBuffer2 = (prevPosition.xy - curPosition) * 0.5f + 0.5f;
+	float2 currentClipPosition = Interpolated.SvPosition.xy / (float2)Frame.ScreenResolution;
+	float2 prevClipPosition = (prevPosition.xy * float2(0.5f,-0.5f) + 0.5f);
+	Output.GBuffer2 = currentClipPosition - prevClipPosition;
 }
 
 

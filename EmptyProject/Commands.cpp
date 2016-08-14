@@ -734,6 +734,12 @@ void FGPUContext::ClearDSV(D3D12_CPU_DESCRIPTOR_HANDLE dsv, float depth, u8 sten
 	CommandList->D12CommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, depth, stencil, 0, nullptr);
 }
 
+void FGPUContext::ClearUAV(D3D12_CPU_DESCRIPTOR_HANDLE uav, FGPUResource * resource, Vec4u value) {
+	auto GPUDescAlloc = OnlineDescriptors->FastTemporaryAllocate(1);
+	Device->CopyDescriptorsSimple(1, GPUDescAlloc.GetCPUHandle(0), uav, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	CommandList->D12CommandList->ClearUnorderedAccessViewUint(GPUDescAlloc.GetGPUHandle(0), uav, resource->D12Resource.get(), (UINT*)&value, 0, nullptr);
+}
+
 void FGPUContext::CopyResource(FGPUResource* dst, FGPUResource* src) {
 	FlushBarriers();
 	RawCommandList()->CopyResource(dst->D12Resource.get(), src->D12Resource.get());

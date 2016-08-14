@@ -66,7 +66,7 @@ void PixelMain(VOut Interpolated, out OutputLayout Output)
 
 	float2 currentClipPosition = Interpolated.SvPosition.xy / (float2)Frame.ScreenResolution;
 	float2 prevClipPosition = (prevPosition.xy * float2(0.5f,-0.5f) + 0.5f);
-	Output.GBuffer2 = currentClipPosition - prevClipPosition;
+	Output.GBuffer2 = (currentClipPosition - prevClipPosition);
 }
 
 

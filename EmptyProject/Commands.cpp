@@ -740,6 +740,12 @@ void FGPUContext::ClearUAV(D3D12_CPU_DESCRIPTOR_HANDLE uav, FGPUResource * resou
 	CommandList->D12CommandList->ClearUnorderedAccessViewUint(GPUDescAlloc.GetGPUHandle(0), uav, resource->D12Resource.get(), (UINT*)&value, 0, nullptr);
 }
 
+void FGPUContext::SetCounter(FGPUResource * dst, u32 value) {
+	FGPUResourceRef Buffer = GetUploadAllocator()->CreateBuffer(4, 0);
+	*(u32*)Buffer->GetMappedPtr() = value;
+	CommandList->D12CommandList->CopyBufferRegion(dst->D12Resource.get(), 0, Buffer->D12Resource.get(), 0, 4);
+}
+
 void FGPUContext::CopyResource(FGPUResource* dst, FGPUResource* src) {
 	FlushBarriers();
 	RawCommandList()->CopyResource(dst->D12Resource.get(), src->D12Resource.get());

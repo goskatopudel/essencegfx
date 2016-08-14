@@ -57,6 +57,13 @@ struct	FRenderCmdClearUAV {
 
 u64	FRenderCmdClearUAVFunc(FGPUContext * Context, void * DataVoidPtr);
 
+struct	FRenderCmdSetCounter {
+	FGPUResource * Resource;
+	u32 Value;
+};
+
+u64	FRenderCmdSetCounterFunc(FGPUContext * Context, void * DataVoidPtr);
+
 struct	FRenderCmdSetPipelineState {
 	FPipelineState *	State;
 };

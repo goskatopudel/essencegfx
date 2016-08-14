@@ -645,13 +645,13 @@ void FShaderState::Compile() {
 	}
 
 	if (Type == EPipelineType::Graphics) {
-		Root = GetRootLayout(VertexShader, HullShader, DomainShader, GeometryShader, PixelShader, RootSignature);
+		Root = GetRootLayout(VertexShader, HullShader, DomainShader, GeometryShader, PixelShader, FixedRootSignature ? RootSignature : nullptr);
 		if (!FixedRootSignature) {
 			RootSignature = Root->RootSignature;
 		}
 	}
 	else {
-		Root = GetRootLayout(ComputeShader, RootSignature);
+		Root = GetRootLayout(ComputeShader, FixedRootSignature ? RootSignature : nullptr);
 		if (!FixedRootSignature) {
 			RootSignature = Root->RootSignature;
 		}

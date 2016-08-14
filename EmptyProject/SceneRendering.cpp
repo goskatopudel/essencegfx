@@ -149,6 +149,7 @@ struct FMotionVectorsParams {
 	// for tile size of 2*N+1 this is N
 	Vec2u MVecTileCenter;
 	Vec2u RenderTileSize;
+	u32 BinningTilesInRow;
 };
 
 class FPreprocessMotionVectorsShaderState : public FShaderState {
@@ -186,6 +187,7 @@ void PreprocessMotionVectors(FCommandsStream & Commands, FSceneRenderingFrame * 
 	Commands.SetAccess(MotionVectorsTileListBegin, EAccessType::WRITE_UAV);
 	Commands.ClearUAV(MotionVectorsTileListBegin->GetUAV(), MotionVectorsTileListBegin, (u32)(-1));
 	Commands.SetAccess(AtomicCounter, EAccessType::COPY_DEST);
+	Commands.SetCounter(AtomicCounter, 0);
 	Commands.SetAccess(NodesList, EAccessType::WRITE_UAV);
 	Commands.SetAccess(VectorsList, EAccessType::WRITE_UAV);
 	static FPipelineCache Cache;
@@ -204,6 +206,7 @@ void PreprocessMotionVectors(FCommandsStream & Commands, FSceneRenderingFrame * 
 	FMotionVectorsParams Params;
 	Params.MVecTileCenter = Vec2u(10, 10);
 	Params.RenderTileSize = Vec2u(8, 8);
+	Params.BinningTilesInRow = MotionVectorsTileListBegin->GetDimensions().x;
 	Commands.SetConstantBufferData(&ShaderState.Params, &Params, sizeof(Params));
 	Commands.Dispatch(PrepareKernel(PrepareKernel(SceneDepth->GetDimensions(), Vec3u(10 * 2 + 1, 10 * 2 + 1, 1)), Vec3u(8, 8, 1)));
 }

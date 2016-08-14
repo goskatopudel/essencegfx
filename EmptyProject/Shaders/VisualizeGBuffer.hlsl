@@ -103,7 +103,9 @@ float4 DrawMotionVector(float4 SvPosition, float2 Texcoord) {
 		FNode Node = Nodes[NodeIndex];
 		FVector Vector = Vectors[Node.Index];
 
-		Acc += HelperArrow(SvPosition.xy, Vector.P0, Vector.P1, float4(1,0,0,1));
+		if(length(Vector.P1 - Vector.P0) > 0.005f) {
+			Acc += HelperArrow(SvPosition.xy, Vector.P0, Vector.P1, float4(1,0,0,1));
+		}
 
 		NodeIndex = Node.Next;
 		--Safety;
@@ -117,8 +119,6 @@ float4 VisualizeMotionVectors(float4 SvPosition, float2 Texcoord)
 	GBuffer.SvPosition = SvPosition;
 	FetchGBuffer(GBuffer);
 	return DrawMotionVector(SvPosition, Texcoord);
-	return MotionVectorsListBegin[GBuffer.SvPosition.xy / 8] + 1;
-	return float4(GBuffer2[GBuffer.SvPosition.xy].xy, 0, 0);
 }
 
 #ifndef SHOW_ID

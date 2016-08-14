@@ -269,6 +269,7 @@ public:
 	void SetIB(FBufferLocation const & BufferView);
 	void Dispatch(u32 X, u32 Y = 1, u32 Z = 1);
 	void CopyTextureRegion(FGPUResource * dst, u32 dstSubresource, FGPUResource * src, u32 srcSubresource);
+	void SetCounter(FGPUResource * dst, u32 value);
 
 	// Binding 
 
@@ -374,6 +375,14 @@ public:
 		auto Data = ReservePacket<FRenderCmdClearUAV, FRenderCmdClearUAVFunc>();
 		Data->UAV = uav;
 		Data->Resource = resource;
+		Data->Value = value;
+	}
+
+	inline void SetCounter(FGPUResource * dst, u32 value = 0) {
+		PreCommandAdd();
+		BatchBarriers();
+		auto Data = ReservePacket<FRenderCmdSetCounter, FRenderCmdSetCounterFunc>();
+		Data->Resource = dst;
 		Data->Value = value;
 	}
 

@@ -9,22 +9,22 @@ cbuffer Constants : register(b0)
 
 struct VOut
 {
-	float4 position : SV_POSITION;
-	float2 texcoord : TEXCOORD;
+	float4 Position : SV_POSITION;
+	float2 Texcoord : TEXCOORD;
 };
 
-VOut VertexMain(uint vertexId : SV_VertexID)
+VOut VertexMain(uint VertexId : SV_VertexID)
 {
-	VOut output;
-	output.position.x = (float)(vertexId / 2) * 4 - 1;
-	output.position.y = (float)(vertexId % 2) * 4 - 1;
-	output.position.z = 1;
-	output.position.w = 1;
+	VOut Output;
+	Output.Position.x = (float)(VertexId / 2) * 4 - 1;
+	Output.Position.y = (float)(VertexId % 2) * 4 - 1;
+	Output.Position.z = 1;
+	Output.Position.w = 1;
 
-	output.texcoord.x = (float)(vertexId / 2) * 2;
-	output.texcoord.y= 1 - (float)(vertexId % 2) * 2;
+	Output.Texcoord.x = (float)(VertexId / 2) * 2;
+	Output.Texcoord.y= 1 - (float)(VertexId % 2) * 2;
 
-	return output;
+	return Output;
 }
 
 #define TEXTURE_ANISO_SAMPLER s0, space0
@@ -52,26 +52,26 @@ float4 CopyPixelMain(float4 SvPosition : SV_POSITION, float2 Texcoord : TEXCOORD
 #define DEPTH_DOWNSAMPLE DEPTH_BILINEAR
 #endif
 
-float DownsampleDepthMain(float4 position : SV_POSITION, float2 texcoord : TEXCOORD) : SV_Depth
+float DownsampleDepthMain(float4 Position : SV_POSITION, float2 Texcoord : TEXCOORD) : SV_Depth
 {
 #if DEPTH_DOWNSAMPLE == DEPTH_MIN
-	uint2 Texel = position.xy;
+	uint2 Texel = Position.xy;
 	float Depth = SourceTexture[Texel * 2].r;
 	Depth = min(Depth, SourceTexture[Texel * 2 + uint2(1, 0)].r);
 	Depth = min(Depth, SourceTexture[Texel * 2 + uint2(1, 1)].r);
 	Depth = min(Depth, SourceTexture[Texel * 2 + uint2(0, 1)].r);
 	return Depth;
 #else
-	return SourceTexture.SampleLevel(Sampler, texcoord, 0).r;
+	return SourceTexture.SampleLevel(Sampler, Texcoord, 0).r;
 #endif
 }
 
-float4 ColorPS(float4 position : SV_POSITION, float2 texcoord : TEXCOORD) : SV_TARGET
+float4 ColorPS(float4 Position : SV_POSITION, float2 Texcoord : TEXCOORD) : SV_TARGET
 {
 	return WriteColor;
 }
 
-float DepthPS(float4 position : SV_POSITION, float2 texcoord : TEXCOORD) : SV_Depth
+float DepthPS(float4 Position : SV_POSITION, float2 Texcoord : TEXCOORD) : SV_Depth
 {
 	return WriteDepth;
 }

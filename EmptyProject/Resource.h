@@ -56,6 +56,20 @@ struct FResourceView {
 	EAccessType RequiredAccess;
 };
 
+struct FViewportRect {
+	i32 X0;
+	i32 Y0;
+	i32 X1;
+	i32 Y1;
+
+	FViewportRect() = default;
+	FViewportRect(u32 inX1, u32 inY1) : X0(0), X1(inX1), Y0(0), Y1(inY1) {}
+
+	bool IsValid() const {
+		return X0 < X1 && Y0 < Y1;
+	}
+};
+
 class FResourceAllocator;
 class FGPUResourceFat;
 
@@ -63,6 +77,9 @@ enum class ResourceType : u8 {
 	TEXTURE,
 	BUFFER
 };
+
+struct FRenderTargetView;
+struct FDepthStencilView;
 
 class FGPUResource {
 public:
@@ -78,17 +95,18 @@ public:
 	FGPUResource(ID3D12Resource*, DXGI_FORMAT);
 	~FGPUResource();
 
-	D3D12_CPU_DESCRIPTOR_HANDLE GetRTV() const;
-	D3D12_CPU_DESCRIPTOR_HANDLE GetRTV(DXGI_FORMAT);
-	D3D12_CPU_DESCRIPTOR_HANDLE GetRTV(u32 MipLevel) const;
-	D3D12_CPU_DESCRIPTOR_HANDLE GetDSV() const;
-	D3D12_CPU_DESCRIPTOR_HANDLE GetDSV(u32 MipLevel) const;
+	FRenderTargetView GetRTV() const;
+	FRenderTargetView GetRTV(DXGI_FORMAT);
+	FRenderTargetView GetRTV(u32 MipLevel) const;
+	FDepthStencilView GetDSV() const;
+	FDepthStencilView GetDSV(u32 MipLevel) const;
 	D3D12_CPU_DESCRIPTOR_HANDLE GetSRV() const;
 	D3D12_CPU_DESCRIPTOR_HANDLE GetSRV(u32 MipLevel) const;
 	D3D12_CPU_DESCRIPTOR_HANDLE GetUAV() const;
 
 	Vec3u GetDimensions() const;
 	D3D12_VIEWPORT GetSizeAsViewport() const;
+	FViewportRect GetSizeAsViewportRect() const;
 	void* GetMappedPtr() const;
 	GPU_VIRTUAL_ADDRESS GetGPUAddress() const;
 
@@ -122,9 +140,10 @@ struct eastl::default_delete<FGPUResource>
 
 struct FGPUResourceRef : public eastl::shared_ptr<FGPUResource> {
 	using shared_ptr<FGPUResource>::shared_ptr;
-
+	inline bool IsValid() const { return get() != nullptr; }
 	operator FGPUResource *() const { return get(); };
 };
+typedef FGPUResourceRef & FGPUResourceRefParam;
 
 class FGPUResourceFat {
 public:
@@ -176,5 +195,7 @@ DXGI_FORMAT		GetStencilReadFormat(DXGI_FORMAT format);
 bool			HasStencil(DXGI_FORMAT format);
 
 
-FGPUResourceRef	LoadDDS(const wchar_t * Filename, bool ForceSrgb, FGPUContext & CopyContext);
+FGPUResourceRefParam GetBackbuffer();
+
+FGPUResourceRef	LoadDdsTexture(const wchar_t * Filename, bool ForceSrgb, FGPUContext & CopyContext);
 

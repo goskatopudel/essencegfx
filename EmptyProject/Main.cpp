@@ -68,110 +68,84 @@ void UpdateCamera() {
 	}
 }
 
-#include "Scene.h"
-
-#include "BasePass.h"
-#include "DepthPass.h"
-#include "Viewport.h"
-
-#include "SceneRendering.h"
-
-FScene Scene;
-FGPUResourceRef DepthBuffer;
-FGPUResourceRef Shadowmap;
-FGPUResourceRef ShadowmapM2;
-FGPUResourceRef PingPong;
-
-FGPUResourceRef Texture;
-
-struct FShadowRenderingParams {
-	u32	Resolution = 1024;
-	float2 LightAngles = float2(0, 0);
-	bool ShowTextures = false;
-	int ShowMipmap = 0;
-	bool Blur = false;
-
-	float3 LightDirection;
-} ShadowRenderingParams;
-
-void AllocateShadowmap() {
-	Shadowmap = GetTexturesAllocator()->CreateTexture(ShadowRenderingParams.Resolution, ShadowRenderingParams.Resolution, 1, DXGI_FORMAT_R32_TYPELESS, TextureFlags::ALLOW_DEPTH_STENCIL | TextureFlags::TEXTURE_MIPMAPPED, L"Shadowmap");
-	ShadowmapM2 = GetTexturesAllocator()->CreateTexture(ShadowRenderingParams.Resolution, ShadowRenderingParams.Resolution, 1, DXGI_FORMAT_R32_FLOAT, TextureFlags::ALLOW_RENDER_TARGET | TextureFlags::TEXTURE_MIPMAPPED, L"ShadowmapM2");
-	PingPong = GetTexturesAllocator()->CreateTexture(ShadowRenderingParams.Resolution, ShadowRenderingParams.Resolution, 1, DXGI_FORMAT_R32_FLOAT, TextureFlags::ALLOW_RENDER_TARGET | TextureFlags::TEXTURE_MIPMAPPED, L"PingPong");
-}
-
-void ShowShadowmapOptions() {
-	ImGui::Begin("Shadowmap");
-	
-	const char* items[] = { "512", "1024", "2048", "4096" };
-	const u32 values[] = { 512, 1024, 2048, 4096 };
-	static int item = 1;
-	ImGui::Combo("Resolution", &item, items, _ARRAYSIZE(items)); 
-
-	ImGui::SliderAngle("Azimuthal angle", &ShadowRenderingParams.LightAngles.x, 0.f, 360.f);
-	ImGui::SliderAngle("Polar angle", &ShadowRenderingParams.LightAngles.y, 0.f, 180.f);
-
-	ImGui::Checkbox("Visualize", &ShadowRenderingParams.ShowTextures);
-	ImGui::SliderInt("Mipmap", &ShadowRenderingParams.ShowMipmap, 0, 5);
-	ImGui::Checkbox("Blur", &ShadowRenderingParams.Blur);
-
-	ImGui::End();
-
-	ShadowRenderingParams.LightDirection = float3(
-		sinf(ShadowRenderingParams.LightAngles.y) * cosf(ShadowRenderingParams.LightAngles.x),
-		cosf(ShadowRenderingParams.LightAngles.y),
-		sinf(ShadowRenderingParams.LightAngles.y) * sinf(ShadowRenderingParams.LightAngles.x)
-		);
-
-	ShadowRenderingParams.Resolution = values[item];
-
-	if (Shadowmap->GetDimensions().x != ShadowRenderingParams.Resolution) {
-		AllocateShadowmap();
-	}
-}
-
-struct FGBufferVisualizeParams {
-	bool Show;
-	EGBufferView View;
-} GBufferVisualizeParams;
-
-void ShowGBufferOptions() {
-	ImGui::Begin("GBuffer");
-
-	const char* Items[] = { "None", "Albedo", "Normals", "Depth", "Motion vectors" };
-	static int Item = 0;
-	ImGui::Combo("Debug view", &Item, Items, _ARRAYSIZE(Items));
-
-	GBufferVisualizeParams.Show = Item != 0;
-	GBufferVisualizeParams.View = (EGBufferView)(Item - 1);
-
-	ImGui::End();
-}
 
 void FApplicationImpl::Init() {
 	Camera.Position = float3(0, 0.f, -10.f);
 	Camera.Up = float3(0, 1.f, 0);
 	Camera.Direction = normalize(float3(0) - Camera.Position);
 
-	Scene.AddStaticMesh(L"Tree", GetModel(L"Models/cube.obj"));
-
-	FGPUContext Context;
-	Context.Open(EContextType::DIRECT);
-	Scene.Prepare(Context);
-	Texture = LoadDDS(L"textures/uvchecker.DDS", true, Context);
-	Context.Close();
-	Context.ExecuteImmediately();
-
-	AllocateShadowmap();
 }
 
 void FApplicationImpl::AllocateScreenResources() {
-	DepthBuffer = GetTexturesAllocator()->CreateTexture(GApplication::WindowWidth, GApplication::WindowHeight, 1, DXGI_FORMAT_R24G8_TYPELESS, TextureFlags::ALLOW_DEPTH_STENCIL, L"DepthBuffer");
-	AllocateGBuffer();
+
 }
 
 void FApplicationImpl::Shutdown() {
 
+}
+
+#include "RenderMaterial.h"
+#include "RenderModel.h"
+
+#include "RenderGraph.h"
+#include "RenderNodes.h"
+
+#include "Scene.h"
+
+FScene Scene;
+FSceneActorRef Actor;
+FSceneRenderContext SceneRenderContext;
+
+void InitScene() {
+	//Actor = Scene.SpawnActor(GetModel(L"sibenik.obj", L"models/sibenik/", L"models/sibenik/"), float3(0, 0, 0));
+	Actor = Scene.SpawnActor(GetModel(L"tree.obj", L"models/", L"models/"), float3(0, 0, 0));
+}
+
+FGPUResourceRef RenderSceneToTexture(FCommandsStream & CmdStream, FSceneRenderContext * SceneRenderContext);
+
+FGPUResourceRef Texture;
+
+void InitGraph() {
+	FGPUContext Context;
+	Context.Open(EContextType::DIRECT);
+	Texture = LoadDdsTexture(L"Textures/checker.dds", true, Context);
+	Context.ExecuteImmediately();
+
+	InitScene();
+}
+
+void TestGraph() {
+	static FCommandsStream CmdStream;
+	CmdStream.Reset();
+
+	FRenderGraphNodeRef FinalOutput = CreateDataNode(GetBackbuffer());
+
+	// which passess will be executed and in what order
+	SceneRenderContext.RenderPasses.clear();
+	SceneRenderContext.RenderPasses.push_back(Scene.ForwardPassActors.SceneRenderPass.get());
+
+	Scene.AdvanceToNextFrame();
+
+	SceneRenderContext.SetupNextFrameRendering(
+		&Scene, 
+		Vec2u(GApplication::WindowHeight, GApplication::WindowWidth), 
+		&Camera);
+
+	auto Color = RenderSceneToTexture(CmdStream, &SceneRenderContext);
+
+	auto CopyTexture = eastl::make_shared<FCopyTexture>();
+	CopyTexture->LinkInput(0, CreateDataNode(Color));
+	CopyTexture->LinkOutput(0, FinalOutput);
+	CopyTexture->OutputSrgb = true;
+
+	ProcessGraph(CmdStream, FinalOutput.get());
+
+	FGPUContext Context;
+	Context.Open(EContextType::DIRECT);
+
+	CmdStream.Close();
+	Playback(Context, &CmdStream);
+	Context.Execute();
 }
 
 #include "RenderingUtils.h"
@@ -190,98 +164,19 @@ bool FApplicationImpl::Update() {
 	}
 
 	ShowAppStats();
-	ShowGBufferOptions();
-	ShowShadowmapOptions();
 
 	ImGui::ShowTestWindow();
 
 	using namespace DirectX;
+	
+	static bool Init;
+	if (!Init) {
+		Init = true;
 
-	static FCommandsStream Stream;
-	Stream.Reset();
-	Stream.SetAccess(GetBackbuffer(), EAccessType::WRITE_RT);
-	Stream.ClearRTV(GetBackbuffer()->GetRTV(), 0.f);
-	Stream.SetViewport(GetBackbuffer()->GetSizeAsViewport());
-
-	FGPUContext Context;
-	Context.Open(EContextType::DIRECT);
-
-	FDepthRenderContext ShadowmapContext;
-	ShadowmapContext.OutputVSM = true;
-	ShadowmapContext.RenderTargets.DepthBuffer = Shadowmap;
-	ShadowmapContext.RenderTargets.Outputs.resize(1);
-	ShadowmapContext.RenderTargets.Outputs[0].OutputSRGB = false;
-	ShadowmapContext.RenderTargets.Outputs[0].Resource = ShadowmapM2;
-	ShadowmapContext.RenderTargets.Viewport = Shadowmap->GetSizeAsViewport();
-	UpdateShadowmapViewport(ShadowmapContext, Vec2u(Shadowmap->GetDimensions().x, Shadowmap->GetDimensions().y), ShadowRenderingParams.LightDirection * -1.f);
-
-	Render_Depth(Stream, &ShadowmapContext, &Scene);
-
-	if(ShadowRenderingParams.Blur) {
-		BlurTexture(Stream, Shadowmap, PingPong);
-		Stream.CopyTextureRegion(Shadowmap, 0, PingPong, 0);
-
-		BlurTexture(Stream, ShadowmapM2, PingPong);
-		Stream.CopyTextureRegion(ShadowmapM2, 0, PingPong, 0);
+		InitGraph();
 	}
 
-	GenerateMipmaps(Stream, Shadowmap);
-	GenerateMipmaps(Stream, ShadowmapM2);
-
-	static FSceneRenderingFrame LastFrame = {};
-	RenderScene(Stream, &Scene, &Camera, LastFrame);
-
-	if (GBufferVisualizeParams.Show) {
-		VisualizeGBufferDebug(Stream, GBufferVisualizeParams.View, &LastFrame);
-	}
-
-	FForwardRenderContext SceneContext;
-	UpdateViewport(SceneContext, &Camera, Vec2u(GApplication::WindowWidth, GApplication::WindowHeight));
-	SceneContext.RenderTargets.Outputs.resize(1);
-	SceneContext.RenderTargets.Outputs[0].Resource = GetBackbuffer();
-	SceneContext.RenderTargets.Outputs[0].OutputSRGB = 1;
-	SceneContext.RenderTargets.DepthBuffer = DepthBuffer;
-	SceneContext.Camera = &Camera;
-	SceneContext.WorldToShadowmap = ShadowmapContext.ViewProjectionMatrix;
-	SceneContext.Shadowmap = Shadowmap;
-	SceneContext.ShadowmapM2 = ShadowmapM2;
-	SceneContext.RenderTargets.Viewport = DepthBuffer->GetSizeAsViewport();
-	//Render_Forward(Stream, &SceneContext, &Scene);
-
-	FRenderTargetsBundle RenderTargets = SceneContext.RenderTargets;
-
-	/*if(ShadowRenderingParams.ShowTextures) {
-		RenderTargets.DepthBuffer = nullptr;
-		DrawTexture(Stream, Shadowmap, 0.f, float2(512, 512), ETextureFiltering::Point, ShadowRenderingParams.ShowMipmap, RenderTargets);
-		DrawTexture(Stream, ShadowmapM2, float2(0, 512), float2(512, 512), ETextureFiltering::Point, ShadowRenderingParams.ShowMipmap, RenderTargets);
-	}*/
-
-	RenderTargets.DepthBuffer = DepthBuffer;
-
-	Stream.Close();
-	Playback(Context, &Stream);
-
-	static FDebugPrimitivesAccumulator DebugAcc;
-	DebugAcc.AddLine(float3(0), float3(1, 0, 0), Color4b(255, 0, 0, 255));
-	DebugAcc.AddLine(float3(0), float3(0, 1, 0), Color4b(0, 255, 0, 255));
-	DebugAcc.AddLine(float3(0), float3(0, 0, 1), Color4b(0, 0, 255, 255));
-
-	u16 GridBarsPerDimNum = 11;
-	float GridSpan = 20.f;
-	float GridInc = GridSpan / (GridBarsPerDimNum - 1);
-	float3 GridZero = float3(0.f, -0.1f, 0.f);
-
-	for (u16 I = 0; I < GridBarsPerDimNum; ++I) {
-		Color4b Color = ToColor4b((I % 2) ? 0.2f : 0.1f, true);
-		float3 A = float3(-GridSpan * 0.5f, 0, -GridSpan * 0.5f + I * GridInc) + GridZero;
-		DebugAcc.AddLine(A, A + float3(GridSpan, 0, 0), Color);
-		float3 B = float3(-GridSpan * 0.5f + I * GridInc, 0, -GridSpan * 0.5f) + GridZero;
-		DebugAcc.AddLine(B, B + float3(0, 0, GridSpan), Color);
-	}
-
-	DebugAcc.FlushToViewport(Context, RenderTargets, &SceneContext.ViewProjectionMatrix);
-
-	Context.Execute();
+	TestGraph();
 
 	return true;
 }

@@ -105,6 +105,8 @@ public:
 	FGPUResourceRef CreateShadow(FGPUResource * Resource);
 };
 
+void SetIgnoreRelease();
+
 FLinearAllocator * GetConstantsAllocator();
 FTextureAllocator * GetTexturesAllocator();
 FDescriptorAllocator * GetOnlineDescriptorsAllocator();
@@ -112,3 +114,5 @@ FUploadBufferAllocator * GetUploadAllocator();
 FBuffersAllocator * GetBuffersAllocator();
 FPooledRenderTargetAllocator * GetPooledRenderTargetAllocator();
 void TickDescriptors(FGPUSyncPoint FrameEndSync);
+
+void FreeAllocators();

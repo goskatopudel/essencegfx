@@ -73,8 +73,8 @@ bool ProcessWinMessage(Win32::Message const& Message) {
 
 class FUIShaderState : public FShaderState {
 public:
-	FTextureParam			AtlasTexture;
-	FConstantBuffer			ConstantBuffer;
+	FSRVParam			AtlasTexture;
+	FCBVParam			ConstantBuffer;
 
 	struct FConstantBufferData {
 		float4x4			ProjectionMatrix;
@@ -82,12 +82,12 @@ public:
 
 	FUIShaderState() : 
 		FShaderState(
-			GetShader("Shaders/Ui.hlsl", "VShader", "vs_5_0", {}, 0), 
-			GetShader("Shaders/Ui.hlsl", "PShader", "ps_5_0", {}, 0)) {}
+			GetGlobalShader("Shaders/Ui.hlsl", "VShader", "vs_5_0", {}, 0),
+			GetGlobalShader("Shaders/Ui.hlsl", "PShader", "ps_5_0", {}, 0)) {}
 
 	void InitParams() override final {
-		AtlasTexture = Root->CreateTextureParam(this, "Image");
-		ConstantBuffer = Root->CreateConstantBuffer(this, "Constants");
+		AtlasTexture = Root->CreateSRVParam(this, "Image");
+		ConstantBuffer = Root->CreateCBVParam(this, "Constants");
 	}
 };
 
@@ -166,7 +166,7 @@ void RenderImDrawLists(ImDrawData *draw_data) {
 
 	Stream.SetPipelineState(UIPipelineState);
 	Stream.SetConstantBuffer(&UIShaderState.ConstantBuffer, CreateCBVFromData(&UIShaderState.ConstantBuffer, matrix));
-	Stream.SetRenderTarget(GetBackbuffer()->GetRTV(DXGI_FORMAT_R8G8B8A8_UNORM), 0);
+	Stream.SetRenderTarget(GetBackbuffer()->GetRTV(DXGI_FORMAT_R8G8B8A8_UNORM));
 	Stream.SetViewport(GetBackbuffer()->GetSizeAsViewport());
 
 	u32 vtxOffset = 0;
@@ -209,7 +209,7 @@ void RenderImDrawLists(ImDrawData *draw_data) {
 void FApplication::CoreInit()
 {
 	ListAdapters();
-	InitDevices(0, true);
+	InitDevices(0, EDebugMode::GpuValidation);
 
 	Win32::SetCustomMessageFunc(ProcessWinMessage);
 
@@ -256,8 +256,6 @@ void FApplication::CoreInit()
 	Init();
 }
 
-extern u32		GIgnoreRelease;
-
 void FApplication::CoreShutdown() {
 	Shutdown();
 
@@ -265,7 +263,9 @@ void FApplication::CoreShutdown() {
 	GetDirectQueue()->WaitForCompletion();
 	EndFrame();
 	ImGui::Shutdown();
-	GIgnoreRelease = true;
+
+	FreeAllocators();
+	SetIgnoreRelease();
 }
 
 bool FApplication::CoreUpdate() {

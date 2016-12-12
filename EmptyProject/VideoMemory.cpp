@@ -3,15 +3,33 @@
 #include "Descriptors.h"
 #include <EASTL/queue.h>
 #include "PointerMath.h"
+#include <atomic>  
 
-eastl::unique_ptr<FDescriptorAllocator>		OnlineSOVsAllocator;
-eastl::unique_ptr<FDescriptorAllocator>		SOVsAllocator;
-eastl::unique_ptr<FDescriptorAllocator>		DSVsAllocator;
-eastl::unique_ptr<FDescriptorAllocator>		RTVsAllocator;
+eastl::unique_ptr<FDescriptorAllocator> OnlineSOVsAllocator;
+eastl::unique_ptr<FDescriptorAllocator> SOVsAllocator;
+eastl::unique_ptr<FDescriptorAllocator> DSVsAllocator;
+eastl::unique_ptr<FDescriptorAllocator> RTVsAllocator;
 
-eastl::unique_ptr<FTextureAllocator>		TexturesAllocator;
-eastl::unique_ptr<FLinearAllocator>			ConstantsAllocator;
-eastl::unique_ptr<FUploadBufferAllocator>	UploadAllocator;
+eastl::unique_ptr<FTextureAllocator> TexturesAllocator;
+eastl::unique_ptr<FLinearAllocator> ConstantsAllocator;
+eastl::unique_ptr<FUploadBufferAllocator> UploadAllocator;
+eastl::unique_ptr<FBuffersAllocator> BuffersAllocator;
+
+eastl::unique_ptr<FPooledRenderTargetAllocator>	PooledRenderTargetAllocator;
+
+void FreeAllocators() {
+	OnlineSOVsAllocator.detach();
+	SOVsAllocator.detach();
+	DSVsAllocator.detach();
+	RTVsAllocator.detach();
+
+	TexturesAllocator.detach();
+	ConstantsAllocator.detach();
+	UploadAllocator.detach();
+	BuffersAllocator.detach();
+
+	PooledRenderTargetAllocator.detach();
+}
 
 void TickDescriptors(FGPUSyncPoint FrameEndSync) {
 	SOVsAllocator->FenceTemporaryAllocations(FrameEndSync);
@@ -99,7 +117,11 @@ FResourceAllocator::~FResourceAllocator() {
 	check(DeferredDeletionSyncBlocks.size() == 0);
 }
 
-u32 GIgnoreRelease = 0;
+std::atomic_uchar GIgnoreRelease = 0;
+
+void SetIgnoreRelease() {
+	GIgnoreRelease = 1;
+}
 
 void eastl::default_delete<FGPUResource>::operator()(FGPUResource* GPUResource) const EA_NOEXCEPT {
 	if (!GIgnoreRelease && GPUResource->FatData->Allocator) {
@@ -794,8 +816,6 @@ FGPUResourceRef	FBuffersAllocator::CreateBuffer(u64 size, u64 alignment, u32 str
 	return result;
 }
 
-eastl::unique_ptr<FBuffersAllocator>	BuffersAllocator;
-
 FBuffersAllocator *			GetBuffersAllocator() {
 	if (!BuffersAllocator.get()) {
 		BuffersAllocator = eastl::make_unique<FBuffersAllocator>(64 * 1024);
@@ -803,7 +823,6 @@ FBuffersAllocator *			GetBuffersAllocator() {
 	return BuffersAllocator.get();
 }
 
-eastl::unique_ptr<FPooledRenderTargetAllocator>	PooledRenderTargetAllocator;
 
 struct FHeap {
 	unique_com_ptr<ID3D12Heap> D3D12Heap;

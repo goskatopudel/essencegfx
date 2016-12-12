@@ -1,4 +1,3 @@
-
 // http://jcgt.org/published/0003/04/01/paper.pdf
 // Computes the signed distance from a line
 float line_distance(float2 p, float2 p1, float2 p2) 

@@ -584,7 +584,7 @@ void FRootSignature::SerializeAndCreate() {
 
 extern u64 GShadersCompilationVersion;
 
-FShaderState::FShaderState(FShader * inComputeShader, FRootSignature * inRootSignature) :
+FShaderState::FShaderState(FShaderRefParam inComputeShader, FRootSignature * inRootSignature) :
 	Type(EPipelineType::Compute),
 	ComputeShader(inComputeShader),
 	RootSignature(inRootSignature),
@@ -592,25 +592,25 @@ FShaderState::FShaderState(FShader * inComputeShader, FRootSignature * inRootSig
 {
 	FixedRootSignature = inRootSignature != nullptr;
 
-	ContentHash = VertexShader->LocationHash;
-	if (PixelShader) {
-		ContentHash = HashCombine64(ContentHash, ComputeShader->LocationHash);
+	ContentHash = VertexShader->PersistentHash;
+	if (PixelShader.get()) {
+		ContentHash = HashCombine64(ContentHash, ComputeShader->PersistentHash);
 	}
 	if (FixedRootSignature) {
 		ContentHash = HashCombine64(ContentHash, RootSignature->ValueHash);
 	}
 }
 
-FShaderState::FShaderState(FShader * inVertexShader, FShader * inPixelShader, FRootSignature * inRootSignature) :
-	FShaderState(inVertexShader, nullptr, nullptr, nullptr, inPixelShader, inRootSignature) {}
+FShaderState::FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature) :
+	FShaderState(inVertexShader, GetNullShader(), GetNullShader(), GetNullShader(), inPixelShader, inRootSignature) {}
 
-FShaderState::FShaderState(FShader * inVertexShader, FShader * inGeometryShader, FShader * inPixelShader, FRootSignature * inRootSignature) :
-	FShaderState(inVertexShader, nullptr, nullptr, inGeometryShader, inPixelShader, inRootSignature) {}
+FShaderState::FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inGeometryShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature) :
+	FShaderState(inVertexShader, GetNullShader(), GetNullShader(), inGeometryShader, inPixelShader, inRootSignature) {}
 
-FShaderState::FShaderState(FShader * inVertexShader, FShader * inHullShader, FShader * inDomainShader, FShader * inPixelShader, FRootSignature * inRootSignature) :
-	FShaderState(inVertexShader, inHullShader, inDomainShader, nullptr, inPixelShader, inRootSignature) {}
+FShaderState::FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inHullShader, FShaderRefParam inDomainShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature) :
+	FShaderState(inVertexShader, inHullShader, inDomainShader, GetNullShader(), inPixelShader, inRootSignature) {}
 
-FShaderState::FShaderState(FShader * inVertexShader, FShader * inHullShader, FShader * inDomainShader, FShader * inGeometryShader, FShader * inPixelShader, FRootSignature * inRootSignature) :
+FShaderState::FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inHullShader, FShaderRefParam inDomainShader, FShaderRefParam inGeometryShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature) :
 	Type(EPipelineType::Graphics),
 	VertexShader(inVertexShader),
 	HullShader(inHullShader),
@@ -621,18 +621,18 @@ FShaderState::FShaderState(FShader * inVertexShader, FShader * inHullShader, FSh
 	Root(nullptr) {
 	FixedRootSignature = inRootSignature != nullptr;
 
-	ContentHash = VertexShader->LocationHash;
-	if (HullShader) {
-		ContentHash = HashCombine64(ContentHash, HullShader->LocationHash);
+	ContentHash = VertexShader->PersistentHash;
+	if (HullShader.get()) {
+		ContentHash = HashCombine64(ContentHash, HullShader->PersistentHash);
 	}
-	if (DomainShader) {
-		ContentHash = HashCombine64(ContentHash, DomainShader->LocationHash);
+	if (DomainShader.get()) {
+		ContentHash = HashCombine64(ContentHash, DomainShader->PersistentHash);
 	}
-	if (GeometryShader) {
-		ContentHash = HashCombine64(ContentHash, GeometryShader->LocationHash);
+	if (GeometryShader.get()) {
+		ContentHash = HashCombine64(ContentHash, GeometryShader->PersistentHash);
 	}
-	if (PixelShader) {
-		ContentHash = HashCombine64(ContentHash, PixelShader->LocationHash);
+	if (PixelShader.get()) {
+		ContentHash = HashCombine64(ContentHash, PixelShader->PersistentHash);
 	}
 	if (FixedRootSignature) {
 		ContentHash = HashCombine64(ContentHash, RootSignature->ValueHash);
@@ -663,16 +663,16 @@ void FShaderState::Compile() {
 bool FShaderState::IsOutdated() const {
 	if (Type == EPipelineType::Graphics) {
 		bool Result = (VertexShader->LastChangedVersion > ShadersCompilationVersion) || Root == nullptr;
-		if (HullShader && HullShader->LastChangedVersion > ShadersCompilationVersion) {
+		if (HullShader.get() && HullShader->LastChangedVersion > ShadersCompilationVersion) {
 			Result = true;
 		}
-		if (DomainShader && DomainShader->LastChangedVersion > ShadersCompilationVersion) {
+		if (DomainShader.get() && DomainShader->LastChangedVersion > ShadersCompilationVersion) {
 			Result = true;
 		}
-		if (GeometryShader && GeometryShader->LastChangedVersion > ShadersCompilationVersion) {
+		if (GeometryShader.get() && GeometryShader->LastChangedVersion > ShadersCompilationVersion) {
 			Result = true;
 		}
-		if (PixelShader && PixelShader->LastChangedVersion > ShadersCompilationVersion) {
+		if (PixelShader.get() && PixelShader->LastChangedVersion > ShadersCompilationVersion) {
 			Result = true;
 		}
 		return Result;
@@ -706,11 +706,11 @@ void FPipelineState::Compile() {
 	if (Type == EPipelineType::Graphics) {
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC CreateDesc = Graphics.Desc;
 
-		CreateDesc.VS = GetBytecode(ShaderState->VertexShader);
-		CreateDesc.HS = ShaderState->HullShader ? GetBytecode(ShaderState->HullShader) : D3D12_SHADER_BYTECODE();
-		CreateDesc.DS = ShaderState->DomainShader ? GetBytecode(ShaderState->DomainShader) : D3D12_SHADER_BYTECODE();
-		CreateDesc.GS = ShaderState->GeometryShader ? GetBytecode(ShaderState->GeometryShader) : D3D12_SHADER_BYTECODE();
-		CreateDesc.PS = ShaderState->PixelShader ? GetBytecode(ShaderState->PixelShader) : D3D12_SHADER_BYTECODE();
+		CreateDesc.VS = ShaderState->VertexShader->GetShaderBytecode().Bytecode;
+		CreateDesc.HS = ShaderState->HullShader.get() ? ShaderState->HullShader->GetShaderBytecode().Bytecode : D3D12_SHADER_BYTECODE();
+		CreateDesc.DS = ShaderState->DomainShader.get() ? ShaderState->DomainShader->GetShaderBytecode().Bytecode : D3D12_SHADER_BYTECODE();
+		CreateDesc.GS = ShaderState->GeometryShader.get() ? ShaderState->GeometryShader->GetShaderBytecode().Bytecode : D3D12_SHADER_BYTECODE();
+		CreateDesc.PS = ShaderState->PixelShader.get() ? ShaderState->PixelShader->GetShaderBytecode().Bytecode : D3D12_SHADER_BYTECODE();
 		CreateDesc.pRootSignature = ShaderState->RootSignature->D12RootSignature.get();
 		CreateDesc.InputLayout.pInputElementDescs = Graphics.InputLayout->ElementsNum > 0 ? Graphics.InputLayout->Elements.get() : nullptr;
 		CreateDesc.InputLayout.NumElements = Graphics.InputLayout->ElementsNum;
@@ -720,7 +720,7 @@ void FPipelineState::Compile() {
 	else {
 		D3D12_COMPUTE_PIPELINE_STATE_DESC CreateDesc = Compute.Desc;
 
-		CreateDesc.CS = GetBytecode(ShaderState->ComputeShader);
+		CreateDesc.CS = ShaderState->ComputeShader->GetShaderBytecode().Bytecode;
 		CreateDesc.pRootSignature = ShaderState->RootSignature->D12RootSignature.get();
 
 		VERIFYDX12(GetPrimaryDevice()->D12Device->CreateComputePipelineState(&CreateDesc, IID_PPV_ARGS(D12PipelineState.get_init())));
@@ -935,7 +935,7 @@ public:
 	eastl::hash_map<u64, BindingMetadata>			Samplers;
 	eastl::hash_map<u64, ConstantMetadata>			Constants;
 
-	bool GatherShaderBindings(FShader const* shader, D3D12_SHADER_VISIBILITY visibility);
+	bool GatherShaderBindings(FShaderRefParam shader, D3D12_SHADER_VISIBILITY visibility);
 };
 
 enum class BindingResourceType {
@@ -1029,7 +1029,7 @@ void FRootLayout::FillBindings(FShaderBindings* bindings) {
 
 	for (auto& cbv : bindings->CBVs) {
 		auto globalId = CreateConstantBufferGBID(cbv.second.Binding.NameHash);
-		auto iter = ConstantBuffers.insert(globalId).first;
+		auto iter = CBVs.insert(globalId).first;
 		iter->second.Bind = RootSignature->GetSlotBinding(cbv.second.Binding.Slot.type, cbv.second.Binding.Slot.baseRegister, cbv.second.Binding.Slot.space, cbv.second.Binding.Slot.visibility);
 		iter->second.Index = cbv.second.Binding.Slot.baseRegister;
 		iter->second.Space = cbv.second.Binding.Slot.space;
@@ -1039,13 +1039,13 @@ void FRootLayout::FillBindings(FShaderBindings* bindings) {
 
 	for (auto& srv : bindings->SRVs) {
 		auto globalId = CreateTextureGBID(srv.second.NameHash);
-		auto iter = Textures.insert(globalId).first;
+		auto iter = SRVs.insert(globalId).first;
 		iter->second = RootSignature->GetSlotBinding(srv.second.Slot.type, srv.second.Slot.baseRegister, srv.second.Slot.space, srv.second.Slot.visibility);
 	}
 
 	for (auto& uav : bindings->UAVs) {
 		auto globalId = CreateRWTextureGBID(uav.second.NameHash);
-		auto iter = RWTextures.insert(globalId).first;
+		auto iter = UAVs.insert(globalId).first;
 		iter->second = RootSignature->GetSlotBinding(uav.second.Slot.type, uav.second.Slot.baseRegister, uav.second.Slot.space, uav.second.Slot.visibility);
 	}
 
@@ -1068,11 +1068,11 @@ FRootSignature*		GetRootSignature(FRootLayout const* layout) {
 	return layout->RootSignature;
 }
 
-bool FShaderBindings::GatherShaderBindings(FShader const* shader, D3D12_SHADER_VISIBILITY visibility) {
+bool FShaderBindings::GatherShaderBindings(FShaderRefParam shader, D3D12_SHADER_VISIBILITY visibility) {
 	bool TouchesRoot = false;
 
 	ID3D12ShaderReflection* shaderReflection;
-	VERIFYDX12(D3DReflect(GetBytecode(shader).pShaderBytecode, GetBytecode(shader).BytecodeLength, IID_PPV_ARGS(&shaderReflection)));
+	VERIFYDX12(D3DReflect(shader->GetShaderBytecode().Bytecode.pShaderBytecode, shader->GetShaderBytecode().Bytecode.BytecodeLength, IID_PPV_ARGS(&shaderReflection)));
 
 	D3D12_SHADER_DESC shaderDesc;
 	VERIFYDX12(shaderReflection->GetDesc(&shaderDesc));
@@ -1249,7 +1249,7 @@ bool CanRunWithRootSignature(FShaderBindings* bindings, FRootSignature* signatur
 eastl::hash_map<u64, eastl::unique_ptr<FRootLayout>> RootLayoutLookup;
 #include "PointerMath.h"
 
-FRootLayout* GetRootLayout(FShader const* CS, FRootSignature * RootSignature) {
+FRootLayout* GetRootLayout(FShaderRefParam CS, FRootSignature * RootSignature) {
 	u64 lookupKey = GetShaderHash(CS);
 	auto iter = RootLayoutLookup.find(lookupKey);
 	if (iter != RootLayoutLookup.end()) {
@@ -1283,20 +1283,21 @@ FRootLayout* GetRootLayout(FShader const* CS, FRootSignature * RootSignature) {
 	return layout;
 }
 
-FRootLayout* GetRootLayout(FShader const* VS, FShader const* HS, FShader const* DS, FShader const* GS, FShader const* PS, FRootSignature * RootSignature) {
+FRootLayout* GetRootLayout(FShaderRefParam VS, FShaderRefParam HS, FShaderRefParam DS, FShaderRefParam GS, FShaderRefParam PS, FRootSignature * RootSignature) {
 	u64 lookupKey = GetShaderHash(VS);
-	if (HS) {
+	if (HS.get()) {
 		lookupKey = HashCombine64(lookupKey, GetShaderHash(HS));
 	}
-	if (DS) {
+	if (DS.get()) {
 		lookupKey = HashCombine64(lookupKey, GetShaderHash(DS));
 	}
-	if (GS) {
+	if (GS.get()) {
 		lookupKey = HashCombine64(lookupKey, GetShaderHash(GS));
 	}
-	if (PS) {
+	if (PS.get()) {
 		lookupKey = HashCombine64(lookupKey, GetShaderHash(PS));
 	}
+
 	auto iter = RootLayoutLookup.find(lookupKey);
 	if (iter != RootLayoutLookup.end()) {
 		return iter->second.get();
@@ -1307,19 +1308,19 @@ FRootLayout* GetRootLayout(FShader const* VS, FShader const* HS, FShader const* 
 	EShaderStageFlag Stages = STAGE_NONE;STAGE_VERTEX;
 
 	FShaderBindings bindings;
-	if (VS && bindings.GatherShaderBindings(VS, D3D12_SHADER_VISIBILITY_VERTEX)) {
+	if (VS.get() && bindings.GatherShaderBindings(VS, D3D12_SHADER_VISIBILITY_VERTEX)) {
 		Stages |= STAGE_VERTEX;
 	}
-	if (HS && bindings.GatherShaderBindings(HS, D3D12_SHADER_VISIBILITY_HULL)) {
+	if (HS.get() && bindings.GatherShaderBindings(HS, D3D12_SHADER_VISIBILITY_HULL)) {
 		Stages |= STAGE_HULL;
 	}
-	if (DS && bindings.GatherShaderBindings(DS, D3D12_SHADER_VISIBILITY_DOMAIN)) {
+	if (DS.get() && bindings.GatherShaderBindings(DS, D3D12_SHADER_VISIBILITY_DOMAIN)) {
 		Stages |= STAGE_DOMAIN;
 	}
-	if (GS && bindings.GatherShaderBindings(GS, D3D12_SHADER_VISIBILITY_GEOMETRY)) {
+	if (GS.get() && bindings.GatherShaderBindings(GS, D3D12_SHADER_VISIBILITY_GEOMETRY)) {
 		Stages |= STAGE_GEOMETRY;
 	}
-	if (PS && bindings.GatherShaderBindings(PS, D3D12_SHADER_VISIBILITY_PIXEL)) {
+	if (PS.get() && bindings.GatherShaderBindings(PS, D3D12_SHADER_VISIBILITY_PIXEL)) {
 		Stages |= STAGE_PIXEL;
 	}
 
@@ -1355,27 +1356,27 @@ ID3D12PipelineState*	GetRawPSO(FPipelineState const* pso) {
 
 #include "Descriptors.h"
 
-FTextureParam FRootLayout::CreateTextureParam(FShaderState *, char const * name) {
-	FTextureParam Param = {};
+FSRVParam FRootLayout::CreateSRVParam(FShaderState *, char const * name) {
+	FSRVParam Param = {};
 	Param.BindId = CreateTextureGBID(name);
 	return Param;
 }
 
-FRWTextureParam FRootLayout::CreateRWTextureParam(FShaderState *, char const * name) {
-	FRWTextureParam Param = {};
+FUAVParam FRootLayout::CreateUAVParam(FShaderState *, char const * name) {
+	FUAVParam Param = {};
 	Param.BindId = CreateRWTextureGBID(name);
 	return Param;
 }
 
-FConstantBuffer FRootLayout::CreateConstantBuffer(FShaderState *ShaderState, char const * name) {
-	FConstantBuffer Param = {};
+FCBVParam FRootLayout::CreateCBVParam(FShaderState *ShaderState, char const * name) {
+	FCBVParam Param = {};
 	Param.BindId = CreateConstantBufferGBID(name);
 	Param.Layout = this;
-	if (ConstantBuffers.find(Param.BindId) == ConstantBuffers.end()) {
+	if (CBVs.find(Param.BindId) == CBVs.end()) {
 		PrintFormated(L"Constant buffer '%s' not found in data layout for %s\n", ConvertToWString(name).c_str(), ShaderState->GetDebugName().c_str());
 	}
 	else {
-		Param.Size = ConstantBuffers[Param.BindId].Size;
+		Param.Size = CBVs[Param.BindId].Size;
 	}
 	return Param;
 }

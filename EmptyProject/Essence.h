@@ -55,3 +55,5 @@ typedef uint64_t	u64;
 #define EASTL_MOVE_SEMANTICS_ENABLED 1
 
 #include "Helpers.h"
+#include "Ref.h"
+

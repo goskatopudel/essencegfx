@@ -9,6 +9,7 @@
 #include <EASTL/map.h>
 #include "Commands.h"
 #include "Print.h"
+#include "Shader.h"
 
 class FPipelineState;
 class FShader;
@@ -61,29 +62,25 @@ public:
 
 class FShaderState {
 public:
-	EPipelineType		Type;
-	union {
-		struct {
-			FShader *		VertexShader;
-			FShader *		HullShader;
-			FShader *		DomainShader;
-			FShader *		GeometryShader;
-			FShader *		PixelShader;
-		};
-		FShader *			ComputeShader;
-	};
-	FRootSignature *		RootSignature;
-	FRootLayout*			Root;
-	bool					FixedRootSignature;
-	u64						ShadersCompilationVersion = 0;
-	u64						ContentHash;
+	EPipelineType Type;
+	FShaderRef VertexShader;
+	FShaderRef HullShader;
+	FShaderRef DomainShader;
+	FShaderRef GeometryShader;
+	FShaderRef PixelShader;
+	FShaderRef ComputeShader;
+	FRootSignature * RootSignature;
+	FRootLayout* Root;
+	bool FixedRootSignature;
+	u64 ShadersCompilationVersion = 0;
+	u64 ContentHash;
 
 	FShaderState() = default;
-	FShaderState(FShader * inComputeShader, FRootSignature * inRootSignature = nullptr);
-	FShaderState(FShader * inVertexShader, FShader * inPixelShader, FRootSignature * inRootSignature = nullptr);
-	FShaderState(FShader * inVertexShader, FShader * inGeometryShader, FShader * inPixelShader, FRootSignature * inRootSignature = nullptr);
-	FShaderState(FShader * inVertexShader, FShader * inHullShader, FShader * inDomainShader, FShader * inPixelShader, FRootSignature * inRootSignature = nullptr);
-	FShaderState(FShader * inVertexShader, FShader * inHullShader, FShader * inDomainShader, FShader * inGeometryShader, FShader * inPixelShader, FRootSignature * inRootSignature = nullptr);
+	FShaderState(FShaderRefParam inComputeShader, FRootSignature * inRootSignature = nullptr);
+	FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature = nullptr);
+	FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inGeometryShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature = nullptr);
+	FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inHullShader, FShaderRefParam inDomainShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature = nullptr);
+	FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inHullShader, FShaderRefParam inDomainShader, FShaderRefParam inGeometryShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature = nullptr);
 
 	virtual void InitParams() = 0;
 
@@ -92,6 +89,9 @@ public:
 
 	eastl::wstring	GetDebugName() const;
 };
+
+typedef eastl::shared_ptr<FShaderState> FShaderStateRef;
+typedef eastl::shared_ptr<FShaderState> & FShaderStateRefParam;
 
 class FPipelineState {
 public:
@@ -115,13 +115,14 @@ public:
 	void Compile();
 	bool IsOutdated() const;
 };
+DECORATE_CLASS_REF(FPipelineState);
 
 D3D12_GRAPHICS_PIPELINE_STATE_DESC	GetDefaultPipelineStateDesc();
 FInputLayout*			GetInputLayout(std::initializer_list<D3D12_INPUT_ELEMENT_DESC> elements);
 FPipelineState*			GetGraphicsPipelineState(FShaderState * ShaderState, D3D12_GRAPHICS_PIPELINE_STATE_DESC const *Desc, FInputLayout const * InputLayout);
 FPipelineState*			GetComputePipelineState(FShaderState * ShaderState, D3D12_COMPUTE_PIPELINE_STATE_DESC const *Desc);
-FRootLayout*			GetRootLayout(FShader const* VS, FShader const* HS, FShader const* DS, FShader const* GS, FShader const* PS, FRootSignature * RootSignature = nullptr);
-FRootLayout*			GetRootLayout(FShader const* CS, FRootSignature * RootSignature = nullptr);
+FRootLayout*			GetRootLayout(FShaderRefParam VS, FShaderRefParam HS, FShaderRefParam DS, FShaderRefParam GS, FShaderRefParam PS, FRootSignature * RootSignature = nullptr);
+FRootLayout*			GetRootLayout(FShaderRefParam CS, FRootSignature * RootSignature = nullptr);
 FRootSignature*			GetRootSignature(FRootLayout const*);
 u32						GetPSOsNum();
 
@@ -156,15 +157,15 @@ struct ConstatsBinding_t {
 	u32						Size;
 };
 
-struct FTextureParam {
+struct FSRVParam {
 	GlobalBindId	BindId;
 };
 
-struct FRWTextureParam {
+struct FUAVParam {
 	GlobalBindId	BindId;
 };
 
-struct FConstantBuffer {
+struct FCBVParam {
 	GlobalBindId				BindId;
 	u32							Size;
 	FRootLayout const *	Layout;
@@ -251,19 +252,19 @@ public:
 class FRootLayout {
 public:
 	FRootSignature*	RootSignature;
-	eastl::hash_map<GlobalBindId, BindDesc_t>				Textures;
-	eastl::hash_map<GlobalBindId, ConstantBufferBinding_t>	ConstantBuffers;
-	eastl::hash_map<GlobalBindId, BindDesc_t>				RWTextures;
+	eastl::hash_map<GlobalBindId, BindDesc_t>				SRVs;
+	eastl::hash_map<GlobalBindId, ConstantBufferBinding_t>	CBVs;
+	eastl::hash_map<GlobalBindId, BindDesc_t>				UAVs;
 	eastl::hash_map<GlobalBindId, BindDesc_t>				Samplers;
 	eastl::hash_map<GlobalBindId, ConstatsBinding_t>		Constants;
 	eastl::array<FRootParam, MAX_ROOT_PARAMS>				RootParams;
 	u32														RootParamsNum;
 
-	void				FillBindings(FShaderBindings* bindings);
+	void FillBindings(FShaderBindings* bindings);
 
-	FConstantBuffer		CreateConstantBuffer(FShaderState *, char const * name);
-	FTextureParam		CreateTextureParam(FShaderState *, char const * name);
-	FRWTextureParam		CreateRWTextureParam(FShaderState *, char const * name);
+	FCBVParam		CreateCBVParam(FShaderState *, char const * name);
+	FSRVParam		CreateSRVParam(FShaderState *, char const * name);
+	FUAVParam		CreateUAVParam(FShaderState *, char const * name);
 };
 
 inline bool operator == (GlobalBindId a, GlobalBindId b) { return a.hash == b.hash; };
@@ -285,7 +286,7 @@ public:
 };
 
 template<typename T>
-struct FPipelineContext {
+struct FStateProxy {
 	FPipelineCache * PipelineCache = nullptr;
 	T * Recorder = nullptr;
 
@@ -298,19 +299,28 @@ struct FPipelineContext {
 	u32 Dirty : 1;
 	FPipelineState * CurrentPipelineState;
 
-	FPipelineContext() {
+	FStateProxy() {
 		Reset();
 	}
 
-	void Bind(T * Stream, FPipelineCache * Cache) {
-		Recorder = Stream;
-		PipelineCache = Cache;
+	FStateProxy(T & Stream, FPipelineCache & Cache) {
+		Reset();
+		Bind(Stream, Cache);
+	}
+
+	void SetCache(FPipelineCache & Cache) {
+		PipelineCache = &Cache;
+	}
+
+	void Bind(T & Stream, FPipelineCache & Cache) {
+		Recorder = &Stream;
+		PipelineCache = &Cache;
 	}
 	void Reset();
 
 	void ClearRenderTargets();
-	void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE RTV, DXGI_FORMAT Format, u32 Index = 0);
-	void SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE DSV, DXGI_FORMAT Format = DXGI_FORMAT_UNKNOWN);
+	void SetRenderTarget(FRenderTargetView View, u32 Index = 0);
+	void SetDepthStencil(FDepthStencilView View);
 	void SetInputLayout(FInputLayout * InInputLayout);
 	void SetShaderState(FShaderState * InShaderState);
 	void SetTopology(D3D_PRIMITIVE_TOPOLOGY InTopology);
@@ -324,30 +334,28 @@ struct FPipelineContext {
 
 constexpr const DXGI_FORMAT NULL_FORMAT = DXGI_FORMAT_UNKNOWN;
 
-
-#include "Viewport.h"
 #include "Hash.h"
 
 template<typename T>
-void FPipelineContext<T>::SetRasterizerState(D3D12_RASTERIZER_DESC const& RasterizerState) {
+void FStateProxy<T>::SetRasterizerState(D3D12_RASTERIZER_DESC const& RasterizerState) {
 	PipelineDesc.RasterizerState = RasterizerState;
 	Dirty = 1;
 }
 
 template<typename T>
-void FPipelineContext<T>::SetDepthStencilState(D3D12_DEPTH_STENCIL_DESC const& DepthStencilState) {
+void FStateProxy<T>::SetDepthStencilState(D3D12_DEPTH_STENCIL_DESC const& DepthStencilState) {
 	PipelineDesc.DepthStencilState = DepthStencilState;
 	Dirty = 1;
 }
 
 template<typename T>
-void FPipelineContext<T>::SetBlendState(D3D12_BLEND_DESC const& BlendState) {
+void FStateProxy<T>::SetBlendState(D3D12_BLEND_DESC const& BlendState) {
 	PipelineDesc.BlendState = BlendState;
 	Dirty = 1;
 }
 
 template<typename T>
-void FPipelineContext<T>::Reset() {
+void FStateProxy<T>::Reset() {
 	PipelineType = EPipelineType::Graphics;
 	CurrentPipelineState = nullptr;
 
@@ -366,7 +374,7 @@ void FPipelineContext<T>::Reset() {
 }
 
 template<typename T>
-void FPipelineContext<T>::ClearRenderTargets() {
+void FStateProxy<T>::ClearRenderTargets() {
 	for (u32 Index = 0; Index < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++Index) {
 		SetRenderTarget({}, DXGI_FORMAT_UNKNOWN, Index);
 		Recorder->SetRenderTarget({}, Index);
@@ -374,12 +382,12 @@ void FPipelineContext<T>::ClearRenderTargets() {
 }
 
 template<typename T>
-void FPipelineContext<T>::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE RTV, DXGI_FORMAT Format, u32 Index) {
-	if (PipelineDesc.RTVFormats[Index] != Format) {
+void FStateProxy<T>::SetRenderTarget(FRenderTargetView View, u32 Index) {
+	if (PipelineDesc.RTVFormats[Index] != View.Format) {
 		Dirty = 1;
-		PipelineDesc.RTVFormats[Index] = Format;
+		PipelineDesc.RTVFormats[Index] = View.Format;
 
-		if (Format != DXGI_FORMAT_UNKNOWN) {
+		if (View.Format != DXGI_FORMAT_UNKNOWN) {
 			PipelineDesc.NumRenderTargets = eastl::max(PipelineDesc.NumRenderTargets, Index + 1);
 		}
 		else {
@@ -396,20 +404,20 @@ void FPipelineContext<T>::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE RTV, DXGI_
 		}
 	}
 
-	Recorder->SetRenderTarget(RTV, Index);
+	Recorder->SetRenderTarget(View, Index);
 }
 
 template<typename T>
-void FPipelineContext<T>::SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE DSV, DXGI_FORMAT Format) {
-	if (Format != PipelineDesc.DSVFormat) {
-		PipelineDesc.DSVFormat = Format;
+void FStateProxy<T>::SetDepthStencil(FDepthStencilView View) {
+	if (View.Format != PipelineDesc.DSVFormat) {
+		PipelineDesc.DSVFormat = View.Format;
 		Dirty = 1;
 	}
-	Recorder->SetDepthStencil(DSV);
+	Recorder->SetDepthStencil(View);
 }
 
 template<typename T>
-void FPipelineContext<T>::SetInputLayout(FInputLayout * InInputLayout) {
+void FStateProxy<T>::SetInputLayout(FInputLayout * InInputLayout) {
 	if (InputLayout != InInputLayout) {
 		InputLayout = InInputLayout;
 		Dirty = 1;
@@ -417,7 +425,7 @@ void FPipelineContext<T>::SetInputLayout(FInputLayout * InInputLayout) {
 }
 
 template<typename T>
-void FPipelineContext<T>::SetShaderState(FShaderState * InShaderState) {
+void FStateProxy<T>::SetShaderState(FShaderState * InShaderState) {
 	if (ShaderState != InShaderState) {
 		ShaderState = InShaderState;
 		PipelineType = ShaderState->Type;
@@ -427,7 +435,7 @@ void FPipelineContext<T>::SetShaderState(FShaderState * InShaderState) {
 }
 
 template<typename T>
-void FPipelineContext<T>::SetTopology(D3D_PRIMITIVE_TOPOLOGY InTopology) {
+void FStateProxy<T>::SetTopology(D3D_PRIMITIVE_TOPOLOGY InTopology) {
 	if (GetPrimitiveTopologyType(InTopology) != PipelineDesc.PrimitiveTopologyType) {
 		PipelineDesc.PrimitiveTopologyType = GetPrimitiveTopologyType(InTopology);
 		Dirty = 1;
@@ -436,7 +444,7 @@ void FPipelineContext<T>::SetTopology(D3D_PRIMITIVE_TOPOLOGY InTopology) {
 }
 
 template<typename T>
-void FPipelineContext<T>::SetRenderTargetsBundle(struct FRenderTargetsBundle const * RenderTargets) {
+void FStateProxy<T>::SetRenderTargetsBundle(struct FRenderTargetsBundle const * RenderTargets) {
 	if (RenderTargets->DepthBuffer) {
 		SetDepthStencil(RenderTargets->DepthBuffer->GetDSV(), RenderTargets->DepthBuffer->GetWriteFormat());
 	}
@@ -450,7 +458,7 @@ void FPipelineContext<T>::SetRenderTargetsBundle(struct FRenderTargetsBundle con
 }
 
 template<typename T>
-void FPipelineContext<T>::ApplyState() {
+void FStateProxy<T>::ApplyState() {
 	if (Dirty) {
 		if (PipelineType == EPipelineType::Graphics) {
 			if (PipelineDesc.DSVFormat == DXGI_FORMAT_UNKNOWN) {

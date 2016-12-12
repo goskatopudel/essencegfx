@@ -173,9 +173,9 @@ struct FBoundRootParam {
 	bool										Dirty;
 };
 
-struct FConstantBuffer;
-struct FTextureParam;
-struct FRWTextureParam;
+struct FCBVParam;
+struct FSRVParam;
+struct FUAVParam;
 
 struct FResourceBarrier {
 	FGPUResource *	Resource;
@@ -202,8 +202,8 @@ struct FStateCache {
 	D3D12_INDEX_BUFFER_VIEW								IBV;
 
 	bool SetTopology(D3D_PRIMITIVE_TOPOLOGY Topology);
-	bool SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, u32 Index);
-	bool SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE dsv);
+	bool SetRenderTarget(FRenderTargetView View, u32 Index);
+	bool SetDepthStencil(FDepthStencilView View);
 	bool SetViewport(D3D12_VIEWPORT const & Viewport);
 	bool SetScissorRect(D3D12_RECT const & Rect);
 	bool SetVB(FBufferLocation const & BufferView, u32 Stream = 0);
@@ -259,8 +259,8 @@ public:
 	void ClearUAV(D3D12_CPU_DESCRIPTOR_HANDLE uav, FGPUResource * resource, Vec4u value = 0u);
 	void CopyResource(FGPUResource* dst, FGPUResource* src);
 	void SetTopology(D3D_PRIMITIVE_TOPOLOGY topology);
-	void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, u32 index);
-	void SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE dsv);
+	void SetRenderTarget(FRenderTargetView view, u32 index);
+	void SetDepthStencil(FDepthStencilView view);
 	void SetViewport(D3D12_VIEWPORT const & viewport);
 	void SetScissorRect(D3D12_RECT const & rect);
 	void Draw(u32 vertexCount, u32 startVertex = 0, u32 instances = 1, u32 startInstance = 0);
@@ -276,13 +276,13 @@ public:
 	void SetPipelineState(FPipelineState const* PipelineState);
 	void SetPSO(FPipelineState const* pipelineState);
 	void SetRoot(FRootLayout const* rootLayout);
-	void SetConstantBuffer(FConstantBuffer const * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV);
-	void SetTexture(FTextureParam const * Texture, D3D12_CPU_DESCRIPTOR_HANDLE View);
-	void SetRWTexture(FRWTextureParam const * RWTexture, D3D12_CPU_DESCRIPTOR_HANDLE View);
+	void SetConstantBuffer(FCBVParam const * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV);
+	void SetTexture(FSRVParam const * Texture, D3D12_CPU_DESCRIPTOR_HANDLE View);
+	void SetRWTexture(FUAVParam const * RWTexture, D3D12_CPU_DESCRIPTOR_HANDLE View);
 
 	// Helpers
 
-	void SetRenderTargetsBundle(struct FRenderTargetsBundle const * Bundle);
+	//void SetRenderTargetsBundle(struct FRenderTargetsBundle const * Bundle);
 	void PreDraw();
 	void Reset();
 };
@@ -345,8 +345,8 @@ public:
 	void BatchBarriers();
 	void ExecuteBatchedBarriers(FGPUContext * Context, u32 BatchIndex);
 
-	void SetRenderTargetsBundle(struct FRenderTargetsBundle const * Bundle);
-	void SetConstantBufferData(FConstantBuffer * ConstantBuffer, const void * Data, u64 Size);
+	//void SetRenderTargetsBundle(struct FRenderTargetsBundle const * Bundle);
+	void SetConstantBufferData(FCBVParam * ConstantBuffer, const void * Data, u64 Size);
 	
 	void PreCommandAdd() {
 		check(!IsClosed);
@@ -433,20 +433,20 @@ public:
 		Data->Rect = Rect;
 	}
 
-	inline void SetConstantBuffer(FConstantBuffer * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV) {
+	inline void SetConstantBuffer(FCBVParam * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV) {
 		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetConstantBuffer, FRenderCmdSetConstantBufferFunc>();
 		Data->Param = ConstantBuffer;
 		Data->CBV = CBV;
 	}
 
-	inline void SetTexture(FTextureParam * Texture, D3D12_CPU_DESCRIPTOR_HANDLE SRV) {
+	inline void SetTexture(FSRVParam * Texture, D3D12_CPU_DESCRIPTOR_HANDLE SRV) {
 		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetTexture, FRenderCmdSetTextureFunc>();
 		Data->Param = Texture;
 		Data->SRV = SRV;
 	}
-	inline void SetRWTexture(FRWTextureParam * Texture, D3D12_CPU_DESCRIPTOR_HANDLE UAV) {
+	inline void SetRWTexture(FUAVParam * Texture, D3D12_CPU_DESCRIPTOR_HANDLE UAV) {
 		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetRWTexture, FRenderCmdSetRWTextureFunc>();
 		Data->Param = Texture;
@@ -478,16 +478,16 @@ public:
 		auto Data = ReservePacket<FRenderCmdSetTopology, FRenderCmdSetTopologyFunc>();
 		Data->Topology = Topology;
 	}
-	inline void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE RTV, u8 Index) {
+	inline void SetRenderTarget(FRenderTargetView View, u8 Index = 0) {
 		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetRenderTarget, FRenderCmdSetRenderTargetFunc>();
-		Data->RTV = RTV;
+		Data->View = View;
 		Data->Index = Index;
 	}
-	inline void SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE DSV) {
+	inline void SetDepthStencil(FDepthStencilView View) {
 		PreCommandAdd();
 		auto Data = ReservePacket<FRenderCmdSetDepthStencil, FRenderCmdSetDepthStencilFunc>();
-		Data->DSV = DSV;
+		Data->View = View;
 	}
 	inline void CopyResource(FGPUResource * Dst, FGPUResource * Src) {
 		PreCommandAdd();
@@ -533,10 +533,10 @@ public:
 	}
 };
 
-D3D12_CPU_DESCRIPTOR_HANDLE CreateCBVFromData(FConstantBuffer *, void const * Data, u64 Size);
+D3D12_CPU_DESCRIPTOR_HANDLE CreateCBVFromData(FCBVParam *, void const * Data, u64 Size);
 
 template<typename T>
-inline D3D12_CPU_DESCRIPTOR_HANDLE CreateCBVFromData(FConstantBuffer * CB, T const& DataRef) {
+inline D3D12_CPU_DESCRIPTOR_HANDLE CreateCBVFromData(FCBVParam * CB, T const& DataRef) {
 	return CreateCBVFromData(CB, &DataRef, sizeof(T));
 }
 
@@ -582,3 +582,9 @@ struct FBarrierScope {
 		Context.Barrier(Resource, Subresource, To, UseEnd ? End : From);
 	}
 };
+
+// todo: better place
+template<typename T, typename V>
+T IntDivRoundUp(T Divident, V Divisor) {
+	return (Divident + Divisor - V(1)) / Divisor;
+}

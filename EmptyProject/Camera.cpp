@@ -63,6 +63,6 @@ void	FCamera::Climb(float value) {
 	Position += Up * value;
 }
 
-DirectX::XMVECTOR ToSIMD(float3 v) {
+DirectX::XMVECTOR ToSimd(float3 v) {
 	return XMLoadFloat3((XMFLOAT3*)&v);
 }

@@ -1,6 +1,8 @@
 #pragma once
 #include "Essence.h"
 #include "MathVector.h"
+#include "MathMatrix.h"
+#include <DirectXMath.h>
 class FCommandsStream;
 class FGPUResource;
 struct FRenderTargetsBundle;
@@ -15,3 +17,5 @@ void GenerateMipmaps(FCommandsStream & Context, FGPUResource * Texture);
 
 void BlurTexture(FCommandsStream & Context, FGPUResource * SrcTexture, FGPUResource * OutTexture);
 
+void FromSimdT(DirectX::CXMMATRIX Matrix, float4x4 * Out);
+DirectX::XMMATRIX ToSimd(float4x4 const & Matrix);

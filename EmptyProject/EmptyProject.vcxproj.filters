@@ -25,6 +25,12 @@
     <Filter Include="Rendering\Models">
       <UniqueIdentifier>{4bcd8dee-0ab5-405e-a4f0-684a586aeaa6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Rendering\RenderNodes">
+      <UniqueIdentifier>{b2754e0b-b0b1-46ee-a1fa-d47722f6f799}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Rendering\Scene">
+      <UniqueIdentifier>{8499247c-e7d4-4cf3-a7a0-449bf679913a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Main.cpp">
@@ -114,9 +120,6 @@
     <ClCompile Include="UIUtils.cpp">
       <Filter>ImGui</Filter>
     </ClCompile>
-    <ClCompile Include="RenderMaterial.cpp">
-      <Filter>Rendering</Filter>
-    </ClCompile>
     <ClCompile Include="CommandStream.cpp">
       <Filter>Rendering</Filter>
     </ClCompile>
@@ -141,26 +144,32 @@
     <ClCompile Include="Model.cpp">
       <Filter>Rendering\Models</Filter>
     </ClCompile>
-    <ClCompile Include="Scene.cpp">
-      <Filter>Rendering</Filter>
-    </ClCompile>
-    <ClCompile Include="BasePass.cpp">
-      <Filter>Rendering</Filter>
-    </ClCompile>
-    <ClCompile Include="DepthPass.cpp">
-      <Filter>Rendering</Filter>
-    </ClCompile>
     <ClCompile Include="ImGui\imgui_draw.cpp">
       <Filter>ImGui</Filter>
-    </ClCompile>
-    <ClCompile Include="Viewport.cpp">
-      <Filter>Rendering</Filter>
     </ClCompile>
     <ClCompile Include="RenderingUtils.cpp">
       <Filter>Rendering</Filter>
     </ClCompile>
-    <ClCompile Include="SceneRendering.cpp">
+    <ClCompile Include="RenderGraph.cpp">
       <Filter>Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderNodes.cpp">
+      <Filter>Rendering\RenderNodes</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderModel.cpp">
+      <Filter>Rendering\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderMaterial.cpp">
+      <Filter>Rendering\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene.cpp">
+      <Filter>Rendering\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="ForwardPass.cpp">
+      <Filter>Rendering\RenderNodes</Filter>
+    </ClCompile>
+    <ClCompile Include="TestMaterial.cpp">
+      <Filter>Rendering\Scene</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -239,9 +248,6 @@
     <ClInclude Include="UIUtils.h">
       <Filter>ImGui</Filter>
     </ClInclude>
-    <ClInclude Include="RenderMaterial.h">
-      <Filter>Rendering</Filter>
-    </ClInclude>
     <ClInclude Include="CommandStream.h">
       <Filter>Rendering</Filter>
     </ClInclude>
@@ -278,26 +284,32 @@
     <ClInclude Include="tiny_obj_loader.h">
       <Filter>Rendering\Models</Filter>
     </ClInclude>
-    <ClInclude Include="Scene.h">
-      <Filter>Rendering</Filter>
-    </ClInclude>
-    <ClInclude Include="Frame.h">
-      <Filter>Rendering</Filter>
-    </ClInclude>
-    <ClInclude Include="BasePass.h">
-      <Filter>Rendering</Filter>
-    </ClInclude>
-    <ClInclude Include="DepthPass.h">
-      <Filter>Rendering</Filter>
-    </ClInclude>
-    <ClInclude Include="Viewport.h">
-      <Filter>Rendering</Filter>
-    </ClInclude>
     <ClInclude Include="RenderingUtils.h">
       <Filter>Rendering</Filter>
     </ClInclude>
-    <ClInclude Include="SceneRendering.h">
+    <ClInclude Include="Ref.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderGraph.h">
       <Filter>Rendering</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderNodes.h">
+      <Filter>Rendering\RenderNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderModel.h">
+      <Filter>Rendering\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderMaterial.h">
+      <Filter>Rendering\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene.h">
+      <Filter>Rendering\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="ForwardPass.h">
+      <Filter>Rendering\RenderNodes</Filter>
+    </ClInclude>
+    <ClInclude Include="TestMaterial.h">
+      <Filter>Rendering\Scene</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

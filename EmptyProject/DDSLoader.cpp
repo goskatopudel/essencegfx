@@ -969,7 +969,7 @@ FGPUResourceRef	LoadDDSImageInternal(const wchar_t * filename, bool forceSrgb, F
 
 #include "Print.h"
 
-FGPUResourceRef  LoadDDS(const wchar_t * filename, bool forceSrgb, FGPUContext & CopyContext) {
+FGPUResourceRef  LoadDdsTexture(const wchar_t * filename, bool forceSrgb, FGPUContext & CopyContext) {
 	FGPUResourceRef Loaded = LoadDDSImageInternal(filename, forceSrgb, CopyContext);
 
 	if (!Loaded.get()) {

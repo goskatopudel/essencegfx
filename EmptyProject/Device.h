@@ -31,6 +31,13 @@ inline bool operator!=(D3D12_CPU_DESCRIPTOR_HANDLE A, D3D12_CPU_DESCRIPTOR_HANDL
 	return A.ptr != B.ptr;
 }
 
+enum class EDebugMode
+{
+	Disabled,
+	DebugLayer,
+	GpuValidation
+};
+
 class D3D12Device {
 public:
 	unique_com_ptr<ID3D12Device>		D12Device;
@@ -42,14 +49,13 @@ public:
 class FGPUResource;
 class WinSwapChain;
 
-void							SetDebugName(ID3D12DeviceChild * child, const wchar_t * name);
-void							InitDevices(u32 adapterIndex, bool debugMode);
-D3D12Device*					GetPrimaryDevice();
-WinSwapChain*					GetSwapChain();
-FGPUResource*					GetBackbuffer();
-DXGI_FORMAT						GetBackbufferFormat();
-void							ListAdapters();
-DXGI_QUERY_VIDEO_MEMORY_INFO	GetLocalMemoryInfo();
-DXGI_QUERY_VIDEO_MEMORY_INFO	GetNonLocalMemoryInfo();
+void SetDebugName(ID3D12DeviceChild * child, const wchar_t * name);
+void InitDevices(u32 adapterIndex, EDebugMode debugMode);
+D3D12Device* GetPrimaryDevice();
+WinSwapChain* GetSwapChain();
+DXGI_FORMAT GetBackbufferFormat();
+void ListAdapters();
+DXGI_QUERY_VIDEO_MEMORY_INFO GetLocalMemoryInfo();
+DXGI_QUERY_VIDEO_MEMORY_INFO GetNonLocalMemoryInfo();
 
 const u32 ALL_SUBRESOURCES = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;

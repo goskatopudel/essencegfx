@@ -18,7 +18,7 @@ public:
 
 	unique_com_ptr<IDXGISwapChain3> SwapChain;
 	eastl::vector<unique_com_ptr<ID3D12Resource>> RawBackbuffers;
-	eastl::vector<eastl::unique_ptr<FGPUResource>> Backbuffers;
+	eastl::vector<FGPUResourceRef> Backbuffers;
 
 	WinSwapChain();
 	~WinSwapChain();

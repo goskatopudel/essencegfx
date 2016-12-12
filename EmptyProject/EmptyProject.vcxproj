@@ -22,7 +22,7 @@
     <ProjectGuid>{5682F47F-530A-4432-A6A2-36B65B45D786}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>EmptyProject</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.10586.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -159,14 +159,13 @@
     <ClCompile Include="..\EASTL\source\red_black_tree.cpp" />
     <ClCompile Include="..\EASTL\source\string.cpp" />
     <ClCompile Include="..\EASTL\source\thread_support.cpp" />
-    <ClCompile Include="BasePass.cpp" />
+    <ClCompile Include="ForwardPass.cpp" />
     <ClCompile Include="BVH.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Commands.cpp" />
     <ClCompile Include="CommandStream.cpp" />
     <ClCompile Include="DDSLoader.cpp" />
     <ClCompile Include="DebugPrimitivesRenderer.cpp" />
-    <ClCompile Include="DepthPass.cpp" />
     <ClCompile Include="Descriptors.cpp" />
     <ClCompile Include="FileIO.cpp" />
     <ClCompile Include="Hash.cpp" />
@@ -175,10 +174,13 @@
     <ClCompile Include="ImGui\imgui_draw.cpp" />
     <ClCompile Include="MathGeometry.cpp" />
     <ClCompile Include="Model.cpp" />
-    <ClCompile Include="SceneRendering.cpp" />
+    <ClCompile Include="RenderGraph.cpp" />
     <ClCompile Include="RenderingUtils.cpp" />
     <ClCompile Include="RenderMaterial.cpp" />
+    <ClCompile Include="RenderModel.cpp" />
+    <ClCompile Include="RenderNodes.cpp" />
     <ClCompile Include="Scene.cpp" />
+    <ClCompile Include="TestMaterial.cpp" />
     <ClCompile Include="tiny_obj_loader.cc" />
     <ClCompile Include="UIUtils.cpp" />
     <ClCompile Include="mikktspace.c" />
@@ -191,24 +193,21 @@
     <ClCompile Include="Resource.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="VideoMemory.cpp" />
-    <ClCompile Include="Viewport.cpp" />
     <ClCompile Include="Win32Application.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
     <ClInclude Include="AssertionMacros.h" />
-    <ClInclude Include="BasePass.h" />
+    <ClInclude Include="ForwardPass.h" />
     <ClInclude Include="BVH.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Commands.h" />
     <ClInclude Include="CommandStream.h" />
     <ClInclude Include="DebugPrimitivesRendering.h" />
-    <ClInclude Include="DepthPass.h" />
     <ClInclude Include="Descriptors.h" />
     <ClInclude Include="Device.h" />
     <ClInclude Include="Essence.h" />
     <ClInclude Include="FileIO.h" />
-    <ClInclude Include="Frame.h" />
     <ClInclude Include="Half.c" />
     <ClInclude Include="Half.h" />
     <ClInclude Include="Hash.h" />
@@ -221,11 +220,15 @@
     <ClInclude Include="ImGui\stb_truetype.h" />
     <ClInclude Include="MathGeometry.h" />
     <ClInclude Include="Model.h" />
-    <ClInclude Include="SceneRendering.h" />
+    <ClInclude Include="Ref.h" />
+    <ClInclude Include="RenderGraph.h" />
     <ClInclude Include="RenderingUtils.h" />
     <ClInclude Include="RenderMaterial.h" />
     <ClInclude Include="MathMatrix.h" />
+    <ClInclude Include="RenderModel.h" />
+    <ClInclude Include="RenderNodes.h" />
     <ClInclude Include="Scene.h" />
+    <ClInclude Include="TestMaterial.h" />
     <ClInclude Include="tiny_obj_loader.h" />
     <ClInclude Include="UIUtils.h" />
     <ClInclude Include="mikktspace.h" />
@@ -238,7 +241,6 @@
     <ClInclude Include="MathFunctions.h" />
     <ClInclude Include="SwapChain.h" />
     <ClInclude Include="VideoMemory.h" />
-    <ClInclude Include="Viewport.h" />
     <ClInclude Include="Win32Application.h" />
   </ItemGroup>
   <ItemGroup>

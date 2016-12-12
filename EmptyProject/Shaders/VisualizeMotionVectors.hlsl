@@ -87,8 +87,8 @@ void PreprocessMain(uint3 DTid : SV_DispatchThreadID) {
 	u32 Index = dot(DTid.xy, uint2(1, Params.BinningTilesInRow));
 
 	float2 MotionVector = GBuffer2[Texel].xy;
-	float2 P1 = float2(Texel) + 0.5f;
-	float2 P0 = P1 + MotionVector * Frame.ScreenResolution;
+	float2 P0 = float2(Texel) + 0.5f;
+	float2 P1 = P0 + MotionVector * Frame.ScreenResolution;
 	// raymarch through screen tiles, append counter
 	// foreach touched node
 

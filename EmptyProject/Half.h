@@ -44,3 +44,5 @@ inline float16 operator * (float16 a, float16 b) {
 inline float16 operator / (float16 a, float16 b) {
 	return float16(half_div(a.h, b.h));
 }
+
+typedef float16		half;

@@ -1,13 +1,7 @@
-#include "ShaderCommon.inl"
+#include "BasicMaterial_Data.h"
 
 ConstantBuffer<FFrameConstants> Frame : register(b0);
-
-cbuffer ObjectConstants : register(b2)
-{      
-    float4x4 WorldMatrix;
-    float4x4 PrevWorldMatrix;
-    float4x4 Dummy;
-}
+ConstantBuffer<FTestMaterial_Object> Object : register(b2);
 
 Texture2D<float4> 	AlbedoTexture : register(t0);
 
@@ -45,32 +39,23 @@ VOut VertexMain(VIn Input, uint VertexId : SV_VertexID)
 	Output.PrevClipPosition = mul(prevPosition, Frame.PrevViewProjectionMatrix);
 
 	return Output;
-} 
+}
 
-struct OutputLayout {
-	float4 GBuffer0 : SV_TARGET0;
-	float4 GBuffer1 : SV_TARGET1;
-	float2 GBuffer2 : SV_TARGET2;
-	float3 Color : SV_TARGET3;
+struct ForwardOutput {
+	float4 Color : SV_TARGET0;
 };
 
-void PixelMain(VOut Interpolated, out OutputLayout Output)
+void PixelMain(VOut Interpolated, out ForwardOutput Output)
 {
 	float2 ScreenClipspace = Interpolated.SvPosition.xy / (float2) Frame.ScreenResolution * float2(2, -2) - 0.5f;
 	float3 Albedo = AlbedoTexture.Sample(TextureSampler, Interpolated.Texcoord0).rgb;
-	Output.GBuffer0 = float4(Albedo, 1);
-
 	float3 N = normalize(Interpolated.Normal);
-	Output.GBuffer1 = float4(N * 0.5 + 0.5, 1);
 
 	float4 prevPosition = Interpolated.PrevClipPosition;
 	prevPosition /= prevPosition.w;
 
 	float2 currentNdcPosition = Interpolated.SvPosition.xy / (float2)Frame.ScreenResolution;
 	float2 prevNdcPosition = prevPosition.xy * float2(0.5f,-0.5f) + 0.5f;
-	Output.GBuffer2 = (currentNdcPosition - prevNdcPosition);
 
-	Output.Color = Albedo;
+	Output.Color = float4(Albedo, 1.f);
 }
-
-

@@ -15,11 +15,25 @@ struct FBufferLocation {
 	u32						Stride;
 };
 
+struct FRenderTargetView {
+	D3D12_CPU_DESCRIPTOR_HANDLE RTV;
+	DXGI_FORMAT Format;
+
+	FRenderTargetView() = default;
+};
+
+struct FDepthStencilView {
+	D3D12_CPU_DESCRIPTOR_HANDLE DSV;
+	DXGI_FORMAT Format;
+
+	FDepthStencilView() = default;
+};
+
 class FGPUContext;
 class FPipelineState;
-struct FTextureParam;
-struct FRWTextureParam;
-struct FConstantBuffer;
+struct FSRVParam;
+struct FUAVParam;
+struct FCBVParam;
 
 using RenderCmdFunc = u64(*) (FGPUContext *, void *);
 
@@ -96,34 +110,34 @@ struct FRenderCmdSetViewport {
 u64 FRenderCmdSetViewportFunc(FGPUContext * Context, void * DataVoidPtr);
 
 struct FRenderCmdSetRenderTarget {
-	D3D12_CPU_DESCRIPTOR_HANDLE	RTV;
+	FRenderTargetView			View;
 	u8							Index;
 };
 
 u64 FRenderCmdSetRenderTargetFunc(FGPUContext * Context, void * DataVoidPtr);
 
 struct FRenderCmdSetDepthStencil {
-	D3D12_CPU_DESCRIPTOR_HANDLE	DSV;
+	FDepthStencilView			View;
 };
 
 u64 FRenderCmdSetDepthStencilFunc(FGPUContext * Context, void * DataVoidPtr);
 
 struct FRenderCmdSetTexture {
-	FTextureParam *				Param;
+	FSRVParam *				Param;
 	D3D12_CPU_DESCRIPTOR_HANDLE	SRV;
 };
 
 u64 FRenderCmdSetTextureFunc(FGPUContext * Context, void * DataVoidPtr);
 
 struct FRenderCmdSetConstantBuffer {
-	FConstantBuffer *			Param;
+	FCBVParam *			Param;
 	D3D12_CPU_DESCRIPTOR_HANDLE	CBV;
 };
 
 u64 FRenderCmdSetConstantBufferFunc(FGPUContext * Context, void * DataVoidPtr);
 
 struct FRenderCmdSetRWTexture {
-	FRWTextureParam *			Param;
+	FUAVParam *			Param;
 	D3D12_CPU_DESCRIPTOR_HANDLE	UAV;
 };
 

@@ -16,4 +16,4 @@ public:
 	void	Climb(float value);
 };
 
-DirectX::XMVECTOR ToSIMD(float3);
+DirectX::XMVECTOR ToSimd(float3);

@@ -578,14 +578,14 @@ bool FStateCache::SetTopology(D3D_PRIMITIVE_TOPOLOGY topology) {
 	return false;
 }
 
-bool FStateCache::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, u32 index) {
-	if (RTVs[index] == rtv) {
+bool FStateCache::SetRenderTarget(FRenderTargetView view, u32 index) {
+	if (RTVs[index] == view.RTV) {
 		return false;
 	}
 
-	RTVs[index] = rtv;
+	RTVs[index] = view.RTV;
 	DirtyRTVs = true;
-	if (rtv.ptr) {
+	if (view.RTV.ptr) {
 		NumRenderTargets = eastl::max(NumRenderTargets, index + 1);
 	}
 	else {
@@ -604,11 +604,11 @@ bool FStateCache::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, u32 index) {
 	return true;
 }
 
-bool FStateCache::SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE dsv) {
-	if (DSV != dsv) {
+bool FStateCache::SetDepthStencil(FDepthStencilView view) {
+	if (DSV != view.DSV) {
 		DirtyRTVs = true;
-		UsesDepth = dsv.ptr > 0;
-		DSV = dsv;
+		UsesDepth = view.DSV.ptr > 0;
+		DSV = view.DSV;
 		return true;
 	}
 	return false;
@@ -795,12 +795,12 @@ void FGPUContext::SetTopology(D3D_PRIMITIVE_TOPOLOGY topology) {
 	}
 }
 
-void FGPUContext::SetDepthStencil(D3D12_CPU_DESCRIPTOR_HANDLE dsv) {
-	StateCache.SetDepthStencil(dsv);
+void FGPUContext::SetDepthStencil(FDepthStencilView view) {
+	StateCache.SetDepthStencil(view);
 }
 
-void FGPUContext::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, u32 index) {
-	StateCache.SetRenderTarget(rtv, index);
+void FGPUContext::SetRenderTarget(FRenderTargetView view, u32 index) {
+	StateCache.SetRenderTarget(view, index);
 }
 
 void FGPUContext::SetViewport(D3D12_VIEWPORT const & viewport) {
@@ -871,9 +871,9 @@ void FGPUContext::Reset() {
 	RootParamsNum = 0;
 }
 
-void FGPUContext::SetConstantBuffer(FConstantBuffer const * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV) {
-	auto BindIter = RootLayout->ConstantBuffers.find(ConstantBuffer->BindId);
-	if (BindIter == RootLayout->ConstantBuffers.end()) {
+void FGPUContext::SetConstantBuffer(FCBVParam const * ConstantBuffer, D3D12_CPU_DESCRIPTOR_HANDLE CBV) {
+	auto BindIter = RootLayout->CBVs.find(ConstantBuffer->BindId);
+	if (BindIter == RootLayout->CBVs.end()) {
 		return;
 	}
 	auto bind = BindIter->second.Bind;
@@ -883,9 +883,9 @@ void FGPUContext::SetConstantBuffer(FConstantBuffer const * ConstantBuffer, D3D1
 	Param.SrcRangesNums[bind.DescOffset] = 1;
 }
 
-void FGPUContext::SetTexture(FTextureParam const * Texture, D3D12_CPU_DESCRIPTOR_HANDLE View) {
-	auto BindIter = RootLayout->Textures.find(Texture->BindId);
-	if (BindIter == RootLayout->Textures.end()) {
+void FGPUContext::SetTexture(FSRVParam const * Texture, D3D12_CPU_DESCRIPTOR_HANDLE View) {
+	auto BindIter = RootLayout->SRVs.find(Texture->BindId);
+	if (BindIter == RootLayout->SRVs.end()) {
 		return;
 	}
 	auto bind = BindIter->second;
@@ -895,9 +895,9 @@ void FGPUContext::SetTexture(FTextureParam const * Texture, D3D12_CPU_DESCRIPTOR
 	Param.SrcRangesNums[bind.DescOffset] = 1;
 }
 
-void FGPUContext::SetRWTexture(FRWTextureParam const * RWTexture, D3D12_CPU_DESCRIPTOR_HANDLE View) {
-	auto BindIter = RootLayout->RWTextures.find(RWTexture->BindId);
-	if (BindIter == RootLayout->RWTextures.end()) {
+void FGPUContext::SetRWTexture(FUAVParam const * RWTexture, D3D12_CPU_DESCRIPTOR_HANDLE View) {
+	auto BindIter = RootLayout->UAVs.find(RWTexture->BindId);
+	if (BindIter == RootLayout->UAVs.end()) {
 		return;
 	}
 	auto bind = BindIter->second;
@@ -906,6 +906,43 @@ void FGPUContext::SetRWTexture(FRWTextureParam const * RWTexture, D3D12_CPU_DESC
 	Param.SrcRanges[bind.DescOffset] = View;
 	Param.SrcRangesNums[bind.DescOffset] = 1;
 }
+
+class FCachedRootParam {
+	FRootLayout * RootLayout;
+	eastl::array<FBoundRootParam, MAX_ROOT_PARAMS> RootParams;
+
+	void SetTexture(FSRVParam const * Texture, D3D12_CPU_DESCRIPTOR_HANDLE View) {
+		auto BindIter = RootLayout->SRVs.find(Texture->BindId);
+		if (BindIter == RootLayout->SRVs.end()) {
+			return;
+		}
+		auto bind = BindIter->second;
+		auto& Param = RootParams[bind.RootParam];
+
+		Param.Dirty |= View != Param.SrcRanges[bind.DescOffset];
+		Param.SrcRanges[bind.DescOffset] = View;
+		Param.SrcRangesNums[bind.DescOffset] = 1;
+	}
+
+	void Close() {
+		/*for (u32 index = 0; index < RootParamsNum; ++index) {
+			auto &Param = RootParams[index];
+			if (Param.Dirty) {
+				Param.Dirty = false;
+				Param.Descriptors = OnlineDescriptors->FastTemporaryAllocate(Param.TableLen);
+				auto destHandle = Param.Descriptors.GetCPUHandle(0);
+
+				Device->CopyDescriptors(1, &destHandle, &Param.Descriptors.DescriptorsNum, Param.Descriptors.DescriptorsNum, Param.SrcRanges.data(), Param.SrcRangesNums.data(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+				if (PipelineType == EPipelineType::Graphics) {
+					RawCommandList()->SetGraphicsRootDescriptorTable(index, Param.Descriptors.GetGPUHandle(0));
+				}
+				else {
+					RawCommandList()->SetComputeRootDescriptorTable(index, Param.Descriptors.GetGPUHandle(0));
+				}
+			}
+		}*/
+	}
+};
 
 void FGPUContext::PreDraw() {
 	FlushBarriers();
@@ -949,15 +986,15 @@ void FGPUContext::PreDraw() {
 	}
 }
 
-void FGPUContext::SetRenderTargetsBundle(FRenderTargetsBundle const * Bundle) {
-	SetDepthStencil(Bundle->DepthBuffer ? Bundle->DepthBuffer->GetDSV() : D3D12_CPU_DESCRIPTOR_HANDLE());
-	u32 Index = 0;
-	for (auto & RT : Bundle->Outputs) {
-		SetRenderTarget(RT.GetRTV(), Index);
-		Index++;
-	}
-	SetViewport(Bundle->Viewport);
-}
+//void FGPUContext::SetRenderTargetsBundle(FRenderTargetsBundle const * Bundle) {
+//	SetDepthStencil(Bundle->DepthBuffer ? Bundle->DepthBuffer->GetDSV() : D3D12_CPU_DESCRIPTOR_HANDLE());
+//	u32 Index = 0;
+//	for (auto & RT : Bundle->Outputs) {
+//		SetRenderTarget(RT.GetRTV(), Index);
+//		Index++;
+//	}
+//	SetViewport(Bundle->Viewport);
+//}
 
 //#include <intrin.h>
 //
@@ -1292,23 +1329,21 @@ void FCommandsStream::Close() {
 	IsClosed = 1;
 }
 
-#include "Viewport.h"
+//void FCommandsStream::SetRenderTargetsBundle(FRenderTargetsBundle const * RenderTargets) {
+//	if(RenderTargets->DepthBuffer) {
+//		SetAccess(RenderTargets->DepthBuffer, EAccessType::WRITE_DEPTH);
+//	}
+//	SetDepthStencil(RenderTargets->DepthBuffer ? RenderTargets->DepthBuffer->GetDSV() : D3D12_CPU_DESCRIPTOR_HANDLE());
+//	u32 Index = 0;
+//	for (auto & RT : RenderTargets->Outputs) {
+//		SetAccess(RenderTargets->Outputs[Index].Resource, EAccessType::WRITE_RT);
+//		SetRenderTarget(RT.GetRTV(), Index);
+//		Index++;
+//	}
+//	SetViewport(RenderTargets->Viewport);
+//}
 
-void FCommandsStream::SetRenderTargetsBundle(FRenderTargetsBundle const * RenderTargets) {
-	if(RenderTargets->DepthBuffer) {
-		SetAccess(RenderTargets->DepthBuffer, EAccessType::WRITE_DEPTH);
-	}
-	SetDepthStencil(RenderTargets->DepthBuffer ? RenderTargets->DepthBuffer->GetDSV() : D3D12_CPU_DESCRIPTOR_HANDLE());
-	u32 Index = 0;
-	for (auto & RT : RenderTargets->Outputs) {
-		SetAccess(RenderTargets->Outputs[Index].Resource, EAccessType::WRITE_RT);
-		SetRenderTarget(RT.GetRTV(), Index);
-		Index++;
-	}
-	SetViewport(RenderTargets->Viewport);
-}
-
-void FCommandsStream::SetConstantBufferData(FConstantBuffer * ConstantBuffer, const void * Data, u64 Size) {
+void FCommandsStream::SetConstantBufferData(FCBVParam * ConstantBuffer, const void * Data, u64 Size) {
 	SetConstantBuffer(ConstantBuffer, CreateCBVFromData(ConstantBuffer, Data, Size));
 }
 
@@ -1389,9 +1424,9 @@ void Playback(FGPUContext & Context, FCommandsStream * Stream) {
 	}
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE CreateCBVFromData(FConstantBuffer * CB, void const * Data, u64 Size) {
+D3D12_CPU_DESCRIPTOR_HANDLE CreateCBVFromData(FCBVParam * CB, void const * Data, u64 Size) {
 	check(Size <= CB->Size);
 	auto allocation = GetConstantsAllocator()->Allocate(Size);
 	memcpy(allocation.CPUPtr, Data, Size);
-	return allocation.CPUHandle;;
+	return allocation.CPUHandle;
 }

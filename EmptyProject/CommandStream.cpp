@@ -65,13 +65,13 @@ u64 FRenderCmdSetViewportFunc(FGPUContext * Context, void * DataVoidPtr) {
 
 u64 FRenderCmdSetRenderTargetFunc(FGPUContext * Context, void * DataVoidPtr) {
 	auto Data = (FRenderCmdSetRenderTarget*)DataVoidPtr;
-	Context->SetRenderTarget(Data->RTV, Data->Index);
+	Context->SetRenderTarget(Data->View, Data->Index);
 	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdSetRenderTarget);
 };
 
 u64 FRenderCmdSetDepthStencilFunc(FGPUContext * Context, void * DataVoidPtr) {
 	auto Data = (FRenderCmdSetDepthStencil*)DataVoidPtr;
-	Context->SetDepthStencil(Data->DSV);
+	Context->SetDepthStencil(Data->View);
 	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdSetDepthStencil);
 }
 

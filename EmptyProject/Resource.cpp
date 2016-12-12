@@ -47,12 +47,12 @@ void FGPUResource::FenceDeletion(FGPUSyncPoint Sync) {
 	FatData->DeletionGPUSyncPoint = Sync;
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetRTV() const {
-	return FatData->Views.MainSet.SubresourcesRTVs.GetCPUHandle(0);
+FRenderTargetView FGPUResource::GetRTV() const {
+	return{ FatData->Views.MainSet.SubresourcesRTVs.GetCPUHandle(0), GetWriteFormat() };
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetRTV(DXGI_FORMAT format) {
-	if (format == FatData->ViewFormat) {
+FRenderTargetView FGPUResource::GetRTV(DXGI_FORMAT format) {
+	if (format == GetWriteFormat()) {
 		return GetRTV();
 	}
 
@@ -61,22 +61,22 @@ D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetRTV(DXGI_FORMAT format) {
 		AllocateResourceViews(this, format, lookup.first->second);
 	}
 
-	return lookup.first->second.SubresourcesRTVs.GetCPUHandle(0);
+	return{ lookup.first->second.SubresourcesRTVs.GetCPUHandle(0), format };
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetRTV(u32 MipLevel) const {
-	return FatData->Views.MainSet.SubresourcesRTVs.GetCPUHandle(GetSubresourceIndex(MipLevel));
+FRenderTargetView FGPUResource::GetRTV(u32 MipLevel) const {
+	return{ FatData->Views.MainSet.SubresourcesRTVs.GetCPUHandle(GetSubresourceIndex(MipLevel)), GetWriteFormat() };
 }
 D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetSRV(u32 MipLevel) const {
 	return FatData->Views.MainSet.SubresourcesSRVs.GetCPUHandle(GetSubresourceIndex(MipLevel));
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetDSV(u32 MipLevel) const {
-	return FatData->Views.MainSet.SubresourcesDSVs.GetCPUHandle(GetSubresourceIndex(MipLevel));
+FDepthStencilView FGPUResource::GetDSV(u32 MipLevel) const {
+	return{ FatData->Views.MainSet.SubresourcesDSVs.GetCPUHandle(GetSubresourceIndex(MipLevel)), GetWriteFormat() };
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetDSV() const {
-	return FatData->Views.MainSet.SubresourcesDSVs.GetCPUHandle(0);
+FDepthStencilView FGPUResource::GetDSV() const {
+	return{ FatData->Views.MainSet.SubresourcesDSVs.GetCPUHandle(0), GetWriteFormat() };
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE FGPUResource::GetSRV() const {
@@ -96,6 +96,10 @@ Vec3u FGPUResource::GetDimensions() const {
 
 D3D12_VIEWPORT FGPUResource::GetSizeAsViewport() const {
 	return { 0.f, 0.f, (float)FatData->Desc.Width, (float)FatData->Desc.Height, 0.f, 1.f } ;
+}
+
+FViewportRect FGPUResource::GetSizeAsViewportRect() const {
+	return FViewportRect((u32)FatData->Desc.Width, (u32)FatData->Desc.Height);
 }
 
 void*	FGPUResource::GetMappedPtr() const {

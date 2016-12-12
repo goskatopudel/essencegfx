@@ -157,28 +157,30 @@ void D3D12Device::InitWarp() {
 
 #include <EASTL\vector.h>
 
-unique_com_ptr<ID3D12Debug>						D12DebugLayer;
 eastl::vector<eastl::shared_ptr<D3D12Device>>	DevicesList;
 
-void InitDevices(u32 adapterIndex, bool debugMode) {
-	if (debugMode) {
+void InitDevices(u32 adapterIndex, EDebugMode debugMode) {
+	unique_com_ptr<ID3D12Debug> D12DebugLayer;
+	if (debugMode == EDebugMode::DebugLayer || debugMode == EDebugMode::GpuValidation) {
 		VERIFYDX12(D3D12GetDebugInterface(IID_PPV_ARGS(D12DebugLayer.get_init())));
 		D12DebugLayer->EnableDebugLayer();
 	}
+	if (D12DebugLayer.get() && debugMode == EDebugMode::GpuValidation) {
+		unique_com_ptr<ID3D12Debug1>	D12DebugLayer1;
+		VERIFYDX12(D12DebugLayer->QueryInterface(IID_PPV_ARGS(D12DebugLayer1.get_init())));
+		D12DebugLayer1->SetEnableGPUBasedValidation(true);
+	}
 
 	DevicesList.emplace_back(eastl::make_shared<D3D12Device>());
-	DevicesList.back()->InitFromAdapterIndex(adapterIndex, D3D_FEATURE_LEVEL_11_0);
-
-	/*DevicesList.emplace_back(new D3D12Device);
-	DevicesList.back()->InitWarp();*/
+	DevicesList.back()->InitFromAdapterIndex(adapterIndex, D3D_FEATURE_LEVEL_12_0);
 }
 
 D3D12Device* GetPrimaryDevice() {
 	return DevicesList[0].get();
 }
 
-FGPUResource*	GetBackbuffer() {
-	return GetSwapChain()->Backbuffers[GetSwapChain()->CurrentBackbufferIndex].get();
+FGPUResourceRefParam	GetBackbuffer() {
+	return GetSwapChain()->Backbuffers[GetSwapChain()->CurrentBackbufferIndex];
 }
 
 DXGI_FORMAT GetBackbufferFormat() {
@@ -233,7 +235,7 @@ WinSwapChain::WinSwapChain() :
 	for (u32 i = 0; i < BackbuffersNum; ++i) {
 		ID3D12Resource* resource;
 		VERIFYDX12(SwapChain->GetBuffer(i, IID_PPV_ARGS(&resource)));
-		Backbuffers.emplace_back(eastl::make_unique<FGPUResource>(resource, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB));
+		Backbuffers.emplace_back(eastl::make_shared<FGPUResource>(resource, BackbufferFormat));
 		AllocateResourceViews(Backbuffers.back().get());
 	}
 }
@@ -247,6 +249,7 @@ WinSwapChain::~WinSwapChain() {
 void WinSwapChain::Resize(u32 width, u32 height) {
 	for (u32 i = 0; i < BackbuffersNum; ++i) {
 		FreeResourceViews(Backbuffers[i].get(), GetDummyGPUSyncPoint());
+		check(Backbuffers[i].use_count() == 1);
 	}
 	Backbuffers.clear();
 
@@ -256,7 +259,7 @@ void WinSwapChain::Resize(u32 width, u32 height) {
 	for (u32 i = 0; i < BackbuffersNum; ++i) {
 		ID3D12Resource* resource;
 		VERIFYDX12(SwapChain->GetBuffer(i, IID_PPV_ARGS(&resource)));
-		Backbuffers.emplace_back(eastl::make_unique<FGPUResource>(resource, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB));
+		Backbuffers.emplace_back(eastl::make_shared<FGPUResource>(resource, BackbufferFormat));
 		AllocateResourceViews(Backbuffers.back().get());
 	}
 

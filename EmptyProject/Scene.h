@@ -1,48 +1,181 @@
 #pragma once
+#include "Essence.h"
+#include "RenderModel.h"
 #include "MathVector.h"
-#include "MathMatrix.h"
-#include <EASTL\string.h>
-#include <EASTL\shared_ptr.h>
-#include "Model.h"
-#include <DirectXMath.h>
 
-class FGPUContext;
+class FScene;
+class FSceneRenderPass;
+class FSceneRenderContext;
+class FActorMaterial;
+class FRenderPass_MaterialInstance;
 
-class FSceneObject {
+class FRenderPass {
 public:
-	virtual ~FSceneObject() {}
-	virtual void Prepare(FGPUContext & Context) {}
+	ERenderPass Pass;
+	virtual void Begin(FSceneRenderContext & RenderSceneContext, FCommandsStream & CmdStream) {}
+	virtual void PreCacheMaterial(FSceneRenderContext & RenderSceneContext, FRenderPass_MaterialInstanceRefParam Cachable) {}
 };
 
-class FSceneStaticMesh;
+struct FRenderItem {
+	u64 SortIndex;
+	FSceneActor * Actor;
+	FActorMaterial * Material;
+	u32 SubmeshIndex;
+};
+
+// encapsulates (scene, pass) tuple
+class FSceneRenderPass {
+public:
+	FScene * Scene;
+	FRenderPass * RenderPass;
+	u32 CullBitIndex;
+
+	eastl::vector<u32> Actors;
+	// all items that need to be rendered (passed broad visibility test)
+	// updated each frame
+	eastl::vector<FRenderItem> RenderList;
+
+	FSceneRenderPass(FRenderPass * InRenderPass) : RenderPass(InRenderPass) {}
+};
+DECORATE_CLASS_REF(FSceneRenderPass);
+
+class FActorMaterial {
+public:
+	FRenderPass_MaterialInstance * Material;
+	eastl::vector<u32> Submeshes;
+	eastl::vector<u32> RootParams;
+};
+
+struct FSceneActor_RenderPass {
+	FSceneRenderPass * SceneRenderPass;
+	eastl::vector<FActorMaterial> MaterialsUsed;
+	bool IsInAnyRenderList;
+};
+
+// this is tightly coupled with single scene instance
+class FSceneActor {
+public:
+	const u32 Id;
+	FScene * const Scene;
+
+	float3 Position;
+	FRenderModelRef RenderModel;
+
+	u64 LastFrameUsed = -1;
+	u32 LastCullMask = 0;
+
+	// all passes that use the actor
+	eastl::vector<FSceneActor_RenderPass> RenderPassInstances;
+
+	FSceneActor(FScene * InScene, u32 InId) : 
+		Id(InId),
+		Scene(InScene)
+		{
+	}
+};
+DECORATE_CLASS_REF(FSceneActor);
+
+class FRenderListItem {
+public:
+	FSceneActor * Actor;
+	struct FSubmeshMaterial {
+		u32 SubmeshIndex;
+		FRenderPass_MaterialInstanceRef PassMaterialInstance;
+	};
+	eastl::vector<FSubmeshMaterial> Submeshes;
+};
+
+class FRenderPass;
+
+class FRenderPassList {
+public:
+	FSceneRenderPassRef SceneRenderPass;
+	eastl::hash_map<u32, u32> IdLookup;
+	eastl::vector<FRenderListItem> Items;
+
+	FRenderPassList(FSceneRenderPassRefParam);
+
+	void Attach(FSceneActor * Actor);
+	void Detach(FSceneActor * Actor);
+};
+
+struct FSceneObjectRenderInfo {
+public:
+	u64 LastFrameUpdated : 63;
+	u64 IsDirty : 1;
+};
 
 class FScene {
 public:
-	u32 IdCounter = 0;
-	eastl::hash_map<u32, eastl::unique_ptr<FSceneObject>> Objects;
-	eastl::vector<FSceneStaticMesh*> StaticMeshes;
+	u64 CurrentFrameIndex; // used to identify outdated actors
 
-	void AddStaticMesh(const wchar_t* Name, FModelRef Model);
+	eastl::vector<FSceneActorRef> Actors;
+	eastl::vector<FSceneObjectRenderInfo> ActorInfo;
+	FRenderPassList DepthPrePassActors;
+	FRenderPassList ForwardPassActors;
 
-	void Prepare(FGPUContext & Context);
+	u32 ActorId_Counter;
+	eastl::vector<u32> ActorId_FreeList;
+	u32 GenerateActorId();
+	void ReleaseActorId(u32);
+
+	FScene();
+	FSceneActorRef SpawnActor(FRenderModelRefParam RenderModel, float3 Position);
+	void RemoveActor(FSceneActorRefParam Actor);
+
+	void AdvanceToNextFrame();
 };
 
-class FSceneStaticMesh : public FSceneObject {
+class FCamera;
+
+#include "MathMatrix.h"
+
+struct FSceneViewMatrices {
+	float4x4 View;
+	float4x4 InvView;
+	float4x4 Projection;
+	float4x4 InvProjection;
+};
+
+enum class EDepthProjection {
+	Standard,
+	InverseDepth
+};
+
+struct FSceneRenderConfig {
+	EDepthProjection Projection = EDepthProjection::Standard;
+	float ClearDepth = 1.f;
+};
+
+class FSceneRenderState {
 public:
-	u32 Id;
-	eastl::wstring Name;
-	FModelRef Model;
-	float3 Position = float3(0, 0, 0);
+	Vec2u Resolution;
+	FSceneViewMatrices ViewMatrices;
+	u64 CurrentFrameIndex;
 
-	FSceneStaticMesh() = default;
-	FSceneStaticMesh(u32 id, eastl::wstring && name, FModelRef model) : Id(id), Name(name), Model(model) {
-
-	}
-
-	void Prepare(FGPUContext & Context) override;
+	FGPUResourceRef DepthBuffer;
+	FGPUResourceRef ColorBuffer;
 };
 
-void CreateWorldMatrixT(float3 Position, float Scale, float4x4 &OutMatrix);
-DirectX::XMMATRIX GetWorldMatrix(float3 Position, float Scale);
-void StoreTransposed(DirectX::CXMMATRIX Matrix, float4x4 * Out);
-DirectX::XMMATRIX Load(float4x4 const & Matrix);
+struct FFrustum {
+	// ?
+};
+
+class FSceneRenderContext {
+public:
+	FScene * Scene;
+	FCamera * Camera;
+	FSceneRenderState State;
+	FSceneRenderConfig Config;
+
+	eastl::vector<FFrustum> Frusta;
+	eastl::vector<FSceneRenderPass*> RenderPasses;
+
+	FGPUResource * GetDepthBuffer();
+	FGPUResource * GetColorBuffer();
+
+	void AllocateRenderTargets();
+	void SetupNextFrameRendering(FScene * InScene, Vec2u InResolution, FCamera * InCamera);
+};
+
+

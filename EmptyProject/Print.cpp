@@ -10,6 +10,9 @@ void PrintFormated(const wchar_t* pFormat, ...) {
 }
 
 eastl::wstring ConvertToWString(const char* src, u64 len) {
+	if (len == -1) {
+		len = strlen(src);
+	}
 	eastl::wstring wstr;
 	wstr.resize(len);
 
@@ -23,6 +26,9 @@ eastl::wstring ConvertToWString(const char* src, u64 len) {
 }
 
 eastl::string ConvertToString(const wchar_t* src, u64 len) {
+	if (len == -1) {
+		len = wcslen(src);
+	}
 	eastl::string str;
 	// dunno why easstl::DecodePart needs more space
 	str.resize(len + 64);

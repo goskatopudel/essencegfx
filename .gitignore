@@ -298,3 +298,6 @@ ModelManifest.xml
 !/EmptyProject/DirectXMesh/Debug/DirectXMesh.pdb
 !/EmptyProject/DirectXMesh/Release/DirectXMesh.lib
 !/EmptyProject/DirectXMesh/Release/DirectXMesh.pdb
+/EmptyProject/Models/sibenik
+/EmptyProject/Models/sibenik.zip
+/EmptyProject/Shaders/Ideas.cpp

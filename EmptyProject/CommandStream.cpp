@@ -34,7 +34,7 @@ u64	FRenderCmdSetCounterFunc(FGPUContext * Context, void * DataVoidPtr) {
 
 u64	FRenderCmdSetPipelineStateFunc(FGPUContext * Context, void * DataVoidPtr) {
 	auto Data = (FRenderCmdSetPipelineState*)DataVoidPtr;
-	Context->SetRoot(Data->State->ShaderState->Root);
+	Context->SetRoot(Data->State->ShaderState->RootLayout);
 	Context->SetPSO(Data->State);
 	return sizeof(FRenderCmdHeader) + sizeof(FRenderCmdSetPipelineState);
 }

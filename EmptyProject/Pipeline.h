@@ -70,7 +70,7 @@ public:
 	FShaderRef PixelShader;
 	FShaderRef ComputeShader;
 	FRootSignature * RootSignature;
-	FRootLayout* Root;
+	FRootLayout * RootLayout;
 	bool FixedRootSignature;
 	u64 ShadersCompilationVersion = 0;
 	u64 ContentHash;
@@ -82,6 +82,7 @@ public:
 	FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inHullShader, FShaderRefParam inDomainShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature = nullptr);
 	FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inHullShader, FShaderRefParam inDomainShader, FShaderRefParam inGeometryShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature = nullptr);
 
+	void Init(bool bCompute, FRootSignature * inRootSignature);
 	virtual void InitParams() = 0;
 
 	void Compile();
@@ -89,9 +90,7 @@ public:
 
 	eastl::wstring	GetDebugName() const;
 };
-
-typedef eastl::shared_ptr<FShaderState> FShaderStateRef;
-typedef eastl::shared_ptr<FShaderState> & FShaderStateRefParam;
+DECORATE_CLASS_REF(FShaderState);
 
 class FPipelineState {
 public:

@@ -173,6 +173,11 @@ void InitDevices(u32 adapterIndex, EDebugMode debugMode) {
 
 	DevicesList.emplace_back(eastl::make_shared<D3D12Device>());
 	DevicesList.back()->InitFromAdapterIndex(adapterIndex, D3D_FEATURE_LEVEL_12_0);
+
+	if (debugMode == EDebugMode::DebugLayer) {
+		unique_com_ptr<ID3D12InfoQueue> InfoQueue;
+		VERIFYDX12(DevicesList.back()->D12Device->QueryInterface(IID_PPV_ARGS(InfoQueue.get_init())));
+	}
 }
 
 D3D12Device* GetPrimaryDevice() {

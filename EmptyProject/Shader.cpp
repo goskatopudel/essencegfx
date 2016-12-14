@@ -15,6 +15,10 @@
 #include "Hash.h"
 #include "Device.h"
 
+void FShaderCompilationEnvironment::SetDefine(eastl::string A, eastl::string B) {
+	Macros.push_back(eastl::make_pair(std::move(A), std::move(B)));
+}
+
 class FCompiledShader {
 public:
 	eastl::unique_ptr<u8[]>			Bytecode;
@@ -127,13 +131,17 @@ FShaderRef GetNullShader() {
 	return NullShader;
 }
 
-FShaderRef GetGlobalShader(eastl::string file, eastl::string func, const char* target, std::initializer_list<ShaderMacroPair> macros, u32 flags) {
+FShaderRef GetGlobalShader(eastl::string file, eastl::string func, const char* target, u32 flags) {
+	return GetGlobalShader(std::move(file), std::move(func), target, FShaderCompilationEnvironment(), flags);
+}
+
+FShaderRef GetGlobalShader(eastl::string file, eastl::string func, const char* target, FShaderCompilationEnvironment & environment, u32 flags) {
 	u64 shaderLocationHash = flags;
 	shaderLocationHash = MurmurHash2_64(file.data(), file.size() * sizeof(file[0]), shaderLocationHash);
 	shaderLocationHash = MurmurHash2_64(func.data(), func.size() * sizeof(func[0]), shaderLocationHash);
 	shaderLocationHash = MurmurHash2_64(target, strlen(target) * sizeof(target[0]), shaderLocationHash);
-	if (macros.size()) {
-		shaderLocationHash = MurmurHash2_64(macros.begin(), macros.size() * sizeof(macros.begin()[0]), shaderLocationHash);
+	if (environment.Macros.size()) {
+		shaderLocationHash = MurmurHash2_64(environment.Macros.begin(), environment.Macros.size() * sizeof(environment.Macros.begin()[0]), shaderLocationHash);
 	}
 
 	ShaderHash hashLookup = { shaderLocationHash };
@@ -145,15 +153,15 @@ FShaderRef GetGlobalShader(eastl::string file, eastl::string func, const char* t
 	auto & Ref = GlobalShadersLookup[hashLookup] = eastl::make_shared<FGlobalShader>();
 	auto shader = static_cast<FGlobalShader*>(Ref.get());
 
-	eastl::unique_ptr<D3D_SHADER_MACRO[]> d3dmacros = eastl::make_unique<D3D_SHADER_MACRO[]>(macros.size() + 1);
-	for (auto & Macro : macros) {
+	eastl::unique_ptr<D3D_SHADER_MACRO[]> d3dmacros = eastl::make_unique<D3D_SHADER_MACRO[]>(environment.Macros.size() + 1);
+	for (auto & Macro : environment.Macros) {
 		shader->MacrosRaw.push_back(Macro);
 	}
-	for (u32 Index = 0; Index < macros.size(); ++Index) {
+	for (u32 Index = 0; Index < environment.Macros.size(); ++Index) {
 		d3dmacros[Index].Name = shader->MacrosRaw[Index].first.c_str();
 		d3dmacros[Index].Definition = shader->MacrosRaw[Index].second.c_str();
 	}
-	d3dmacros[macros.size()] = {};
+	d3dmacros[environment.Macros.size()] = {};
 
 	shader->File = file;
 	shader->Func = func;

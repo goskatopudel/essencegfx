@@ -11,9 +11,9 @@ public:
 	FTestMaterialShaderState() {}
 
 	void InitParams() override final {
-		AlbedoTexture = Root->CreateSRVParam(this, "AlbedoTexture");
-		FrameCBV = Root->CreateCBVParam(this, "Frame");
-		ObjectCBV = Root->CreateCBVParam(this, "Object");
+		AlbedoTexture = RootLayout->CreateSRVParam(this, "AlbedoTexture");
+		FrameCBV = RootLayout->CreateCBVParam(this, "Frame");
+		ObjectCBV = RootLayout->CreateCBVParam(this, "Object");
 	}
 };
 
@@ -66,9 +66,10 @@ public:
 	eastl::hash_map<u64, FRenderMaterialRef> RenderMaterialsMap;
 
 	FRenderMaterialRef GetRenderMaterial(eastl::wstring const & ShaderName) {
-		eastl::wstring ShaderNameFinal = ConvertToResourceString(ShaderName);
+		eastl::wstring wShaderNameFinal = ConvertToResourceString(ShaderName);
+		eastl::string ShaderNameFinal = ConvertToString(wShaderNameFinal);
 
-		u64 Key = MurmurHash2_64(ShaderNameFinal.data(), sizeof(wchar_t) * ShaderNameFinal.length(), 0);
+		u64 Key = MurmurHash2_64(ShaderNameFinal.data(), sizeof(ShaderNameFinal[0]) * ShaderNameFinal.length(), 0);
 
 		auto RenderMaterialIter = RenderMaterialsMap.find(Key);
 		if (RenderMaterialIter != RenderMaterialsMap.end()) {
@@ -83,7 +84,7 @@ public:
 
 FRenderMaterialManager GRenderMaterialManager;
 
-FRenderMaterial::FRenderMaterial(eastl::wstring InShaderName) :
+FRenderMaterial::FRenderMaterial(eastl::string InShaderName) :
 	ShaderName(InShaderName)
 {
 }
@@ -101,26 +102,63 @@ FRenderPass_MaterialInstance::FRenderPass_MaterialInstance(FRenderPass * InRende
 	RenderPass(InRenderPass),
 	RenderMaterialInstance(InRenderMaterialInstance)
 {
+}
 
+FSceneRenderPass_MaterialInstance::FSceneRenderPass_MaterialInstance(FSceneRenderPass * InSceneRenderPass, FRenderMaterialInstanceRefParam InRenderMaterialInstance) :
+	SceneRenderPass(InSceneRenderPass)
+{
+	// todo: caching, owned by renderpass?
+	RenderPass_MaterialInstance = eastl::make_shared<FRenderPass_MaterialInstance>(InSceneRenderPass->RenderPass, InRenderMaterialInstance);
+}
+
+template<typename T>
+bool HasFlag(T A, T B) {
+	return u32(A & B) > 0;
 }
 
 void FRenderPass_MaterialInstance::Prepare() {
+	if (!ShaderState.get()) {
+		FShaderCompilationEnvironment CompilationEnv;
+
+		RenderPass->SetCompilationEnv(CompilationEnv);
+
+		FShaderRef VertexShader;
+		FShaderRef PixelShader;
+		if (HasFlag(PipelineShaders, EPipelineShadersUsage::Vertex)) {
+			VertexShader = GetGlobalShader(
+				RenderMaterialInstance->RenderMaterial->ShaderName,
+				"VertexMain",
+				"vs_5_1",
+				CompilationEnv);
+		}
+		if (HasFlag(PipelineShaders, EPipelineShadersUsage::Pixel)) {
+			PixelShader = GetGlobalShader(
+				RenderMaterialInstance->RenderMaterial->ShaderName,
+				"PixelMain",
+				"ps_5_1",
+				CompilationEnv);
+		}
+		check((u32)PipelineShaders < 4); // not implemented other shaders
+
+		//ShaderState = GetShaderState(VertexShader, PixelShader, PassMaterialRootSignature);
+	}
+}
+
+void FSceneRenderPass_MaterialInstance::Prepare() {
+	RenderPass_MaterialInstance->Prepare();
+
 	// prepare PSO
+	if (PSO != nullptr && !PSO->IsOutdated()) {
+		return;
+	}
 
-	// if PSO exists and not oudated
-		// early exit
+	
+	
+	// FPipelineStateDesc PipelineStateDesc;
+	// PipelineStateDesc.SetRenderTargets(FRenderPass->Targets);// SceneRenderPass
+	// PipelineStateDesc.SetShaders(ShaderState);
 
-	// get rtvs from render pass
-	// get rasterizer state
-
-	// get shaders
-	// u8 mask with shaders to compile = VertexOnly, VertexPixel, VertexPixelTessalated, etc
-	// MainVertex, MainPixel, etc for used ones
-
-	// setup shader defines
-	//FShaderCompilationEnv ShaderEnv;
-	//ShaderEnv.SetDefine("DEPTH_ONLY");
-	//ShaderEnv.SetDefine("RENDER_FORWARD");
+	// GetPipelineState
 }
 
 FRenderMaterialInstanceRef GetBasicMaterialInstance(FBasicMaterialDesc const& Desc) {
@@ -132,8 +170,8 @@ FRenderMaterialInstanceRef GetBasicMaterialInstance(FBasicMaterialDesc const& De
 	return RenderMatInst;
 }
 
-FRenderPass_MaterialInstanceRef GetRenderPass_MaterialInstance(FRenderPass * RenderPass, FRenderMaterialInstanceRefParam RenderMaterialInstance) {
-	return eastl::make_shared<FRenderPass_MaterialInstance>(RenderPass, RenderMaterialInstance);
+FSceneRenderPass_MaterialInstanceRef GetSceneRenderPass_MaterialInstance(FSceneRenderPass * SceneRenderPass, FRenderMaterialInstanceRefParam RenderMaterialInstance) {
+	return eastl::make_shared<FSceneRenderPass_MaterialInstance>(SceneRenderPass, RenderMaterialInstance);
 }
 
 //

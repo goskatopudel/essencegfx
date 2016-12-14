@@ -128,7 +128,7 @@ void TestGraph() {
 
 	SceneRenderContext.SetupNextFrameRendering(
 		&Scene, 
-		Vec2u(GApplication::WindowHeight, GApplication::WindowWidth), 
+		Vec2u(GApplication::WindowWidth, GApplication::WindowHeight),
 		&Camera);
 
 	auto Color = RenderSceneToTexture(CmdStream, &SceneRenderContext);

@@ -753,7 +753,7 @@ void FGPUContext::CopyResource(FGPUResource* dst, FGPUResource* src) {
 
 void FGPUContext::SetPipelineState(FPipelineState const* PipelineState) {
 	SetPSO(PipelineState);
-	SetRoot(PipelineState->ShaderState->Root);
+	SetRoot(PipelineState->ShaderState->RootLayout);
 }
 
 void FGPUContext::SetPSO(FPipelineState const* pso) {

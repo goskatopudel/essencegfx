@@ -20,7 +20,8 @@ public:
 	FPipelineCache PipelineCache;
 
 	void Begin(FSceneRenderContext & RenderSceneContext, FCommandsStream & CmdStream) override;
-	void PreCacheMaterial(FSceneRenderContext & RenderSceneContext, FRenderPass_MaterialInstanceRefParam Cachable) override;
+	void PreCacheMaterial(FSceneRenderContext & RenderSceneContext, FSceneRenderPass_MaterialInstanceRefParam Cachable) override;
+	void QueryRenderTargets(FSceneRenderContext & SceneRenderContext, FRenderTargetsBundle & Bundle) override;
 };
 
 class FDepthPrePass : public FRenderPass {
@@ -28,5 +29,6 @@ public:
 	FPipelineCache PipelineCache;
 
 	void Begin(FSceneRenderContext & RenderSceneContext, FCommandsStream & CmdStream) override;
-	void PreCacheMaterial(FSceneRenderContext & RenderSceneContext, FRenderPass_MaterialInstanceRefParam Cachable) override;
+	void PreCacheMaterial(FSceneRenderContext & RenderSceneContext, FSceneRenderPass_MaterialInstanceRefParam Cachable) override;
+	void QueryRenderTargets(FSceneRenderContext & SceneRenderContext, FRenderTargetsBundle & Bundle) override;
 };

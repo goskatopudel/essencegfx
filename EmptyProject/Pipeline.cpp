@@ -588,17 +588,9 @@ FShaderState::FShaderState(FShaderRefParam inComputeShader, FRootSignature * inR
 	Type(EPipelineType::Compute),
 	ComputeShader(inComputeShader),
 	RootSignature(inRootSignature),
-	Root(nullptr)
+	RootLayout(nullptr)
 {
-	FixedRootSignature = inRootSignature != nullptr;
-
-	ContentHash = VertexShader->PersistentHash;
-	if (PixelShader.get()) {
-		ContentHash = HashCombine64(ContentHash, ComputeShader->PersistentHash);
-	}
-	if (FixedRootSignature) {
-		ContentHash = HashCombine64(ContentHash, RootSignature->ValueHash);
-	}
+	Init(true, inRootSignature);
 }
 
 FShaderState::FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature) :
@@ -618,24 +610,40 @@ FShaderState::FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inHul
 	GeometryShader(inGeometryShader),
 	PixelShader(inPixelShader),
 	RootSignature(inRootSignature),
-	Root(nullptr) {
-	FixedRootSignature = inRootSignature != nullptr;
+	RootLayout(nullptr) {
 
-	ContentHash = VertexShader->PersistentHash;
-	if (HullShader.get()) {
-		ContentHash = HashCombine64(ContentHash, HullShader->PersistentHash);
+	Init(false, inRootSignature);
+}
+
+void FShaderState::Init(bool bCompute, FRootSignature * inRootSignature) {
+	FixedRootSignature = RootSignature != nullptr;
+
+	if(!bCompute) {
+		ContentHash = VertexShader->PersistentHash;
+		if (HullShader.get()) {
+			ContentHash = HashCombine64(ContentHash, HullShader->PersistentHash);
+		}
+		if (DomainShader.get()) {
+			ContentHash = HashCombine64(ContentHash, DomainShader->PersistentHash);
+		}
+		if (GeometryShader.get()) {
+			ContentHash = HashCombine64(ContentHash, GeometryShader->PersistentHash);
+		}
+		if (PixelShader.get()) {
+			ContentHash = HashCombine64(ContentHash, PixelShader->PersistentHash);
+		}
+		if (FixedRootSignature) {
+			ContentHash = HashCombine64(ContentHash, RootSignature->ValueHash);
+		}
 	}
-	if (DomainShader.get()) {
-		ContentHash = HashCombine64(ContentHash, DomainShader->PersistentHash);
-	}
-	if (GeometryShader.get()) {
-		ContentHash = HashCombine64(ContentHash, GeometryShader->PersistentHash);
-	}
-	if (PixelShader.get()) {
-		ContentHash = HashCombine64(ContentHash, PixelShader->PersistentHash);
-	}
-	if (FixedRootSignature) {
-		ContentHash = HashCombine64(ContentHash, RootSignature->ValueHash);
+	else {
+		ContentHash = VertexShader->PersistentHash;
+		if (PixelShader.get()) {
+			ContentHash = HashCombine64(ContentHash, ComputeShader->PersistentHash);
+		}
+		if (FixedRootSignature) {
+			ContentHash = HashCombine64(ContentHash, RootSignature->ValueHash);
+		}
 	}
 }
 
@@ -645,15 +653,15 @@ void FShaderState::Compile() {
 	}
 
 	if (Type == EPipelineType::Graphics) {
-		Root = GetRootLayout(VertexShader, HullShader, DomainShader, GeometryShader, PixelShader, FixedRootSignature ? RootSignature : nullptr);
+		RootLayout = GetRootLayout(VertexShader, HullShader, DomainShader, GeometryShader, PixelShader, FixedRootSignature ? RootSignature : nullptr);
 		if (!FixedRootSignature) {
-			RootSignature = Root->RootSignature;
+			RootSignature = RootLayout->RootSignature;
 		}
 	}
 	else {
-		Root = GetRootLayout(ComputeShader, FixedRootSignature ? RootSignature : nullptr);
+		RootLayout = GetRootLayout(ComputeShader, FixedRootSignature ? RootSignature : nullptr);
 		if (!FixedRootSignature) {
-			RootSignature = Root->RootSignature;
+			RootSignature = RootLayout->RootSignature;
 		}
 	}
 	InitParams();
@@ -662,7 +670,7 @@ void FShaderState::Compile() {
 
 bool FShaderState::IsOutdated() const {
 	if (Type == EPipelineType::Graphics) {
-		bool Result = (VertexShader->LastChangedVersion > ShadersCompilationVersion) || Root == nullptr;
+		bool Result = (VertexShader->LastChangedVersion > ShadersCompilationVersion) || RootLayout == nullptr;
 		if (HullShader.get() && HullShader->LastChangedVersion > ShadersCompilationVersion) {
 			Result = true;
 		}
@@ -678,7 +686,7 @@ bool FShaderState::IsOutdated() const {
 		return Result;
 	}
 	else {
-		return ComputeShader->LastChangedVersion > ShadersCompilationVersion || (Root == nullptr);
+		return ComputeShader->LastChangedVersion > ShadersCompilationVersion || (RootLayout == nullptr);
 	}
 }
 

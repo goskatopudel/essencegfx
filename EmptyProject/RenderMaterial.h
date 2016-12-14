@@ -25,15 +25,16 @@ enum class ERenderPass {
 
 class FRenderPass;
 class FSceneActor;
+class FSceneRenderPass;
 class FRenderMaterial_Pass;
 
 class FRenderMaterial {
 public:
-	eastl::wstring ShaderName;
+	eastl::string ShaderName;
 
 	//virtual void UpdateDescriptors(FSceneActor *, FRenderMaterial_Pass *) = 0;
 
-	FRenderMaterial(eastl::wstring ShaderName);
+	FRenderMaterial(eastl::string ShaderName);
 };
 DECORATE_CLASS_REF(FRenderMaterial);
 
@@ -105,14 +106,24 @@ public:
 };
 DECORATE_CLASS_REF(FRenderMaterialInstance);
 
+enum class EPipelineShadersUsage : u8
+{
+	Vertex = 1,
+	Pixel = 2,
+	Hull = 4,
+	Domain = 8,
+	VertexPixel = Vertex | Pixel,
+	VertexPixelTessalated = Vertex | Pixel | Hull | Domain
+};
+DEFINE_ENUM_FLAG_OPERATORS(EPipelineShadersUsage);
+
 class FRenderPass_MaterialInstance {
 public:
 	// can cache material specific data (textures table?)
 	FRenderMaterialInstanceRef RenderMaterialInstance;
-	// render pass or scene render pass? scene could store specific formats of rtvs if changeable
 	FRenderPass * RenderPass;
-	FPipelineState * PSO = nullptr;
 	FShaderStateRef ShaderState;
+	EPipelineShadersUsage PipelineShaders = EPipelineShadersUsage::VertexPixel;
 
 	FRenderPass_MaterialInstance(FRenderPass * InRenderPass, FRenderMaterialInstanceRefParam InRenderMaterialInstance);
 
@@ -120,7 +131,18 @@ public:
 };
 DECORATE_CLASS_REF(FRenderPass_MaterialInstance);
 
-FRenderPass_MaterialInstanceRef GetRenderPass_MaterialInstance(FRenderPass *, FRenderMaterialInstanceRefParam);
+class FSceneRenderPass_MaterialInstance {
+public:
+	FRenderPass_MaterialInstanceRef RenderPass_MaterialInstance;
+	FSceneRenderPass * SceneRenderPass;
+	FPipelineState * PSO = nullptr;
+
+	void Prepare();
+	FSceneRenderPass_MaterialInstance(FSceneRenderPass * InSceneRenderPass, FRenderMaterialInstanceRefParam InRenderMaterialInstance);
+};
+DECORATE_CLASS_REF(FSceneRenderPass_MaterialInstance);
+
+FSceneRenderPass_MaterialInstanceRef GetSceneRenderPass_MaterialInstance(FSceneRenderPass *, FRenderMaterialInstanceRefParam);
 
 struct FBasicMaterialDesc {
 	float3 Diffuse;

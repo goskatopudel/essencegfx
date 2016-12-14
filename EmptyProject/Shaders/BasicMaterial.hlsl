@@ -29,13 +29,13 @@ VOut VertexMain(VIn Input, uint VertexId : SV_VertexID)
 {
 	VOut Output;
 
-	float4 position = mul(float4(Input.Position, 1), WorldMatrix);
+	float4 position = mul(float4(Input.Position, 1), Object.WorldMatrix);
 	Output.WorldPosition = position.xyz;
-	Output.Normal = mul(Input.Normal, (float3x3)WorldMatrix);
+	Output.Normal = mul(Input.Normal, (float3x3)Object.WorldMatrix);
 	Output.SvPosition = mul(position, Frame.ViewProjectionMatrix);
 	Output.Texcoord0 = Input.Texcoord0;
 
-	float4 prevPosition = mul(float4(Input.Position, 1), PrevWorldMatrix);
+	float4 prevPosition = mul(float4(Input.Position, 1), Object.PrevWorldMatrix);
 	Output.PrevClipPosition = mul(prevPosition, Frame.PrevViewProjectionMatrix);
 
 	return Output;

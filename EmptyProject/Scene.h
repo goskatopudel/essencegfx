@@ -7,13 +7,15 @@ class FScene;
 class FSceneRenderPass;
 class FSceneRenderContext;
 class FActorMaterial;
-class FRenderPass_MaterialInstance;
+class FSceneRenderPass_MaterialInstance;
 
 class FRenderPass {
 public:
 	ERenderPass Pass;
 	virtual void Begin(FSceneRenderContext & RenderSceneContext, FCommandsStream & CmdStream) {}
-	virtual void PreCacheMaterial(FSceneRenderContext & RenderSceneContext, FRenderPass_MaterialInstanceRefParam Cachable) {}
+	virtual void PreCacheMaterial(FSceneRenderContext & RenderSceneContext, FSceneRenderPass_MaterialInstanceRefParam Cachable) {}
+	virtual void SetCompilationEnv(FShaderCompilationEnvironment & Env) {}
+	virtual void QueryRenderTargets(FSceneRenderContext & SceneRenderContext, FRenderTargetsBundle & Bundle) {}
 };
 
 struct FRenderItem {
@@ -21,6 +23,20 @@ struct FRenderItem {
 	FSceneActor * Actor;
 	FActorMaterial * Material;
 	u32 SubmeshIndex;
+};
+
+struct FRenderTargetsBundle {
+	struct {
+		FRenderTargetView View;
+		FGPUResource * Resource;
+		inline const bool IsUsed() { return View.Format > 0; }
+	} RenderTargets[FStateCache::MAX_RTVS];
+	struct {
+		FDepthStencilView View;
+		FGPUResource * Resource;
+		// todo: read/write depth
+		inline const bool IsUsed() { return View.Format > 0; }
+	} DepthStencil;
 };
 
 // encapsulates (scene, pass) tuple
@@ -35,13 +51,18 @@ public:
 	// updated each frame
 	eastl::vector<FRenderItem> RenderList;
 
+	FRenderTargetsBundle RenderTargets = {};
+	
+	void QueryRenderTargets(FSceneRenderContext & SceneRenderContext);
+	void Begin(FSceneRenderContext & RenderSceneContext, FCommandsStream & CmdStream);
+
 	FSceneRenderPass(FRenderPass * InRenderPass) : RenderPass(InRenderPass) {}
 };
 DECORATE_CLASS_REF(FSceneRenderPass);
 
 class FActorMaterial {
 public:
-	FRenderPass_MaterialInstance * Material;
+	FSceneRenderPass_MaterialInstance * Material;
 	eastl::vector<u32> Submeshes;
 	eastl::vector<u32> RootParams;
 };
@@ -80,7 +101,7 @@ public:
 	FSceneActor * Actor;
 	struct FSubmeshMaterial {
 		u32 SubmeshIndex;
-		FRenderPass_MaterialInstanceRef PassMaterialInstance;
+		FSceneRenderPass_MaterialInstanceRef PassMaterialInstance;
 	};
 	eastl::vector<FSubmeshMaterial> Submeshes;
 };
@@ -155,6 +176,8 @@ public:
 
 	FGPUResourceRef DepthBuffer;
 	FGPUResourceRef ColorBuffer;
+
+	D3D12_VIEWPORT GetViewport() const;
 };
 
 struct FFrustum {

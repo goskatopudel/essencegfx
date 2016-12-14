@@ -11,12 +11,12 @@ public:
 
 	FCopyShaderState() :
 		FShaderState(
-			GetGlobalShader("Shaders/Utility.hlsl", "VertexMain", "vs_5_1", {}, 0),
-			GetGlobalShader("Shaders/Utility.hlsl", "CopyPixelMain", "ps_5_1", {}, 0)) {}
+			GetGlobalShader("Shaders/Utility.hlsl", "VertexMain", "vs_5_1"),
+			GetGlobalShader("Shaders/Utility.hlsl", "CopyPixelMain", "ps_5_1")) {}
 
 	void InitParams() override final {
-		SourceTexture = Root->CreateSRVParam(this, "SourceTexture");
-		Constants = Root->CreateCBVParam(this, "Constants");
+		SourceTexture = RootLayout->CreateSRVParam(this, "SourceTexture");
+		Constants = RootLayout->CreateCBVParam(this, "Constants");
 	}
 };
 

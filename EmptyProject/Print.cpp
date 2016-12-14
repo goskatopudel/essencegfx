@@ -46,6 +46,10 @@ eastl::wstring ConvertToWString(eastl::string const& str) {
 	return std::move(ConvertToWString(str.c_str(), str.size()));
 }
 
+eastl::string ConvertToString(eastl::wstring const& str) {
+	return std::move(ConvertToString(str.c_str(), str.size()));
+}
+
 eastl::string Format(const char* pFormat, ...) {
 	va_list args;
 	eastl::string w;

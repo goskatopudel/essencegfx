@@ -68,6 +68,38 @@ void FScene::RemoveActor(FSceneActorRefParam Actor)
 	// detach from passes
 }
 
+void FSceneRenderPass::QueryRenderTargets(FSceneRenderContext & SceneRenderContext) {
+	RenderPass->QueryRenderTargets(SceneRenderContext, RenderTargets);
+}
+
+D3D12_VIEWPORT FSceneRenderState::GetViewport() const {
+	D3D12_VIEWPORT Out;
+	Out.MinDepth = 0.f;
+	Out.MaxDepth = 1.f;
+	Out.TopLeftX = 0.f;
+	Out.TopLeftY = 0.f;
+	Out.Width = float(Resolution.x);
+	Out.Height = float(Resolution.y);
+	return Out;
+}
+
+void FSceneRenderPass::Begin(FSceneRenderContext & RenderSceneContext, FCommandsStream & CmdStream) {
+	for (u64 Index = 0; Index < _countof(RenderTargets.RenderTargets); ++Index) {
+		if(RenderTargets.RenderTargets[Index].IsUsed()) {
+			CmdStream.SetRenderTarget(RenderTargets.RenderTargets[Index].View, (u8)Index);
+			CmdStream.SetAccess(RenderTargets.RenderTargets[Index].Resource, EAccessType::WRITE_RT);
+		}
+	}
+	if (RenderTargets.DepthStencil.IsUsed()) {
+		CmdStream.SetDepthStencil(RenderTargets.DepthStencil.View);
+		CmdStream.SetAccess(RenderTargets.DepthStencil.Resource, EAccessType::WRITE_DEPTH);
+	}
+
+	RenderPass->Begin(RenderSceneContext, CmdStream);
+	CmdStream.ClearDSV(RenderTargets.DepthStencil.View.DSV, RenderSceneContext.Config.ClearDepth);
+	CmdStream.SetViewport(RenderSceneContext.State.GetViewport());
+}
+
 void FRenderPassList::Attach(FSceneActor * Actor) {
 	check(IdLookup.count(Actor->Id) == 0);
 
@@ -94,14 +126,14 @@ void FRenderPassList::Attach(FSceneActor * Actor) {
 	SceneActor_RenderPass.SceneRenderPass = SceneRenderPass.get();
 	SceneActor_RenderPass.IsInAnyRenderList = false;
 
-	eastl::hash_map<FRenderPass_MaterialInstance *, u32> PassMaterialInstanceLookup;
+	eastl::hash_map<FSceneRenderPass_MaterialInstance *, u32> PassMaterialInstanceLookup;
 
 	u32 SubmeshIndex = 0;
 	for (auto & Submesh : Actor->RenderModel->Submeshes) {
 		if (Actor->RenderModel->Submeshes[SubmeshIndex].Material->IsRenderedWithPass(SceneRenderPass->RenderPass)) {
 			auto & SubItem = Item.Submeshes.push_back();
 			SubItem.SubmeshIndex = SubmeshIndex;
-			SubItem.PassMaterialInstance = GetRenderPass_MaterialInstance(SceneRenderPass->RenderPass, Actor->RenderModel->Submeshes[SubmeshIndex].Material);
+			SubItem.PassMaterialInstance = GetSceneRenderPass_MaterialInstance(SceneRenderPass.get(), Actor->RenderModel->Submeshes[SubmeshIndex].Material);
 
 			auto MaterialIter = PassMaterialInstanceLookup.find(SubItem.PassMaterialInstance.get());
 			if (MaterialIter == PassMaterialInstanceLookup.end()) {
@@ -178,7 +210,7 @@ public:
 		FSceneActorRef Actor;
 		eastl::vector<u32> SubmeshIndices;
 	};
-	FRenderPass_MaterialInstanceRef Material;
+	FSceneRenderPass_MaterialInstanceRef Material;
 	eastl::vector<FListItem> Items;
 };
 
@@ -211,7 +243,7 @@ struct FRenderPassDrawList {
 	FRenderPass* RenderPass;
 	struct FRenderItem {
 		FSceneActor * Actor;
-		FRenderPass_MaterialInstance * MatInst;
+		FSceneRenderPass_MaterialInstance * MatInst;
 		u32 SubmeshIndex;
 	};
 	eastl::vector<FRenderItem> Items;
@@ -300,7 +332,7 @@ void ProcessScene(FSceneRenderContext * SceneContext) {
 
 	struct FActorMaterialUpdate {
 		FSceneActor * Actor;
-		FRenderPass_MaterialInstance * Material;
+		FSceneRenderPass_MaterialInstance * Material;
 
 		FActorMaterialUpdate() = default;
 	};
@@ -311,7 +343,7 @@ void ProcessScene(FSceneRenderContext * SceneContext) {
 
 	// prepare list of dirty actor-materials that will be used in frame rendering
 	// updates scene-pass lists of render items: (actor, submesh) tuples
-	eastl::hash_set<FRenderPass_MaterialInstance*> UpdateMaterials;
+	eastl::hash_set<FSceneRenderPass_MaterialInstance*> UpdateMaterials;
 	for (FCulledActor CulledActor : UpdateActors) {
 		FSceneActor * Actor = Scene->Actors[CulledActor.Index];
 		Actor->LastFrameUsed = CurrentFrameIndex;
@@ -345,7 +377,7 @@ void ProcessScene(FSceneRenderContext * SceneContext) {
 	}
 
 	// process list of materials that need update
-	for (FRenderPass_MaterialInstance * MatInst : UpdateMaterials) {
+	for (FSceneRenderPass_MaterialInstance * MatInst : UpdateMaterials) {
 		MatInst->Prepare();
 		// MatInst->UpdateMaterialDescriptors();
 	}
@@ -372,26 +404,11 @@ void ProcessScene(FSceneRenderContext * SceneContext) {
 
 	
 	for (FSceneRenderPass * Pass : RenderPasses) {
-		// if sort
+#if 1
 		eastl::stable_sort(Pass->RenderList.begin(), Pass->RenderList.end(), [](FRenderItem A, FRenderItem B) {
 			return A.SortIndex < B.SortIndex;
 		});
-
-		// setup pass targets
-
-		for (FRenderItem Item : Pass->RenderList) {
-			Item.Actor;
-			Item.Material;
-			Item.SubmeshIndex;
-
-			// setup material (pso, root params)
-			Item.Material->Material;
-
-			for (u32 SubmeshIndex : Item.Material->Submeshes) {
-				//draw call params
-				//Item.Actor->RenderModel->Submeshes[SubmeshIndex];
-			}
-		}
+#endif
 	}
 }
 
@@ -417,15 +434,63 @@ void FSceneRenderContext::SetupNextFrameRendering(FScene * InScene, Vec2u InReso
 	State.Resolution = InResolution;
 
 	AllocateRenderTargets();
-
 	
 	for (FSceneRenderPass* SceneRenderPass : RenderPasses) {
-		Frusta.resize( eastl::max(Frusta.size(), (u64)SceneRenderPass->CullBitIndex + 1) );
+		SceneRenderPass->QueryRenderTargets(*this);
+
+		Frusta.resize(eastl::max(Frusta.size(), (u64)SceneRenderPass->CullBitIndex + 1));
 	}
 }
 
 FGPUResourceRef RenderSceneToTexture(FCommandsStream & CmdStream, FSceneRenderContext * SceneRenderContext) {
 	ProcessScene(SceneRenderContext);
+
+	for (FSceneRenderPass * Pass : SceneRenderContext->RenderPasses) {
+		// setup pass targets
+		// Pass->Setup(CmdStream);
+		//  = SetRenderTargets
+
+		// SET VIEWPORT
+		// SET ?
+
+		Pass->Begin(*SceneRenderContext, CmdStream);
+
+		FSceneRenderPass_MaterialInstance * PrevMaterial = nullptr;
+
+		for (FRenderItem Item : Pass->RenderList) {
+			Item.Actor;
+			Item.Material;
+			Item.SubmeshIndex;
+
+			//Item.Actor->RenderModel->VertexBuffer->Get
+			/*FBufferLocation VB;
+			VB.Address = VertexBuffer->GetGPUAddress();
+			VB.Size = vtxBytesize;
+			VB.Stride = sizeof(ImDrawVert);
+			CmdStream.SetVB(, 0);*/
+			// SET VB
+			// SET IB
+
+
+			// setup material (pso, root params)
+			FSceneRenderPass_MaterialInstance * Material = Item.Material->Material;
+
+			if (Material != PrevMaterial) {
+				// todo: does change root as return! =
+				//CmdStream.SetPipelineState(Material->PSO);
+				PrevMaterial = Material;
+			}
+
+			for (u32 SubmeshIndex : Item.Material->Submeshes) {
+				//draw call params
+				//Item.Actor->RenderModel->Submeshes[SubmeshIndex];
+				auto A = Item.Actor->RenderModel->Submeshes[SubmeshIndex].IndicesNum;
+				auto B = Item.Actor->RenderModel->Submeshes[SubmeshIndex].StartIndex;
+				auto C = Item.Actor->RenderModel->Submeshes[SubmeshIndex].BaseVertex;
+				//CmdStream.DrawIndexed(A, B, C);
+			}
+		}
+	}
 
 	return SceneRenderContext->State.ColorBuffer;
 }

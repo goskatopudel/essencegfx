@@ -82,12 +82,12 @@ public:
 
 	FUIShaderState() : 
 		FShaderState(
-			GetGlobalShader("Shaders/Ui.hlsl", "VShader", "vs_5_0", {}, 0),
-			GetGlobalShader("Shaders/Ui.hlsl", "PShader", "ps_5_0", {}, 0)) {}
+			GetGlobalShader("Shaders/Ui.hlsl", "VShader", "vs_5_0"),
+			GetGlobalShader("Shaders/Ui.hlsl", "PShader", "ps_5_0")) {}
 
 	void InitParams() override final {
-		AtlasTexture = Root->CreateSRVParam(this, "Image");
-		ConstantBuffer = Root->CreateCBVParam(this, "Constants");
+		AtlasTexture = RootLayout->CreateSRVParam(this, "Image");
+		ConstantBuffer = RootLayout->CreateCBVParam(this, "Constants");
 	}
 };
 

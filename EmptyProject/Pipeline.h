@@ -83,7 +83,7 @@ public:
 	FShaderState(FShaderRefParam inVertexShader, FShaderRefParam inHullShader, FShaderRefParam inDomainShader, FShaderRefParam inGeometryShader, FShaderRefParam inPixelShader, FRootSignature * inRootSignature = nullptr);
 
 	void Init(bool bCompute, FRootSignature * inRootSignature);
-	virtual void InitParams() = 0;
+	virtual void InitParams() {}
 
 	void Compile();
 	bool IsOutdated() const;
@@ -284,6 +284,20 @@ public:
 	FPipelineCache();
 };
 
+struct FRenderTargetsBundle {
+	struct {
+		FRenderTargetView View;
+		FGPUResource * Resource;
+		inline const bool IsUsed() const { return View.Format > 0; }
+	} RenderTargets[FStateCache::MAX_RTVS];
+	struct {
+		FDepthStencilView View;
+		FGPUResource * Resource;
+		// todo: read/write depth
+		inline const bool IsUsed() const { return View.Format > 0; }
+	} DepthStencil;
+};
+
 template<typename T>
 struct FStateProxy {
 	FPipelineCache * PipelineCache = nullptr;
@@ -326,7 +340,9 @@ struct FStateProxy {
 	void SetRasterizerState(D3D12_RASTERIZER_DESC const& RasterizerState);
 	void SetDepthStencilState(D3D12_DEPTH_STENCIL_DESC const& DepthStencilState);
 	void SetBlendState(D3D12_BLEND_DESC const& BlendState);
-	void SetRenderTargetsBundle(struct FRenderTargetsBundle const * RenderTargets);
+	void SetRenderTargetsBundle(struct FRenderTargetsBundle const & RenderTargets);
+	void GetCurrentGraphicsPipelineStateDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC & OutDesc);
+	void GetCurrentComputePipelineStateDesc(D3D12_COMPUTE_PIPELINE_STATE_DESC & OutDesc);
 
 	void ApplyState();
 };
@@ -443,17 +459,27 @@ void FStateProxy<T>::SetTopology(D3D_PRIMITIVE_TOPOLOGY InTopology) {
 }
 
 template<typename T>
-void FStateProxy<T>::SetRenderTargetsBundle(struct FRenderTargetsBundle const * RenderTargets) {
-	if (RenderTargets->DepthBuffer) {
-		SetDepthStencil(RenderTargets->DepthBuffer->GetDSV(), RenderTargets->DepthBuffer->GetWriteFormat());
+void FStateProxy<T>::SetRenderTargetsBundle(struct FRenderTargetsBundle const & RTBundle) {
+	if (RTBundle.DepthStencil.IsUsed()) {
+		SetDepthStencil(RTBundle.DepthStencil.View);
 	}
 
 	u32 Index = 0;
-	for (auto & RT : RenderTargets->Outputs) {
-		SetRenderTarget(RenderTargets->Outputs[Index].GetRTV(), RenderTargets->Outputs[Index].GetFormat(), Index);
-		Index++;
+	for (u64 Index = 0; Index < _countof(RTBundle.RenderTargets); ++Index) {
+		if(RTBundle.RenderTargets[Index].IsUsed()) {
+			SetRenderTarget(RTBundle.RenderTargets[Index].View, (u32)Index);
+		}
 	}
-	Recorder->SetRenderTargetsBundle(RenderTargets);
+}
+
+template<typename T>
+void FStateProxy<T>::GetCurrentGraphicsPipelineStateDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC & OutDesc) {
+	OutDesc = PipelineDesc;
+}
+
+template<typename T>
+void FStateProxy<T>::GetCurrentComputePipelineStateDesc(D3D12_COMPUTE_PIPELINE_STATE_DESC & OutDesc) {
+	OutDesc = ComputePipelineDesc;
 }
 
 template<typename T>

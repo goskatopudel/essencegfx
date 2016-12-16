@@ -12,6 +12,18 @@ void PrepareDefaultMaterialDesc(FBasicMaterialDesc & MaterialDesc) {
 	MaterialDesc.bTransparent = 0;
 }
 
+FBufferLocation FRenderModel::GetVertexBufferView(u32 Stream) const {
+	FBufferLocation Location;
+	check(0);
+	return Location;
+}
+
+FBufferLocation FRenderModel::GetIndexBufferView() const {
+	FBufferLocation Location;
+	check(0);
+	return Location;
+}
+
 FRenderModelRef GetModel(const wchar_t * Filename, const wchar_t * Path, const wchar_t * TexturesPath) {
 	eastl::wstring combinedpath = eastl::wstring(Path) + Filename;
 	eastl::string scombinedpath = ConvertToString(combinedpath.data(), combinedpath.length());
@@ -32,6 +44,16 @@ FRenderModelRef GetModel(const wchar_t * Filename, const wchar_t * Path, const w
 
 	eastl::vector<FMeshRichVertex> Vertices;
 	eastl::vector<u32> Indices;
+
+	Model->InputLayout = GetInputLayout({
+		CreateInputElement("POSITION", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("NORMAL", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("TANGENT", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("BITANGENT", DXGI_FORMAT_R32G32B32_FLOAT, 0, 0),
+		CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 0, 0),
+		CreateInputElement("TEXCOORD", DXGI_FORMAT_R32G32_FLOAT, 1, 0),
+		CreateInputElement("COLOR", DXGI_FORMAT_R8G8B8A8_UNORM, 0, 0) 
+	});
 	
 	for (size_t s = 0; s < shapes.size(); s++) {
 		u32 StartIndex = (u32)Indices.size();

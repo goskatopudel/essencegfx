@@ -9,6 +9,18 @@ class FSceneRenderContext;
 class FActorMaterial;
 class FSceneRenderPass_MaterialInstance;
 
+class FDummyStateConsumer {
+public:
+	inline void SetPipelineState(FPipelineState * PipelineState) {}
+	inline void SetTopology(D3D_PRIMITIVE_TOPOLOGY Topology) {}
+	inline void SetRenderTarget(FRenderTargetView, u32 Index) {}
+	inline void SetDepthStencil(FDepthStencilView dsv) {}
+	inline void SetViewport(D3D12_VIEWPORT const & Viewport) {}
+	inline void SetScissorRect(D3D12_RECT const & Rect) {}
+	inline void SetVB(FBufferLocation const & BufferView, u32 Stream = 0) {}
+	inline void SetIB(FBufferLocation const & BufferView) {}
+};
+
 class FRenderPass {
 public:
 	ERenderPass Pass;
@@ -16,6 +28,7 @@ public:
 	virtual void PreCacheMaterial(FSceneRenderContext & RenderSceneContext, FSceneRenderPass_MaterialInstanceRefParam Cachable) {}
 	virtual void SetCompilationEnv(FShaderCompilationEnvironment & Env) {}
 	virtual void QueryRenderTargets(FSceneRenderContext & SceneRenderContext, FRenderTargetsBundle & Bundle) {}
+	virtual FRootSignature * GetDefaultRootSignature() { return nullptr; }
 };
 
 struct FRenderItem {
@@ -23,20 +36,6 @@ struct FRenderItem {
 	FSceneActor * Actor;
 	FActorMaterial * Material;
 	u32 SubmeshIndex;
-};
-
-struct FRenderTargetsBundle {
-	struct {
-		FRenderTargetView View;
-		FGPUResource * Resource;
-		inline const bool IsUsed() { return View.Format > 0; }
-	} RenderTargets[FStateCache::MAX_RTVS];
-	struct {
-		FDepthStencilView View;
-		FGPUResource * Resource;
-		// todo: read/write depth
-		inline const bool IsUsed() { return View.Format > 0; }
-	} DepthStencil;
 };
 
 // encapsulates (scene, pass) tuple

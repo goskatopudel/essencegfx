@@ -133,7 +133,7 @@ void FRenderPassList::Attach(FSceneActor * Actor) {
 		if (Actor->RenderModel->Submeshes[SubmeshIndex].Material->IsRenderedWithPass(SceneRenderPass->RenderPass)) {
 			auto & SubItem = Item.Submeshes.push_back();
 			SubItem.SubmeshIndex = SubmeshIndex;
-			SubItem.PassMaterialInstance = GetSceneRenderPass_MaterialInstance(SceneRenderPass.get(), Actor->RenderModel->Submeshes[SubmeshIndex].Material);
+			SubItem.PassMaterialInstance = GetSceneRenderPass_MaterialInstance(SceneRenderPass.get(), Actor->RenderModel->Submeshes[SubmeshIndex].Material, Actor->RenderModel->InputLayout);
 
 			auto MaterialIter = PassMaterialInstanceLookup.find(SubItem.PassMaterialInstance.get());
 			if (MaterialIter == PassMaterialInstanceLookup.end()) {
@@ -446,22 +446,15 @@ FGPUResourceRef RenderSceneToTexture(FCommandsStream & CmdStream, FSceneRenderCo
 	ProcessScene(SceneRenderContext);
 
 	for (FSceneRenderPass * Pass : SceneRenderContext->RenderPasses) {
-		// setup pass targets
-		// Pass->Setup(CmdStream);
-		//  = SetRenderTargets
-
-		// SET VIEWPORT
-		// SET ?
-
 		Pass->Begin(*SceneRenderContext, CmdStream);
 
 		FSceneRenderPass_MaterialInstance * PrevMaterial = nullptr;
-
 		for (FRenderItem Item : Pass->RenderList) {
 			Item.Actor;
 			Item.Material;
 			Item.SubmeshIndex;
 
+			
 			//Item.Actor->RenderModel->VertexBuffer->Get
 			/*FBufferLocation VB;
 			VB.Address = VertexBuffer->GetGPUAddress();
@@ -477,7 +470,7 @@ FGPUResourceRef RenderSceneToTexture(FCommandsStream & CmdStream, FSceneRenderCo
 
 			if (Material != PrevMaterial) {
 				// todo: does change root as return! =
-				//CmdStream.SetPipelineState(Material->PSO);
+				CmdStream.SetPipelineState(Material->PSO);
 				PrevMaterial = Material;
 			}
 

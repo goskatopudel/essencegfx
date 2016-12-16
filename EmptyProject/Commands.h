@@ -323,17 +323,24 @@ struct FResourceAccessNode {
 
 #include <EASTL/hash_set.h>
 
+enum class ECommandsStreamMode {
+	Direct, 
+	Indirect
+};
+
 class FCommandsStream {
 	// todo: bypass recoding when no access changes, go directly to d3d12 command list (for geometry passes)
 public:
+	ECommandsStreamMode Mode = ECommandsStreamMode::Indirect;
+
 	eastl::unique_ptr<u8[]> Data;
-	u64						Offset = 0;
-	u64						MaxSize = 0;
-	bool					IsClosed = 0;
+	u64 Offset = 0;
+	u64 MaxSize = 0;
+	bool IsClosed = 0;
 
 	struct FResourceAccessList {
-		eastl::vector<FResourceAccess>	Accesses;
-		u32								BatchedNum;
+		eastl::vector<FResourceAccess> Accesses;
+		u32 BatchedNum;
 	};
 	eastl::hash_map<FGPUResource*, FResourceAccessList>	ResourceAccessList;
 	eastl::hash_set<FGPUResource*> ProcessList;

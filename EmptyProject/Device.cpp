@@ -174,9 +174,28 @@ void InitDevices(u32 adapterIndex, EDebugMode debugMode) {
 	DevicesList.emplace_back(eastl::make_shared<D3D12Device>());
 	DevicesList.back()->InitFromAdapterIndex(adapterIndex, D3D_FEATURE_LEVEL_12_0);
 
-	if (debugMode == EDebugMode::DebugLayer) {
-		unique_com_ptr<ID3D12InfoQueue> InfoQueue;
-		VERIFYDX12(DevicesList.back()->D12Device->QueryInterface(IID_PPV_ARGS(InfoQueue.get_init())));
+	if (D12DebugLayer.get()) {
+		unique_com_ptr<ID3D12InfoQueue> D3D12InfoQueue;
+		VERIFYDX12(DevicesList.back()->D12Device->QueryInterface(IID_PPV_ARGS(D3D12InfoQueue.get_init())));
+
+		if (D3D12InfoQueue.get()) {
+			D3D12_INFO_QUEUE_FILTER NewFilter;
+			ZeroMemory(&NewFilter, sizeof(NewFilter));
+
+			D3D12_MESSAGE_SEVERITY DenySeverity = D3D12_MESSAGE_SEVERITY_INFO;
+			NewFilter.DenyList.NumSeverities = 1;
+			NewFilter.DenyList.pSeverityList = &DenySeverity;
+
+			D3D12_MESSAGE_ID DenyIds[] = {
+				D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+				D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
+			};
+
+			NewFilter.DenyList.NumIDs = sizeof(DenyIds) / sizeof(D3D12_MESSAGE_ID);
+			NewFilter.DenyList.pIDList = (D3D12_MESSAGE_ID*)&DenyIds;
+
+			D3D12InfoQueue->PushStorageFilter(&NewFilter);
+		}
 	}
 }
 

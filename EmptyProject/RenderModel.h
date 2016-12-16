@@ -24,7 +24,10 @@ public:
 	eastl::wstring Name;
 	FGPUResourceRef VertexBuffer;
 	FGPUResourceRef IndexBuffer;
+	FInputLayout * InputLayout;
 	eastl::vector<FSubmesh> Submeshes;
+	FBufferLocation GetVertexBufferView(u32 Stream = 0) const;
+	FBufferLocation GetIndexBufferView() const;
 };
 DECORATE_CLASS_REF(FRenderModel);
 

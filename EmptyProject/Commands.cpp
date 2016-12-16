@@ -1276,6 +1276,7 @@ void FResourceStateRegistry::Deregister(FGPUResource* Resource) {
 }
 
 void	FCommandsStream::SetAccess(FGPUResource * Resource, EAccessType Access, u32 Subresource) {
+	check(Mode == ECommandsStreamMode::Indirect);
 	PreCommandAdd();
 	if (!Resource->FatData->AutomaticBarriers) {
 		return;
@@ -1389,6 +1390,8 @@ void FCommandsStream::ProcessBarriersPreExecution(FResourceStateRegistry & Regis
 // assigns kickoff index to barriers
 void FCommandsStream::BatchBarriers() {
 	if (ProcessList.size()) {
+		check(Mode == ECommandsStreamMode::Indirect);
+
 		for (FGPUResource* Resource : ProcessList) {
 			auto & List = ResourceAccessList[Resource];
 			for (u32 Index = List.BatchedNum; Index < List.Accesses.size(); Index++) {

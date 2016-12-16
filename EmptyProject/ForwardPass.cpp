@@ -40,6 +40,29 @@ void FForwardPass::QueryRenderTargets(FSceneRenderContext & SceneRenderContext, 
 	Bundle.DepthStencil.View = SceneRenderContext.GetDepthBuffer()->GetDSV();
 }
 
+FRootSignature * FForwardPass::GetDefaultRootSignature() {
+	static eastl::unique_ptr<FRootSignature> RootSignature;
+	if (RootSignature.get()) {
+		return RootSignature.get();
+	}
+	
+	RootSignature = eastl::make_unique<FRootSignature>();
+	RootSignature->InitDefault(D3D12_SHADER_VISIBILITY_PIXEL, STAGE_VERTEX | STAGE_PIXEL);
+	RootSignature->AddTableParam(PARAM_0, D3D12_SHADER_VISIBILITY_VERTEX);
+	RootSignature->AddTableCBVRange(0, 1, 2);
+	RootSignature->AddTableParam(PARAM_1, D3D12_SHADER_VISIBILITY_PIXEL);
+	RootSignature->AddTableSRVRange(0, 8, 1);
+	RootSignature->AddTableCBVRange(0, 1, 1);
+	RootSignature->AddTableParam(PARAM_2, D3D12_SHADER_VISIBILITY_PIXEL);
+	RootSignature->AddTableSRVRange(0, 4, 0);
+	RootSignature->AddTableCBVRange(0, 1, 0);
+	RootSignature->AddTableParam(PARAM_3, D3D12_SHADER_VISIBILITY_VERTEX);
+	RootSignature->AddTableCBVRange(0, 1, 0);
+	RootSignature->SerializeAndCreate();
+
+	return RootSignature.get();
+}
+
 void FDepthPrePass::Begin(FSceneRenderContext & RenderSceneContext, FCommandsStream & CmdStream) {
 	/*FGPUResource * DepthBuffer = RenderSceneContext.GetDepthBuffer();
 	FGPUResource * ColorBuffer = RenderSceneContext.GetColorBuffer();
@@ -62,4 +85,27 @@ void FDepthPrePass::PreCacheMaterial(FSceneRenderContext & RenderSceneContext, F
 void FDepthPrePass::QueryRenderTargets(FSceneRenderContext & SceneRenderContext, FRenderTargetsBundle & Bundle) {
 	Bundle.DepthStencil.Resource = SceneRenderContext.GetDepthBuffer();
 	Bundle.DepthStencil.View = SceneRenderContext.GetDepthBuffer()->GetDSV();
+}
+
+FRootSignature * FDepthPrePass::GetDefaultRootSignature() {
+	static eastl::unique_ptr<FRootSignature> RootSignature;
+	if (RootSignature.get()) {
+		return RootSignature.get();
+	}
+
+	RootSignature = eastl::make_unique<FRootSignature>();
+	RootSignature->InitDefault(D3D12_SHADER_VISIBILITY_PIXEL, STAGE_VERTEX | STAGE_PIXEL);
+	RootSignature->AddTableParam(PARAM_0, D3D12_SHADER_VISIBILITY_VERTEX);
+	RootSignature->AddTableCBVRange(0, 1, 2);
+	RootSignature->AddTableParam(PARAM_1, D3D12_SHADER_VISIBILITY_PIXEL);
+	RootSignature->AddTableSRVRange(0, 8, 1);
+	RootSignature->AddTableCBVRange(0, 1, 1);
+	RootSignature->AddTableParam(PARAM_2, D3D12_SHADER_VISIBILITY_PIXEL);
+	RootSignature->AddTableSRVRange(0, 4, 0);
+	RootSignature->AddTableCBVRange(0, 1, 0);
+	RootSignature->AddTableParam(PARAM_3, D3D12_SHADER_VISIBILITY_VERTEX);
+	RootSignature->AddTableCBVRange(0, 1, 0);
+	RootSignature->SerializeAndCreate();
+
+	return RootSignature.get();
 }

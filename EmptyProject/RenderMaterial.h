@@ -123,9 +123,10 @@ public:
 	FRenderMaterialInstanceRef RenderMaterialInstance;
 	FRenderPass * RenderPass;
 	FShaderStateRef ShaderState;
+	FInputLayout * InputLayout;
 	EPipelineShadersUsage PipelineShaders = EPipelineShadersUsage::VertexPixel;
 
-	FRenderPass_MaterialInstance(FRenderPass * InRenderPass, FRenderMaterialInstanceRefParam InRenderMaterialInstance);
+	FRenderPass_MaterialInstance(FRenderPass * InRenderPass, FRenderMaterialInstanceRefParam InRenderMaterialInstance, FInputLayout * InInputLayout);
 
 	void Prepare();
 };
@@ -138,11 +139,11 @@ public:
 	FPipelineState * PSO = nullptr;
 
 	void Prepare();
-	FSceneRenderPass_MaterialInstance(FSceneRenderPass * InSceneRenderPass, FRenderMaterialInstanceRefParam InRenderMaterialInstance);
+	FSceneRenderPass_MaterialInstance(FSceneRenderPass * InSceneRenderPass, FRenderMaterialInstanceRefParam InRenderMaterialInstance, FInputLayout * InInputLayout);
 };
 DECORATE_CLASS_REF(FSceneRenderPass_MaterialInstance);
 
-FSceneRenderPass_MaterialInstanceRef GetSceneRenderPass_MaterialInstance(FSceneRenderPass *, FRenderMaterialInstanceRefParam);
+FSceneRenderPass_MaterialInstanceRef GetSceneRenderPass_MaterialInstance(FSceneRenderPass *, FRenderMaterialInstanceRefParam, FInputLayout *);
 
 struct FBasicMaterialDesc {
 	float3 Diffuse;

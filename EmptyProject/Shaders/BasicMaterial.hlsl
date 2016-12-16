@@ -1,9 +1,9 @@
 #include "BasicMaterial_Data.h"
 
-ConstantBuffer<FFrameConstants> Frame : register(b0);
-ConstantBuffer<FTestMaterial_Object> Object : register(b2);
+ConstantBuffer<FFrameConstants> Frame : register(b0, space0);
+ConstantBuffer<FTestMaterial_Object> Object : register(b0, space2);
 
-Texture2D<float4> 	AlbedoTexture : register(t0);
+Texture2D<float4> 	AlbedoTexture : register(t0, space1);
 
 struct VIn 
 {

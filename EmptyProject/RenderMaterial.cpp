@@ -98,17 +98,18 @@ void FRenderMaterialInstance::SetTexture(FMaterialShaderParam Param, FTextureAss
 
 }
 
-FRenderPass_MaterialInstance::FRenderPass_MaterialInstance(FRenderPass * InRenderPass, FRenderMaterialInstanceRefParam InRenderMaterialInstance) :
+FRenderPass_MaterialInstance::FRenderPass_MaterialInstance(FRenderPass * InRenderPass, FRenderMaterialInstanceRefParam InRenderMaterialInstance, FInputLayout * InInputLayout) :
 	RenderPass(InRenderPass),
-	RenderMaterialInstance(InRenderMaterialInstance)
+	RenderMaterialInstance(InRenderMaterialInstance),
+	InputLayout(InInputLayout)
 {
 }
 
-FSceneRenderPass_MaterialInstance::FSceneRenderPass_MaterialInstance(FSceneRenderPass * InSceneRenderPass, FRenderMaterialInstanceRefParam InRenderMaterialInstance) :
+FSceneRenderPass_MaterialInstance::FSceneRenderPass_MaterialInstance(FSceneRenderPass * InSceneRenderPass, FRenderMaterialInstanceRefParam InRenderMaterialInstance, FInputLayout * InInputLayout) :
 	SceneRenderPass(InSceneRenderPass)
 {
 	// todo: caching, owned by renderpass?
-	RenderPass_MaterialInstance = eastl::make_shared<FRenderPass_MaterialInstance>(InSceneRenderPass->RenderPass, InRenderMaterialInstance);
+	RenderPass_MaterialInstance = eastl::make_shared<FRenderPass_MaterialInstance>(InSceneRenderPass->RenderPass, InRenderMaterialInstance, InInputLayout);
 }
 
 template<typename T>
@@ -140,7 +141,7 @@ void FRenderPass_MaterialInstance::Prepare() {
 		}
 		check((u32)PipelineShaders < 4); // not implemented other shaders
 
-		//ShaderState = GetShaderState(VertexShader, PixelShader, PassMaterialRootSignature);
+		ShaderState = eastl::make_shared<FShaderState>(VertexShader, PixelShader, RenderPass->GetDefaultRootSignature());
 	}
 }
 
@@ -151,14 +152,16 @@ void FSceneRenderPass_MaterialInstance::Prepare() {
 	if (PSO != nullptr && !PSO->IsOutdated()) {
 		return;
 	}
-
 	
-	
-	// FPipelineStateDesc PipelineStateDesc;
-	// PipelineStateDesc.SetRenderTargets(FRenderPass->Targets);// SceneRenderPass
-	// PipelineStateDesc.SetShaders(ShaderState);
+	FStateProxy<FDummyStateConsumer> RenderPipelineState;
+	RenderPipelineState.SetRenderTargetsBundle(SceneRenderPass->RenderTargets);
+	RenderPipelineState.SetShaderState(RenderPass_MaterialInstance->ShaderState);
+	RenderPipelineState.SetTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//RenderPipelineState.SetStates();
 
-	// GetPipelineState
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC PipelineStateDesc;
+	RenderPipelineState.GetCurrentGraphicsPipelineStateDesc(PipelineStateDesc);
+	PSO = GetGraphicsPipelineState(RenderPass_MaterialInstance->ShaderState, &PipelineStateDesc, RenderPass_MaterialInstance->InputLayout);
 }
 
 FRenderMaterialInstanceRef GetBasicMaterialInstance(FBasicMaterialDesc const& Desc) {
@@ -170,8 +173,8 @@ FRenderMaterialInstanceRef GetBasicMaterialInstance(FBasicMaterialDesc const& De
 	return RenderMatInst;
 }
 
-FSceneRenderPass_MaterialInstanceRef GetSceneRenderPass_MaterialInstance(FSceneRenderPass * SceneRenderPass, FRenderMaterialInstanceRefParam RenderMaterialInstance) {
-	return eastl::make_shared<FSceneRenderPass_MaterialInstance>(SceneRenderPass, RenderMaterialInstance);
+FSceneRenderPass_MaterialInstanceRef GetSceneRenderPass_MaterialInstance(FSceneRenderPass * SceneRenderPass, FRenderMaterialInstanceRefParam RenderMaterialInstance, FInputLayout * InputLayout) {
+	return eastl::make_shared<FSceneRenderPass_MaterialInstance>(SceneRenderPass, RenderMaterialInstance, InputLayout);
 }
 
 //
